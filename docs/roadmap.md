@@ -140,23 +140,24 @@ WhisperKit は VAD を機能として案内している。([Mintlify][2]) ただ
 
 ```text
 - Releaseビルド
-- Developer ID署名
-- Notarization
 - DMG作成
 - GitHub Actions release workflow
 - GitHub Releases への DMG 公開
 - GitHub Pages から releases/latest へ誘導
+- （任意）Developer ID署名とNotarization
 ```
 
 完了条件:
 
 ```text
-- v*.*.* タグ push で署名・公証済み Transnote-{version}.dmg が GitHub Releases に公開される
+- v*.*.* タグ push で Transnote-{version}.dmg が GitHub Releases に公開される
 - GitHub Pages にダウンロード導線とインストール案内がある
-- 必要な GitHub Secrets 未設定時は配布 workflow が失敗する
+- 未署名配布時は GitHub Secrets なしで workflow が動作する
 ```
 
-Mac App Store 外で配布する場合、Developer ID で署名し、Apple の Notarization に提出する流れを想定する。Apple は、Mac App Store 外で配布する Developer ID 署名ソフトウェアについて、公証により Gatekeeper がソフトウェアの改ざんや既知マルウェアでないことを確認できると説明している。([Apple Developer][4])
+現状は未署名 DMG を配布している。初回起動時に Gatekeeper の警告が出るため、インストール手順で右クリック → 開く を案内する。
+
+将来、スムーズなインストール体験が必要になった場合は、Developer ID で署名し、Apple の Notarization に提出する流れを検討する。Apple は、Mac App Store 外で配布する Developer ID 署名ソフトウェアについて、公証により Gatekeeper がソフトウェアの改ざんや既知マルウェアでないことを確認できると説明している。([Apple Developer][4])
 
 ## 開発スケジュール案
 
@@ -168,7 +169,7 @@ Mac App Store 外で配布する場合、Developer ID で署名し、Apple の N
 | 4週目 | モデル管理        | モデルDL、選択、削除                       |
 | 5週目 | 履歴・設定        | 履歴、保存先、言語設定                       |
 | 6週目 | 長時間音声テスト     | 60分以上の音声で安定化                      |
-| 7週目 | 配布準備         | 署名、公証、DMG                         |
+| 7週目 | 配布準備         | 未署名 DMG、GitHub Releases / Pages |
 | 8週目 | β版           | 実ユーザーテスト                          |
 
 ## v1 以降の拡張
@@ -211,7 +212,7 @@ v0.1: ファイル選択 → 文字起こし → TXT保存
 v0.2: SRT / VTT / JSON、モデル選択
 v0.3: 履歴、設定、長時間音声対応
 v0.4: モデル管理、エラー処理強化
-v1.0: 署名・公証済みDMG配布
+v1.0: 配布導線の安定化（署名は任意）
 v1.1: 動画対応、話者分離、録音
 ```
 

@@ -26,28 +26,7 @@ env:
 jobs:
   release:
     runs-on: macos-15
-    env:
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-      DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
-      DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
-      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
     steps:
-      - name: Verify required secrets
-        run: |
-          set -euo pipefail
-          missing=()
-          for var in APPLE_TEAM_ID APPLE_ID APPLE_APP_SPECIFIC_PASSWORD DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD KEYCHAIN_PASSWORD; do
-            if [ -z "${!var:-}" ]; then
-              missing+=("$var")
-            fi
-          done
-          if [ "${#missing[@]}" -gt 0 ]; then
-            echo "Missing required GitHub Secrets: ${missing[*]}" >&2
-            exit 1
-          fi
-
       - uses: actions/checkout@v4
 
       - uses: maxim-lobanov/setup-xcode@v1
@@ -97,62 +76,15 @@ jobs:
             -destination 'generic/platform=macOS' \
             -archivePath "${{ env.ARCHIVE_PATH }}" \
             CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
             -derivedDataPath "${{ env.DERIVED_DATA_PATH }}"
 
-      - name: Import signing certificate
-        id: signing
-        run: |
-          set -euo pipefail
-          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
-          CERT_PATH="$RUNNER_TEMP/certificate.p12"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          echo "$DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
-          security import "$CERT_PATH" -P "$DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-          security import "$CERT_PATH" -P "$DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD" -A -t priv -f pkcs12 -k "$KEYCHAIN_PATH"
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
-
-          SIGNING_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" | awk -F'"' '/Developer ID Application/ { print $2; exit }')"
-          if [ -z "$SIGNING_IDENTITY" ]; then
-            echo "Developer ID Application identity not found in imported certificate." >&2
-            exit 1
-          fi
-
-          echo "keychain_path=$KEYCHAIN_PATH" >> "$GITHUB_OUTPUT"
-          echo "signing_identity=$SIGNING_IDENTITY" >> "$GITHUB_OUTPUT"
-
-      - name: Export and sign app
+      - name: Export app
         run: |
           set -euo pipefail
           rm -rf "${{ env.RELEASE_APP_DIR }}"
           ./scripts/export-release-app.sh \
             --archive "${{ env.ARCHIVE_PATH }}" \
-            --output "${{ env.RELEASE_APP_DIR }}" \
-            --sign "${{ steps.signing.outputs.signing_identity }}" \
-            --team "${{ secrets.APPLE_TEAM_ID }}"
-
-      - name: Notarize app
-        run: |
-          set -euo pipefail
-          APP_PATH="${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app"
-          ZIP_PATH="$RUNNER_TEMP/${{ env.APP_NAME }}.zip"
-          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
-
-          xcrun notarytool submit "$ZIP_PATH" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
-
-          xcrun stapler staple "$APP_PATH"
-          xcrun stapler validate "$APP_PATH"
-          ./scripts/export-release-app.sh \
-            --output "${{ env.RELEASE_APP_DIR }}" \
-            --verify-only
+            --output "${{ env.RELEASE_APP_DIR }}"
 
       - name: Create DMG
         id: dmg
@@ -169,5 +101,9 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Transnote ${{ steps.version.outputs.version }}
+          body: |
+            未署名ビルドです。初回起動時に Gatekeeper の警告が出る場合は、Finder でアプリを右クリックして「開く」を選んでください。
+
+            詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
           generate_release_notes: true
           files: ${{ steps.dmg.outputs.dmg_path }}

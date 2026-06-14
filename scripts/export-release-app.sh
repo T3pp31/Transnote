@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Extract Transnote.app from an Xcode archive and prepare it for signing / notarization.
+# Extract Transnote.app from an Xcode archive for distribution.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
