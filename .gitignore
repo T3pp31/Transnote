@@ -45,3 +45,6 @@ Models/
 # Test artifacts
 *.xcresult
 .derivedData/
+
+# Cursor debug artifacts
+.cursor/
