@@ -15,6 +15,10 @@ struct MainWindowView: View {
             TranscriptEditorView(
                 text: $viewModel.transcriptText,
                 isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
+                segments: viewModel.currentTranscript?.segments,
+                playingSegmentID: viewModel.playingSegmentID,
+                isEditing: $viewModel.isEditingTranscript,
+                onSegmentTap: viewModel.playSegment,
                 onCopy: viewModel.copyTranscript
             )
             StatusBarView(

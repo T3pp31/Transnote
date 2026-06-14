@@ -15,31 +15,50 @@ struct AudioFileService {
         self.supportedExtensions = supportedExtensions.map { $0.lowercased() }
     }
 
-    func validate(url: URL) throws -> AudioFileInfo {
-        let ext = url.pathExtension.lowercased()
+    func validate(url: URL, preferredFileName: String? = nil) throws -> AudioFileInfo {
+        let pathExt = url.pathExtension.lowercased()
+        let ext: String
+        if pathExt.isEmpty {
+            guard let resolved = SupportedAudioTypes.resolveExtension(for: url, preferredFileName: preferredFileName),
+                  supportedExtensions.contains(resolved) else {
+                // #region agent log
+                DebugSessionLogger.log(
+                    location: "AudioFileService.swift:validate",
+                    message: "unsupported extension rejected",
+                    data: ["detectedExtension": "unknown"],
+                    hypothesisId: "A"
+                )
+                // #endregion
+                throw AppError.unsupportedFileExtension("unknown")
+            }
+            ext = resolved
+        } else {
+            guard supportedExtensions.contains(pathExt) else {
+                // #region agent log
+                DebugSessionLogger.log(
+                    location: "AudioFileService.swift:validate",
+                    message: "unsupported extension rejected",
+                    data: ["detectedExtension": pathExt],
+                    hypothesisId: "A"
+                )
+                // #endregion
+                throw AppError.unsupportedFileExtension(pathExt)
+            }
+            ext = pathExt
+        }
+
         // #region agent log
         DebugSessionLogger.log(
             location: "AudioFileService.swift:validate",
             message: "validate entry",
             data: [
                 "url": url.path,
-                "detectedExtension": ext.isEmpty ? "unknown" : ext,
+                "detectedExtension": ext,
                 "supportedExtensions": supportedExtensions.joined(separator: ","),
             ],
             hypothesisId: "A"
         )
         // #endregion
-        guard supportedExtensions.contains(ext) else {
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "AudioFileService.swift:validate",
-                message: "unsupported extension rejected",
-                data: ["detectedExtension": ext.isEmpty ? "unknown" : ext],
-                hypothesisId: "A"
-            )
-            // #endregion
-            throw AppError.unsupportedFileExtension(ext.isEmpty ? "unknown" : ext)
-        }
 
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw AppError.fileNotFound
