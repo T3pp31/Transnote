@@ -35,7 +35,10 @@ final class ModelDownloadServiceTests: XCTestCase {
             modelDisplayName: "Base"
         )
 
-        XCTAssertEqual(path.path, variantFolder.path)
+        XCTAssertEqual(
+            path.resolvingSymlinksInPath().path,
+            variantFolder.resolvingSymlinksInPath().path
+        )
         XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
     }
 }
