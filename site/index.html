@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Transnote — オンデバイス文字起こし for macOS</title>
+    <meta
+      name="description"
+      content="Transnote は macOS 向けのオンデバイス文字起こしアプリです。音声データは端末内で処理され、クラウドへ送信されません。"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-inner">
+        <img src="Transnote.png" alt="Transnote" class="app-icon" width="128" height="128" />
+        <div>
+          <p class="eyebrow">macOS 14 以降</p>
+          <h1>Transnote</h1>
+          <p class="lead">
+            ローカルの音声ファイルを WhisperKit で文字起こし。処理はすべて端末内で完結し、クラウド送信は行いません。
+          </p>
+          <div class="cta-row">
+            <a class="button primary" href="https://github.com/T3pp31/Transnote/releases/latest">
+              最新版をダウンロード
+            </a>
+            <a class="button secondary" href="https://github.com/T3pp31/Transnote">GitHub</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>できること</h2>
+        <ul>
+          <li>ローカル音声ファイルのドラッグ&amp;ドロップまたはファイル選択</li>
+          <li>WhisperKit によるオンデバイス文字起こし</li>
+          <li>TXT / SRT / VTT / JSON へのエクスポート</li>
+          <li>モデルのダウンロードと選択</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <h2>インストール</h2>
+        <ol>
+          <li>
+            <a href="https://github.com/T3pp31/Transnote/releases/latest">GitHub Releases</a>
+            から <code>Transnote-&lt;version&gt;.dmg</code> をダウンロードします。
+          </li>
+          <li>DMG を開き、<strong>Transnote</strong> を Applications フォルダへドラッグします。</li>
+          <li>初回起動時に Gatekeeper の確認が出た場合は、システム設定から許可してください。</li>
+          <li>初回利用時に Whisper モデルのダウンロードが必要です。画面の案内に従ってください。</li>
+        </ol>
+        <p>
+          詳細はリポジトリ内の
+          <a href="https://github.com/T3pp31/Transnote/blob/main/docs/install.md">インストール手順</a>
+          を参照してください。
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>プライバシー</h2>
+        <p>
+          Transnote は音声データをクラウドへ送信しません。文字起こし処理は端末上の WhisperKit で実行されます。
+          モデルの取得時のみ、Hugging Face などの配布元へネットワーク接続が必要です。
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>開発者向け</h2>
+        <p>
+          ソースコード、Issue、配布ワークフローは
+          <a href="https://github.com/T3pp31/Transnote">GitHub リポジトリ</a>
+          で公開しています。
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <p>Copyright © 2026 Transnote</p>
+    </footer>
+  </body>
+</html>
