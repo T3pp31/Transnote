@@ -7,7 +7,7 @@ struct LocalTranscriberApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup("Transnote") {
             MainWindowView()
         }
         .defaultSize(width: 800, height: 640)
