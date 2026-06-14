@@ -94,7 +94,11 @@ jobs:
             --app "${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app" \
             --version "${{ steps.version.outputs.version }}" \
             --output build/dist
-          echo "dmg_path=build/dist/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg" >> "$GITHUB_OUTPUT"
+          versioned_dmg="build/dist/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg"
+          latest_dmg="build/dist/${{ env.APP_NAME }}.dmg"
+          cp "$versioned_dmg" "$latest_dmg"
+          echo "dmg_path=$versioned_dmg" >> "$GITHUB_OUTPUT"
+          echo "latest_dmg_path=$latest_dmg" >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -106,4 +110,6 @@ jobs:
 
             詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
           generate_release_notes: true
-          files: ${{ steps.dmg.outputs.dmg_path }}
+          files: |
+            ${{ steps.dmg.outputs.dmg_path }}
+            ${{ steps.dmg.outputs.latest_dmg_path }}

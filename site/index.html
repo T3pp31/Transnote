@@ -21,9 +21,14 @@
             ローカルの音声ファイルを WhisperKit で文字起こし。処理はすべて端末内で完結し、クラウド送信は行いません。
           </p>
           <div class="cta-row">
-            <a class="button primary" href="https://github.com/T3pp31/Transnote/releases/latest">
+            <a
+              id="download-button"
+              class="button primary"
+              href="https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg"
+            >
               最新版をダウンロード
             </a>
+            <a class="button secondary" href="https://github.com/T3pp31/Transnote/releases">リリース一覧</a>
             <a class="button secondary" href="https://github.com/T3pp31/Transnote">GitHub</a>
           </div>
         </div>
@@ -45,8 +50,8 @@
         <h2>インストール</h2>
         <ol>
           <li>
-            <a href="https://github.com/T3pp31/Transnote/releases/latest">GitHub Releases</a>
-            から <code>Transnote-&lt;version&gt;.dmg</code> をダウンロードします。
+            <a href="https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg">最新版 DMG</a>
+            をダウンロードします（ファイル名は <code>Transnote.dmg</code>）。
           </li>
           <li>DMG を開き、<strong>Transnote</strong> を Applications フォルダへドラッグします。</li>
           <li>未署名ビルドのため、初回起動時に Gatekeeper の警告が出る場合は、Finder で右クリック → <strong>開く</strong> を選んでください。</li>
@@ -80,5 +85,31 @@
     <footer>
       <p>Copyright © 2026 Transnote</p>
     </footer>
+    <script>
+      (function () {
+        var downloadButton = document.getElementById('download-button');
+        if (!downloadButton) return;
+
+        fetch('https://api.github.com/repos/T3pp31/Transnote/releases/latest')
+          .then(function (response) {
+            return response.json();
+          })
+          .then(function (release) {
+            var assets = release.assets || [];
+            var dmg =
+              assets.find(function (asset) {
+                return asset.name === 'Transnote.dmg';
+              }) ||
+              assets.find(function (asset) {
+                return asset.name.endsWith('.dmg');
+              });
+
+            if (dmg) {
+              downloadButton.href = dmg.browser_download_url;
+            }
+          })
+          .catch(function () {});
+      })();
+    </script>
   </body>
 </html>
