@@ -10,7 +10,7 @@ struct MainWindowView: View {
             FileDropView(
                 supportedExtensions: settings.supportedExtensions,
                 selectedFile: viewModel.selectedFile,
-                onFileSelected: viewModel.selectFile(url:)
+                onFileSelected: viewModel.selectFile(url:preferredFileName:)
             )
             TranscriptEditorView(
                 text: $viewModel.transcriptText,

@@ -69,6 +69,29 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                 .make(phase: .convertingAudio, fraction: 0, modelDisplayName: job.modelDisplayName)
             )
 
+            var completedWindowTexts: [String] = []
+            whisperKit.segmentDiscoveryCallback = { segments in
+                guard let partialText = TranscriptPartialTextBuilder.appendPresentableWindowText(
+                    from: segments.map(\.text),
+                    to: &completedWindowTexts
+                ) else {
+                    return
+                }
+
+                let fraction = whisperKit.progress.fractionCompleted
+                progressHandler?(
+                    .make(
+                        phase: .transcribing,
+                        fraction: fraction > 0 ? fraction : 0,
+                        modelDisplayName: job.modelDisplayName,
+                        partialText: partialText
+                    )
+                )
+            }
+            defer {
+                whisperKit.segmentDiscoveryCallback = nil
+            }
+
             let results = try await whisperKit.transcribe(
                 audioPath: job.audioFileURL.path,
                 decodeOptions: decodeOptions,
@@ -95,7 +118,11 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                 .make(phase: .finished, fraction: 1.0, modelDisplayName: job.modelDisplayName)
             )
 
-            return mapToTranscript(merged, sourceFileName: job.sourceFileName)
+            return mapToTranscript(
+                merged,
+                sourceFileName: job.sourceFileName,
+                tokenizer: whisperKit.tokenizer
+            )
         } catch is CancellationError {
             throw AppError.transcriptionCancelled
         } catch let error as AppError {
@@ -179,27 +206,60 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
             return DecodingOptions(
                 language: languageID,
                 usePrefillPrompt: true,
-                detectLanguage: false
+                detectLanguage: false,
+                skipSpecialTokens: true
             )
         default:
             return DecodingOptions(
                 language: nil,
                 usePrefillPrompt: false,
-                detectLanguage: true
+                detectLanguage: true,
+                skipSpecialTokens: true
             )
         }
     }
 
-    private func mapToTranscript(_ result: TranscriptionResult, sourceFileName: String) -> Transcript {
-        let segments = result.segments.map { segment in
-            TranscriptSegment(
-                startTime: TimeInterval(segment.start),
-                endTime: TimeInterval(segment.end),
-                text: segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
+    private static func decodeWordTokens(_ tokens: [Int], using tokenizer: WhisperTokenizer) -> String {
+        let wordTokens = tokens.filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+        guard !wordTokens.isEmpty else { return "" }
+        return TranscriptTextSanitizer.sanitize(tokenizer.decode(tokens: wordTokens))
+    }
+
+    private static func mapWhisperKitSegment(
+        _ segment: TranscriptionSegment,
+        tokenizer: WhisperTokenizer
+    ) -> TranscriptSegment {
+        let text = TranscriptTextSanitizer.presentableText(from: segment.text)
+            ?? decodeWordTokens(segment.tokens, using: tokenizer)
+        return TranscriptSegment(
+            startTime: TimeInterval(segment.start),
+            endTime: TimeInterval(segment.end),
+            text: text
+        )
+    }
+
+    private static func mapWhisperKitSegment(_ segment: TranscriptionSegment) -> TranscriptSegment {
+        TranscriptSegment(
+            startTime: TimeInterval(segment.start),
+            endTime: TimeInterval(segment.end),
+            text: TranscriptTextSanitizer.presentableText(from: segment.text) ?? ""
+        )
+    }
+
+    private func mapToTranscript(
+        _ result: TranscriptionResult,
+        sourceFileName: String,
+        tokenizer: WhisperTokenizer?
+    ) -> Transcript {
+        let segments: [TranscriptSegment]
+        if let tokenizer {
+            segments = result.segments.map { Self.mapWhisperKitSegment($0, tokenizer: tokenizer) }
+        } else {
+            segments = result.segments.map(Self.mapWhisperKitSegment)
         }
 
-        let fullText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fullText = TranscriptTextSanitizer.presentableText(from: result.text)
+            ?? TranscriptTextSanitizer.sanitize(result.text)
 
         return Transcript(
             sourceFileName: sourceFileName,

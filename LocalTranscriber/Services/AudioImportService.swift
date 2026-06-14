@@ -12,7 +12,7 @@ struct AudioImportService: Sendable {
         self.fileManager = fileManager
     }
 
-    func importFile(from sourceURL: URL) throws -> URL {
+    func importFile(from sourceURL: URL, preferredFileName: String? = nil) throws -> URL {
         // #region agent log
         DebugSessionLogger.log(
             location: "AudioImportService.swift:importFile",
@@ -21,11 +21,21 @@ struct AudioImportService: Sendable {
                 "sourcePath": sourceURL.path,
                 "lastPathComponent": sourceURL.lastPathComponent,
                 "pathExtension": sourceURL.pathExtension,
+                "preferredFileName": preferredFileName ?? "nil",
                 "fileExists": String(fileManager.fileExists(atPath: sourceURL.path)),
+                "alreadyImported": String(isAlreadyImported(sourceURL)),
             ],
-            hypothesisId: "B,C"
+            hypothesisId: "B,C",
+            runId: "post-fix-v5"
         )
         // #endregion
+
+        if isAlreadyImported(sourceURL) {
+            guard fileManager.fileExists(atPath: sourceURL.path) else {
+                throw AppError.fileNotFound
+            }
+            return sourceURL
+        }
 
         guard fileManager.fileExists(atPath: sourceURL.path) else {
             // #region agent log
@@ -41,7 +51,9 @@ struct AudioImportService: Sendable {
 
         try fileManager.createDirectory(at: importsRoot, withIntermediateDirectories: true)
 
-        let destinationURL = uniqueDestinationURL(for: sourceURL.lastPathComponent)
+        let destinationURL = uniqueDestinationURL(
+            for: resolvedFileName(preferredFileName: preferredFileName, sourceURL: sourceURL)
+        )
 
         let didAccessSource = sourceURL.startAccessingSecurityScopedResource()
         // #region agent log
@@ -109,6 +121,22 @@ struct AudioImportService: Sendable {
             logger: AppLogger.fileAccess
         )
         return destinationURL
+    }
+
+    private func isAlreadyImported(_ url: URL) -> Bool {
+        let sourcePath = url.standardizedFileURL.path
+        let importsPath = importsRoot.standardizedFileURL.path
+        guard sourcePath.hasPrefix(importsPath + "/") else {
+            return false
+        }
+        return fileManager.fileExists(atPath: sourcePath)
+    }
+
+    private func resolvedFileName(preferredFileName: String?, sourceURL: URL) -> String {
+        AudioFileNameResolver.resolve(
+            sourceURL: sourceURL,
+            preferredFileName: preferredFileName
+        )
     }
 
     private func uniqueDestinationURL(for fileName: String) -> URL {
