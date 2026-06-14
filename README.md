@@ -1,18 +1,27 @@
 # Transnote
 
-macOS 向けのオンデバイス文字起こしアプリ。ローカルの音声ファイルを WhisperKit で処理し、結果を画面表示・エクスポートする。音声データは端末内で完結し、クラウド送信は行わない。内部アプリ名は LocalTranscriber を想定している。
+macOS 向けのオンデバイス文字起こしアプリ。ローカルの音声ファイルを WhisperKit で処理し、結果を画面表示・エクスポートする。音声データは端末内で完結し、クラウド送信は行わない。内部アプリ名は LocalTranscriber、公開名は Transnote。
 
 技術スタックは SwiftUI + WhisperKit のネイティブ構成とし、Python や Rust は採用しない。
+
+## ダウンロード
+
+| 方法 | リンク |
+| --- | --- |
+| 最新版 DMG | [GitHub Releases (latest)](https://github.com/T3pp31/Transnote/releases/latest) |
+| 配布ページ | [GitHub Pages](https://t3pp31.github.io/Transnote/) |
+
+インストール手順は [docs/install.md](docs/install.md) を参照。
 
 ## ステータス
 
 | 項目 | 状態 |
 | --- | --- |
-| フェーズ | 設計・計画 |
-| 実装 | 未着手 |
-| リポジトリ | README と設計ドキュメントのみ |
+| フェーズ | v0.1 実装・配布準備 |
+| 実装 | SwiftUI アプリ、テスト、CI 稼働中 |
+| 配布 | Developer ID 署名・Notarization・DMG（GitHub Actions） |
 
-## 計画している MVP フロー
+## MVP フロー
 
 ```text
 ローカル音声ファイルを選択
@@ -43,6 +52,31 @@ TXT / SRT / VTT / JSONで保存
 
 WhisperKit は `argmaxinc/argmax-oss-swift` の Swift Package として提供される。前提環境は公式 README に準拠する。
 
+## 開発者向けビルド
+
+```bash
+# Xcode プロジェクトを再生成する場合
+python3 scripts/generate_xcodeproj.py
+
+# テスト（署名なし）
+xcodebuild test \
+  -project LocalTranscriber.xcodeproj \
+  -scheme LocalTranscriber \
+  -destination 'platform=macOS' \
+  CODE_SIGNING_ALLOWED=NO \
+  -derivedDataPath DerivedData
+
+# Debug ビルド
+xcodebuild build \
+  -project LocalTranscriber.xcodeproj \
+  -scheme LocalTranscriber \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+Release ビルド、署名、公証、DMG 作成の運用は [docs/distribution.md](docs/distribution.md) を参照。
+
 ## バージョン計画（概要）
 
 | バージョン | 内容 |
@@ -63,6 +97,8 @@ WhisperKit は `argmaxinc/argmax-oss-swift` の Swift Package として提供さ
 | [docs/architecture.md](docs/architecture.md) | アプリ構成、モジュール設計、画面設計 |
 | [docs/roadmap.md](docs/roadmap.md) | 実装フェーズ、スケジュール、拡張計画 |
 | [docs/spec-v0.1.md](docs/spec-v0.1.md) | v0.1 の仕様とスコープ |
+| [docs/install.md](docs/install.md) | エンドユーザー向けインストール手順 |
+| [docs/distribution.md](docs/distribution.md) | 署名・公証・Release 運用 |
 
 ## 参考リンク
 

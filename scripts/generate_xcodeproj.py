@@ -15,15 +15,24 @@ APP_SOURCES = [
     "LocalTranscriber/Domain/ExportFormat.swift",
     "LocalTranscriber/Domain/TranscriptionProgressUpdate.swift",
     "LocalTranscriber/Domain/TranscriptionProgressDisplay.swift",
+    "LocalTranscriber/Domain/TranscriptTextSanitizer.swift",
+    "LocalTranscriber/Domain/TranscriptPartialTextBuilder.swift",
     "LocalTranscriber/Infrastructure/AppDirectories.swift",
     "LocalTranscriber/Infrastructure/Logger.swift",
     "LocalTranscriber/Infrastructure/ErrorMapper.swift",
+    "LocalTranscriber/Infrastructure/SupportedAudioTypes.swift",
     "LocalTranscriber/Services/Transcriber.swift",
     "LocalTranscriber/Services/WhisperKitTranscriber.swift",
     "LocalTranscriber/Services/ModelAvailabilityService.swift",
+    "LocalTranscriber/Services/ModelDownloadService.swift",
     "LocalTranscriber/Services/AudioImportService.swift",
     "LocalTranscriber/Services/AudioFileService.swift",
+    "LocalTranscriber/Services/DropFileNameResolver.swift",
+    "LocalTranscriber/Services/DropURLParser.swift",
+    "LocalTranscriber/Services/DropImportService.swift",
+    "LocalTranscriber/Services/AudioFileNameResolver.swift",
     "LocalTranscriber/Services/ExportService.swift",
+    "LocalTranscriber/Services/AudioPlayerService.swift",
     "LocalTranscriber/Services/SecurityScopedFileAccess.swift",
     "LocalTranscriber/Presentation/MainWindowView.swift",
     "LocalTranscriber/Presentation/MainWindowViewModel.swift",
@@ -40,7 +49,15 @@ TEST_SOURCES = [
     "LocalTranscriberTests/TranscriptionProgressDisplayTests.swift",
     "LocalTranscriberTests/ModelDownloadIntegrationTests.swift",
     "LocalTranscriberTests/ModelAvailabilityPathTests.swift",
+    "LocalTranscriberTests/ModelDownloadServiceTests.swift",
+    "LocalTranscriberTests/WhisperKitTranscriberTests.swift",
     "LocalTranscriberTests/AudioImportServiceTests.swift",
+    "LocalTranscriberTests/AudioFileServiceTests.swift",
+    "LocalTranscriberTests/MainWindowViewModelImportTests.swift",
+    "LocalTranscriberTests/MainWindowViewModelProgressTests.swift",
+    "LocalTranscriberTests/TranscriptTextSanitizerTests.swift",
+    "LocalTranscriberTests/TranscriptPartialTextBuilderTests.swift",
+    "LocalTranscriberTests/AudioPlayerServiceTests.swift",
 ]
 
 RESOURCES = [
@@ -143,7 +160,7 @@ lines.append(
 )
 
 lines.append(
-    f"		{ids['app_product']} /* LocalTranscriber.app */ = {{isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalTranscriber.app; sourceTree = BUILT_PRODUCTS_DIR; }};"
+    f"		{ids['app_product']} /* Transnote.app */ = {{isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Transnote.app; sourceTree = BUILT_PRODUCTS_DIR; }};"
 )
 lines.append(
     f"		{ids['test_product']} /* LocalTranscriberTests.xctest */ = {{isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LocalTranscriberTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; }};"
@@ -210,7 +227,7 @@ config_children = [f"{file_refs['Config/Defaults.plist']} /* Defaults.plist */"]
 group(ids["config_group"], "Config", config_children, "Config")
 
 products_children = [
-    f"{ids['app_product']} /* LocalTranscriber.app */",
+    f"{ids['app_product']} /* Transnote.app */",
     f"{ids['test_product']} /* LocalTranscriberTests.xctest */",
 ]
 group(ids["products_group"], "Products", products_children)
@@ -252,7 +269,7 @@ lines.append("			packageProductDependencies = (")
 lines.append(f"				{ids['whisperkit_ref']} /* WhisperKit */,")
 lines.append("			);")
 lines.append("			productName = LocalTranscriber;")
-lines.append(f"			productReference = {ids['app_product']} /* LocalTranscriber.app */;")
+lines.append(f"			productReference = {ids['app_product']} /* Transnote.app */;")
 lines.append("			productType = \"com.apple.product-type.application\";")
 lines.append("		};")
 
@@ -366,7 +383,8 @@ def build_settings(name, cfg_id, is_app=True, is_test=False):
         lines.append("				MACOSX_DEPLOYMENT_TARGET = 14.0;")
         lines.append("				MARKETING_VERSION = 0.1.0;")
         lines.append("				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriber;")
-        lines.append("				PRODUCT_NAME = \"$(TARGET_NAME)\";")
+        lines.append("				PRODUCT_MODULE_NAME = LocalTranscriber;")
+        lines.append("				PRODUCT_NAME = Transnote;")
         lines.append("				SWIFT_EMIT_LOC_STRINGS = YES;")
         lines.append("				SWIFT_VERSION = 5.0;")
     elif is_test:
@@ -381,26 +399,38 @@ def build_settings(name, cfg_id, is_app=True, is_test=False):
         lines.append("				PRODUCT_NAME = \"$(TARGET_NAME)\";")
         lines.append("				SWIFT_EMIT_LOC_STRINGS = NO;")
         lines.append("				SWIFT_VERSION = 5.0;")
-        lines.append("				TEST_HOST = \"$(BUILT_PRODUCTS_DIR)/LocalTranscriber.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LocalTranscriber\";")
+        lines.append("				TEST_HOST = \"$(BUILT_PRODUCTS_DIR)/Transnote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Transnote\";")
     else:
         lines.append("				ALWAYS_SEARCH_USER_PATHS = NO;")
         lines.append("				CLANG_ENABLE_MODULES = YES;")
         lines.append("				CLANG_ENABLE_OBJC_ARC = YES;")
-        lines.append("				COPY_PHASE_STRIP = NO;")
-        lines.append("				DEBUG_INFORMATION_FORMAT = dwarf;")
+        if name == "Release":
+            lines.append("				COPY_PHASE_STRIP = YES;")
+            lines.append("				DEBUG_INFORMATION_FORMAT = \"dwarf-with-dsym\";")
+            lines.append("				ENABLE_NS_ASSERTIONS = NO;")
+        else:
+            lines.append("				COPY_PHASE_STRIP = NO;")
+            lines.append("				DEBUG_INFORMATION_FORMAT = dwarf;")
         lines.append("				ENABLE_STRICT_OBJC_MSGSEND = YES;")
         lines.append("				GCC_C_LANGUAGE_STANDARD = gnu17;")
         lines.append("				MACOSX_DEPLOYMENT_TARGET = 14.0;")
-        lines.append("				ONLY_ACTIVE_ARCH = YES;")
+        if name == "Release":
+            lines.append("				ONLY_ACTIVE_ARCH = NO;")
+        else:
+            lines.append("				ONLY_ACTIVE_ARCH = YES;")
         lines.append("				SDKROOT = macosx;")
-        lines.append("				SWIFT_ACTIVE_COMPILATION_CONDITIONS = \"DEBUG $(inherited)\";")
-        lines.append("				SWIFT_OPTIMIZATION_LEVEL = \"-Onone\";")
+        if name == "Release":
+            lines.append("				SWIFT_ACTIVE_COMPILATION_CONDITIONS = \"$(inherited)\";")
+            lines.append("				SWIFT_OPTIMIZATION_LEVEL = \"-O\";")
+        else:
+            lines.append("				SWIFT_ACTIVE_COMPILATION_CONDITIONS = \"DEBUG $(inherited)\";")
+            lines.append("				SWIFT_OPTIMIZATION_LEVEL = \"-Onone\";")
     if name == "Debug" and not is_app:
         lines.append("				GCC_DYNAMIC_NO_PIC = NO;")
         lines.append("				GCC_OPTIMIZATION_LEVEL = 0;")
     if name == "Release" and not is_app:
-        lines.append("				DEBUG_INFORMATION_FORMAT = \"dwarf-with-dsym\";")
         lines.append("				SWIFT_COMPILATION_MODE = wholemodule;")
+        lines.append("				VALIDATE_PRODUCT = YES;")
     lines.append("			};")
     lines.append("			name = " + name + ";")
     lines.append("		};")
@@ -482,7 +512,7 @@ scheme = f'''<?xml version="1.0" encoding="UTF-8"?>
    <BuildAction parallelizeBuildables="YES" buildImplicitDependencies="YES">
       <BuildActionEntries>
          <BuildActionEntry buildForTesting="YES" buildForRunning="YES" buildForProfiling="YES" buildForArchiving="YES" buildForAnalyzing="YES">
-            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{ids['app_target']}" BuildableName="LocalTranscriber.app" BlueprintName="LocalTranscriber" ReferencedContainer="container:LocalTranscriber.xcodeproj"/>
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{ids['app_target']}" BuildableName="Transnote.app" BlueprintName="LocalTranscriber" ReferencedContainer="container:LocalTranscriber.xcodeproj"/>
          </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
@@ -495,9 +525,14 @@ scheme = f'''<?xml version="1.0" encoding="UTF-8"?>
    </TestAction>
    <LaunchAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.DebuggerFoundation.Launcher.LLDB" launchStyle="0" useCustomWorkingDirectory="NO">
       <BuildableProductRunnable runnableDebuggingMode="0">
-         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{ids['app_target']}" BuildableName="LocalTranscriber.app" BlueprintName="LocalTranscriber" ReferencedContainer="container:LocalTranscriber.xcodeproj"/>
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{ids['app_target']}" BuildableName="Transnote.app" BlueprintName="LocalTranscriber" ReferencedContainer="container:LocalTranscriber.xcodeproj"/>
       </BuildableProductRunnable>
    </LaunchAction>
+   <ArchiveAction buildConfiguration="Release" revealArchiveInOrganizer="NO">
+      <BuildableProductRunnable runnableDebuggingMode="0">
+         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{ids['app_target']}" BuildableName="Transnote.app" BlueprintName="LocalTranscriber" ReferencedContainer="container:LocalTranscriber.xcodeproj"/>
+      </BuildableProductRunnable>
+   </ArchiveAction>
 </Scheme>
 '''
 with open(os.path.join(scheme_dir, "LocalTranscriber.xcscheme"), "w") as f:

@@ -143,7 +143,17 @@ WhisperKit は VAD を機能として案内している。([Mintlify][2]) ただ
 - Developer ID署名
 - Notarization
 - DMG作成
-- 自動更新の検討
+- GitHub Actions release workflow
+- GitHub Releases への DMG 公開
+- GitHub Pages から releases/latest へ誘導
+```
+
+完了条件:
+
+```text
+- v*.*.* タグ push で署名・公証済み Transnote-{version}.dmg が GitHub Releases に公開される
+- GitHub Pages にダウンロード導線とインストール案内がある
+- 必要な GitHub Secrets 未設定時は配布 workflow が失敗する
 ```
 
 Mac App Store 外で配布する場合、Developer ID で署名し、Apple の Notarization に提出する流れを想定する。Apple は、Mac App Store 外で配布する Developer ID 署名ソフトウェアについて、公証により Gatekeeper がソフトウェアの改ざんや既知マルウェアでないことを確認できると説明している。([Apple Developer][4])
