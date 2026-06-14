@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SupportedAudioExtensions</key>
+	<array>
+		<string>wav</string>
+		<string>mp3</string>
+		<string>m4a</string>
+		<string>flac</string>
+	</array>
+	<key>DefaultModelID</key>
+	<string>base</string>
+	<key>DefaultLanguage</key>
+	<string>auto</string>
+	<key>ModelsDirectoryName</key>
+	<string>Models</string>
+	<key>Models</key>
+	<array>
+		<dict>
+			<key>id</key>
+			<string>tiny</string>
+			<key>displayName</key>
+			<string>Tiny</string>
+			<key>whisperKitModelName</key>
+			<string>tiny</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>base</string>
+			<key>displayName</key>
+			<string>Base</string>
+			<key>whisperKitModelName</key>
+			<string>base</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>small</string>
+			<key>displayName</key>
+			<string>Small</string>
+			<key>whisperKitModelName</key>
+			<string>small</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>large-v3-compressed</string>
+			<key>displayName</key>
+			<string>Large v3 Turbo (compressed)</string>
+			<key>whisperKitModelName</key>
+			<string>large-v3-v20240930_626MB</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>large-v3-turbo</string>
+			<key>displayName</key>
+			<string>Large v3 Turbo</string>
+			<key>whisperKitModelName</key>
+			<string>large-v3-v20240930_turbo</string>
+		</dict>
+	</array>
+	<key>Languages</key>
+	<array>
+		<dict>
+			<key>id</key>
+			<string>auto</string>
+			<key>displayName</key>
+			<string>Auto</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>ja</string>
+			<key>displayName</key>
+			<string>Japanese</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>en</string>
+			<key>displayName</key>
+			<string>English</string>
+		</dict>
+	</array>
+</dict>
+</plist>
