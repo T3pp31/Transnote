@@ -69,6 +69,10 @@ struct AppConfig {
     let modelsDirectoryName: String
     let models: [ModelOption]
     let languages: [LanguageOption]
+    let updateCheckEnabled: Bool
+    let githubReleasesAPIURL: URL
+    let updateDownloadFallbackURL: URL
+    let updateDMGAssetName: String
 
     init(bundle: Bundle = .main) {
         let plistURL = bundle.url(forResource: "Defaults", withExtension: "plist")
@@ -89,14 +93,60 @@ struct AppConfig {
 
         models = Self.parseModels(from: data["Models"] as? [[String: Any]] ?? [])
         languages = Self.parseLanguages(from: data["Languages"] as? [[String: Any]] ?? [])
+
+        updateCheckEnabled = data["UpdateCheckEnabled"] as? Bool ?? true
+        githubReleasesAPIURL = Self.url(
+            from: data["GitHubReleasesAPIURL"] as? String,
+            fallback: "https://api.github.com/repos/T3pp31/Transnote/releases/latest"
+        )
+        updateDownloadFallbackURL = Self.url(
+            from: data["UpdateDownloadFallbackURL"] as? String,
+            fallback: "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg"
+        )
+        updateDMGAssetName = data["UpdateDMGAssetName"] as? String ?? "Transnote.dmg"
+    }
+
+    init(
+        supportedExtensions: [String],
+        defaultModelID: String,
+        defaultLanguageID: String,
+        modelsDirectoryName: String,
+        models: [ModelOption],
+        languages: [LanguageOption],
+        updateCheckEnabled: Bool,
+        githubReleasesAPIURL: URL,
+        updateDownloadFallbackURL: URL,
+        updateDMGAssetName: String
+    ) {
+        self.supportedExtensions = supportedExtensions
+        self.defaultModelID = defaultModelID
+        self.defaultLanguageID = defaultLanguageID
+        self.modelsDirectoryName = modelsDirectoryName
+        self.models = models
+        self.languages = languages
+        self.updateCheckEnabled = updateCheckEnabled
+        self.githubReleasesAPIURL = githubReleasesAPIURL
+        self.updateDownloadFallbackURL = updateDownloadFallbackURL
+        self.updateDMGAssetName = updateDMGAssetName
     }
 
     private static let fallbackData: [String: Any] = [
         "SupportedAudioExtensions": ["wav", "mp3", "m4a", "flac"],
         "DefaultModelID": "base",
         "DefaultLanguage": "auto",
-        "ModelsDirectoryName": "Models"
+        "ModelsDirectoryName": "Models",
+        "UpdateCheckEnabled": true,
+        "GitHubReleasesAPIURL": "https://api.github.com/repos/T3pp31/Transnote/releases/latest",
+        "UpdateDownloadFallbackURL": "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg",
+        "UpdateDMGAssetName": "Transnote.dmg"
     ]
+
+    private static func url(from string: String?, fallback: String) -> URL {
+        if let string, let url = URL(string: string) {
+            return url
+        }
+        return URL(string: fallback)!
+    }
 
     private static func parseModels(from raw: [[String: Any]]) -> [ModelOption] {
         raw.compactMap { item in

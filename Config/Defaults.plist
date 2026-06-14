@@ -79,5 +79,13 @@
 			<string>English</string>
 		</dict>
 	</array>
+	<key>UpdateCheckEnabled</key>
+	<true/>
+	<key>GitHubReleasesAPIURL</key>
+	<string>https://api.github.com/repos/T3pp31/Transnote/releases/latest</string>
+	<key>UpdateDownloadFallbackURL</key>
+	<string>https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg</string>
+	<key>UpdateDMGAssetName</key>
+	<string>Transnote.dmg</string>
 </dict>
 </plist>
