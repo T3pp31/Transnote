@@ -55,7 +55,7 @@
 		2F748833A5E544E39E35E8AB /* Defaults.plist in Resources */ = {isa = PBXBuildFile; fileRef = 14991C8FD1C6439080108AC5 /* Defaults.plist */; };
 		14F411C9BD7C46C0A91EC8F7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 95EB9F37C69D438D9BBC9919 /* Assets.xcassets */; };
 		2DF04D2164754F05987A0C9F /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = E9A2957A6F5D4804B9AD0D5E /* WhisperKit */; };
-		DBB56603F5BB4C7CBE61F4EE /* LocalTranscriber.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalTranscriber.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DBB56603F5BB4C7CBE61F4EE /* Transnote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Transnote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A85C66D4B5E947AE8DCAC172 /* LocalTranscriberTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LocalTranscriberTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		44C7C97A491747648C49F5A6 /* LocalTranscriberApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriberApp.swift; sourceTree = "<group>"; };
 		4B2E1390A4FE44F7943D907B /* TranscriptionJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionJob.swift; sourceTree = "<group>"; };
@@ -231,7 +231,7 @@
 		189649A98A1B49A087018DED /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				DBB56603F5BB4C7CBE61F4EE /* LocalTranscriber.app */,
+				DBB56603F5BB4C7CBE61F4EE /* Transnote.app */,
 				A85C66D4B5E947AE8DCAC172 /* LocalTranscriberTests.xctest */,
 			);
 			sourceTree = "<group>";
@@ -273,7 +273,7 @@
 				E9A2957A6F5D4804B9AD0D5E /* WhisperKit */,
 			);
 			productName = LocalTranscriber;
-			productReference = DBB56603F5BB4C7CBE61F4EE /* LocalTranscriber.app */;
+			productReference = DBB56603F5BB4C7CBE61F4EE /* Transnote.app */;
 			productType = "com.apple.product-type.application";
 		};
 		2E7C8AF3DF0946ECA91FE249 /* LocalTranscriberTests */ = {
@@ -456,7 +456,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriber;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = LocalTranscriber;
+				PRODUCT_NAME = Transnote;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -481,7 +482,8 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriber;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = LocalTranscriber;
+				PRODUCT_NAME = Transnote;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 			};
@@ -501,7 +503,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LocalTranscriber.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LocalTranscriber";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Transnote";
 			};
 			name = Debug;
 		};
@@ -519,7 +521,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LocalTranscriber.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LocalTranscriber";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Transnote";
 			};
 			name = Release;
 		};
