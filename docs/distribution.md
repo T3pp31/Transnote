@@ -9,7 +9,7 @@ vX.Y.Z タグ push または workflow_dispatch
   → テスト
   → Release archive（署名なし）
   → Transnote.app を取り出し
-  → DMG 作成
+  → DMG 作成（Transnote.app + インストール.command + Applications リンク）
   → GitHub Release へアップロード
 ```
 
@@ -44,6 +44,8 @@ git push origin v0.1.0
 | --- | --- |
 | `scripts/export-release-app.sh` | `.xcarchive` から `Transnote.app` を取り出す |
 | `scripts/create-dmg.sh` | `Transnote.app` から `Transnote-<version>.dmg` を作成 |
+| `scripts/install-transnote.command` | DMG 同梱用インストールスクリプト（旧版削除→新版配置） |
+| `Config/distribution.plist` | 配布時のアプリ名・旧名・インストールスクリプト名 |
 
 ### archive の例
 
@@ -81,6 +83,8 @@ xcodebuild archive \
 | --- | --- |
 | `Transnote-<version>.dmg` | 未署名アプリを格納した配布用 DMG |
 | `Transnote.app` | Bundle ID `com.transnote.LocalTranscriber` |
+| `インストール.command` | DMG 内のワンクリックインストーラー（旧版を削除してから配置） |
+| `distribution.plist` | DMG 内に同梱される配布設定（インストールスクリプトが参照） |
 
 ## ユーザー向け注意
 
@@ -91,4 +95,10 @@ xcodebuild archive \
 ```bash
 hdiutil verify Transnote-0.1.0.dmg
 ls -la build/release/Transnote.app/Contents/MacOS/Transnote
+
+# DMG 内容の確認
+hdiutil attach Transnote-0.1.0.dmg -mountpoint /tmp/transnote-dmg
+ls -la /tmp/transnote-dmg
+# Transnote.app, インストール.command, distribution.plist, Applications があること
+hdiutil detach /tmp/transnote-dmg
 ```
