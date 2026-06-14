@@ -23,7 +23,7 @@ enum AppLogger {
 }
 
 enum DebugSessionLogger {
-    private static let logPath = "/Users/fukutomiteppei/Documents/GitHub/Transnote/.cursor/debug-22eea9.log"
+    private static let ingestURL = URL(string: "http://127.0.0.1:7393/ingest/8a2f614f-b14b-498d-b2f4-8f129340b240")!
     private static let sessionId = "22eea9"
 
     static func log(
@@ -48,18 +48,31 @@ enum DebugSessionLogger {
         }
 
         guard JSONSerialization.isValidJSONObject(payload),
-              let jsonData = try? JSONSerialization.data(withJSONObject: payload),
-              let jsonLine = String(data: jsonData, encoding: .utf8) else {
+              let jsonData = try? JSONSerialization.data(withJSONObject: payload) else {
             return
         }
 
-        let line = jsonLine + "\n"
-        if let handle = FileHandle(forWritingAtPath: logPath) {
-            handle.seekToEndOfFile()
-            handle.write(line.data(using: .utf8) ?? Data())
-            try? handle.close()
-        } else {
-            FileManager.default.createFile(atPath: logPath, contents: line.data(using: .utf8))
+        var request = URLRequest(url: ingestURL)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(sessionId, forHTTPHeaderField: "X-Debug-Session-Id")
+        request.httpBody = jsonData
+        URLSession.shared.dataTask(with: request).resume()
+
+        let containerLogURL = AppDirectories.applicationSupport.appendingPathComponent("debug-\(sessionId).log")
+        try? FileManager.default.createDirectory(
+            at: AppDirectories.applicationSupport,
+            withIntermediateDirectories: true
+        )
+        if let line = String(data: jsonData, encoding: .utf8) {
+            let lineData = (line + "\n").data(using: .utf8) ?? Data()
+            if let handle = try? FileHandle(forWritingTo: containerLogURL) {
+                handle.seekToEndOfFile()
+                handle.write(lineData)
+                try? handle.close()
+            } else {
+                try? lineData.write(to: containerLogURL)
+            }
         }
         // #endregion
     }

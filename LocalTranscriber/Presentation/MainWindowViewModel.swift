@@ -131,7 +131,7 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    func selectFile(url: URL) {
+    func selectFile(url: URL, preferredFileName: String? = nil) {
         errorMessage = nil
 
         // #region agent log
@@ -143,13 +143,31 @@ final class MainWindowViewModel: ObservableObject {
                 "lastPathComponent": url.lastPathComponent,
                 "pathExtension": url.pathExtension,
                 "fileExists": String(FileManager.default.fileExists(atPath: url.path)),
+                "preferredFileNameArg": preferredFileName ?? "nil",
             ],
-            hypothesisId: "A,C"
+            hypothesisId: "A,C",
+            runId: "post-fix-v9"
         )
         // #endregion
 
         do {
-            let importedURL = try audioImportService.importFile(from: url)
+            let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
+            // #region agent log
+            DebugSessionLogger.log(
+                location: "MainWindowViewModel.swift:selectFile",
+                message: "resolved import file name",
+                data: [
+                    "preferredFileName": resolvedPreferredFileName ?? "nil",
+                    "lastPathComponent": url.lastPathComponent,
+                ],
+                hypothesisId: "A",
+                runId: "post-fix-v9"
+            )
+            // #endregion
+            let importedURL = try audioImportService.importFile(
+                from: url,
+                preferredFileName: resolvedPreferredFileName
+            )
             // #region agent log
             DebugSessionLogger.log(
                 location: "MainWindowViewModel.swift:selectFile",
@@ -193,6 +211,20 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
+    private func preferredImportFileName(for url: URL) -> String? {
+        let resolvedName = AudioFileNameResolver.resolve(sourceURL: url)
+        guard resolvedName != url.lastPathComponent else {
+            return nil
+        }
+        guard DropImportService.hasSupportedExtension(
+            resolvedName,
+            supportedExtensions: settings.supportedExtensions
+        ) else {
+            return nil
+        }
+        return resolvedName
+    }
+
     func startTranscription() {
         guard let file = selectedFile,
               let model = settings.selectedModel else {
@@ -211,6 +243,8 @@ final class MainWindowViewModel: ObservableObject {
 
         settings.persist()
         errorMessage = nil
+        transcriptText = ""
+        currentTranscript = nil
         uiState = .preparing
         progressDisplay = TranscriptionProgressDisplay.from(
             update: .make(phase: .initializing, fraction: 0, modelDisplayName: model.displayName)
@@ -237,7 +271,8 @@ final class MainWindowViewModel: ObservableObject {
                 }
 
                 currentTranscript = transcript
-                transcriptText = transcript.fullText
+                transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
+                    ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
                 uiState = .done
                 progressDisplay = .done()
                 refreshModelAvailability()
@@ -306,6 +341,11 @@ final class MainWindowViewModel: ObservableObject {
 
     private func applyProgressUpdate(_ update: TranscriptionProgressUpdate) {
         progressDisplay = TranscriptionProgressDisplay.from(update: update)
+
+        if let partialText = update.partialText,
+           let presentable = TranscriptTextSanitizer.presentableText(from: partialText) {
+            transcriptText = presentable
+        }
 
         switch update.phase {
         case .transcribing, .convertingAudio:
