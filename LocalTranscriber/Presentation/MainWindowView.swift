@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainWindowView: View {
     @StateObject private var viewModel = MainWindowViewModel()
+    @StateObject private var updateChecker = UpdateCheckViewModel()
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
@@ -32,6 +33,25 @@ struct MainWindowView: View {
         .frame(minWidth: 720, minHeight: 560)
         .onAppear {
             viewModel.refreshModelAvailability()
+            updateChecker.checkOnLaunch()
+        }
+        .alert(
+            "アップデートが利用可能です",
+            isPresented: Binding(
+                get: { updateChecker.updateOffer != nil },
+                set: { if !$0 { updateChecker.dismissUpdateOffer() } }
+            )
+        ) {
+            Button("ダウンロード") {
+                updateChecker.openDownloadPage()
+            }
+            Button("後で", role: .cancel) {
+                updateChecker.dismissUpdateOffer()
+            }
+        } message: {
+            if let offer = updateChecker.updateOffer {
+                Text("バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）")
+            }
         }
         .alert(
             "Error",

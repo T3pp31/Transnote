@@ -20,6 +20,7 @@ APP_SOURCES = [
     "LocalTranscriber/Infrastructure/AppDirectories.swift",
     "LocalTranscriber/Infrastructure/Logger.swift",
     "LocalTranscriber/Infrastructure/ErrorMapper.swift",
+    "LocalTranscriber/Infrastructure/AppVersion.swift",
     "LocalTranscriber/Infrastructure/SupportedAudioTypes.swift",
     "LocalTranscriber/Services/Transcriber.swift",
     "LocalTranscriber/Services/WhisperKitTranscriber.swift",
@@ -34,8 +35,10 @@ APP_SOURCES = [
     "LocalTranscriber/Services/ExportService.swift",
     "LocalTranscriber/Services/AudioPlayerService.swift",
     "LocalTranscriber/Services/SecurityScopedFileAccess.swift",
+    "LocalTranscriber/Services/UpdateCheckService.swift",
     "LocalTranscriber/Presentation/MainWindowView.swift",
     "LocalTranscriber/Presentation/MainWindowViewModel.swift",
+    "LocalTranscriber/Presentation/UpdateCheckViewModel.swift",
     "LocalTranscriber/Presentation/StatusBarView.swift",
     "LocalTranscriber/Presentation/FileDropView.swift",
     "LocalTranscriber/Presentation/TranscriptEditorView.swift",
@@ -58,6 +61,8 @@ TEST_SOURCES = [
     "LocalTranscriberTests/TranscriptTextSanitizerTests.swift",
     "LocalTranscriberTests/TranscriptPartialTextBuilderTests.swift",
     "LocalTranscriberTests/AudioPlayerServiceTests.swift",
+    "LocalTranscriberTests/AppVersionTests.swift",
+    "LocalTranscriberTests/UpdateCheckServiceTests.swift",
 ]
 
 RESOURCES = [
