@@ -106,7 +106,9 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Transnote ${{ steps.version.outputs.version }}
           body: |
-            未署名ビルドです。初回起動時に Gatekeeper の警告が出る場合は、Finder でアプリを右クリックして「開く」を選んでください。
+            未署名ビルドです。DMG を開き、**インストール.command** を実行してインストールしてください（旧バージョンは自動的に置き換えられます）。
+
+            初回起動時に Gatekeeper の警告が出る場合は、Finder でアプリを右クリックして「開く」を選んでください。
 
             詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
           generate_release_notes: true

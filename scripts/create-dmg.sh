@@ -1,15 +1,31 @@
 #!/usr/bin/env bash
-# Create a compressed DMG containing Transnote.app.
+# Create a compressed DMG containing Transnote.app and an install script.
 set -euo pipefail
 
-APP_NAME="Transnote"
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+DISTRIBUTION_PLIST="${ROOT_DIR}/Config/distribution.plist"
+INSTALL_SCRIPT_TEMPLATE="${ROOT_DIR}/scripts/install-transnote.command"
 
 usage() {
   cat <<EOF
-Usage: $(basename "$0") --app <path/to/${APP_NAME}.app> --version <version> [--output <dir>]
+Usage: $(basename "$0") --app <path/to/Transnote.app> --version <version> [--output <dir>]
 
-Creates ${APP_NAME}-{version}.dmg in the output directory (default: current directory).
+Creates Transnote-{version}.dmg in the output directory (default: current directory).
 EOF
+}
+
+read_distribution_config() {
+  if [[ ! -f "$DISTRIBUTION_PLIST" ]]; then
+    echo "Distribution config not found: $DISTRIBUTION_PLIST" >&2
+    exit 1
+  fi
+  if [[ ! -f "$INSTALL_SCRIPT_TEMPLATE" ]]; then
+    echo "Install script template not found: $INSTALL_SCRIPT_TEMPLATE" >&2
+    exit 1
+  fi
+
+  APP_NAME="$(/usr/libexec/PlistBuddy -c "Print :AppName" "$DISTRIBUTION_PLIST")"
+  INSTALL_SCRIPT_NAME="$(/usr/libexec/PlistBuddy -c "Print :InstallScriptName" "$DISTRIBUTION_PLIST")"
 }
 
 APP_PATH=""
@@ -42,6 +58,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+read_distribution_config
+
 if [[ -z "$APP_PATH" || -z "$VERSION" ]]; then
   echo "Both --app and --version are required." >&2
   usage >&2
@@ -59,6 +77,9 @@ DMG_RW="$(mktemp "${TMPDIR:-/tmp}/${APP_NAME}.XXXXXX.dmg")"
 trap 'rm -rf "$STAGING_DIR" "$DMG_RW"' EXIT
 
 cp -R "$APP_PATH" "${STAGING_DIR}/"
+cp "$DISTRIBUTION_PLIST" "${STAGING_DIR}/distribution.plist"
+cp "$INSTALL_SCRIPT_TEMPLATE" "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
+chmod +x "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
 ln -s /Applications "${STAGING_DIR}/Applications"
 
 mkdir -p "$OUTPUT_DIR"

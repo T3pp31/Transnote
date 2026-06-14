@@ -50,7 +50,11 @@ struct MainWindowView: View {
             }
         } message: {
             if let offer = updateChecker.updateOffer {
-                Text("バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）")
+                Text(
+                    "バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）。"
+                        + "ダウンロード後、DMG 内の「インストール.command」を実行してください。"
+                        + "旧バージョンは自動的に置き換えられます。"
+                )
             }
         }
         .alert(
