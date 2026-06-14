@@ -16,7 +16,6 @@ final class AudioImportServiceTests: XCTestCase {
     }
 
     func testImportFileCopiesIntoSandboxDirectory() throws {
-        // Given: 一時ディレクトリ上の wav ファイル
         let sourceRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
@@ -25,10 +24,8 @@ final class AudioImportServiceTests: XCTestCase {
         let sourceURL = sourceRoot.appendingPathComponent("sample.wav")
         FileManager.default.createFile(atPath: sourceURL.path, contents: Data("RIFF".utf8))
 
-        // When
         let importedURL = try service.importFile(from: sourceURL)
 
-        // Then
         XCTAssertTrue(importedURL.path.hasPrefix(importsRoot.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path))
     }
@@ -54,6 +51,7 @@ final class AudioImportServiceTests: XCTestCase {
 
         let importedURL = try service.importFile(from: sourceURL, preferredFileName: "recording.m4a")
 
+        XCTAssertEqual(importedURL.pathExtension.lowercased(), "m4a")
         XCTAssertEqual(importedURL.lastPathComponent, "recording.m4a")
         XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path))
     }
@@ -76,5 +74,21 @@ final class AudioImportServiceTests: XCTestCase {
 
         XCTAssertEqual(importedURL.pathExtension.lowercased(), "m4a")
         XCTAssertTrue(importedURL.lastPathComponent.hasPrefix("imported-audio"))
+    }
+
+    func testValidateAcceptsExtensionFromPreferredFileName() throws {
+        let sourceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceRoot) }
+
+        let sourceURL = sourceRoot.appendingPathComponent("PasteboardTemp")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("not-audio".utf8))
+
+        let audioFileService = AudioFileService()
+        let info = try audioFileService.validate(url: sourceURL, preferredFileName: "memo.m4a")
+
+        XCTAssertEqual(info.fileExtension, "m4a")
+        XCTAssertEqual(info.fileName, "PasteboardTemp")
     }
 }

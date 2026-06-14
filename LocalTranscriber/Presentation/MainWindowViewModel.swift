@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 @MainActor
@@ -7,6 +8,8 @@ final class MainWindowViewModel: ObservableObject {
     @Published var selectedFile: AudioFileInfo?
     @Published var transcriptText: String = ""
     @Published var currentTranscript: Transcript?
+    @Published var playingSegmentID: UUID?
+    @Published var isEditingTranscript = false
     @Published var errorMessage: String?
     @Published var downloadedModelIDs: Set<String> = []
     @Published var isDownloadingModel = false
@@ -24,6 +27,7 @@ final class MainWindowViewModel: ObservableObject {
     private let settings: AppSettings
     private let modelAvailability: ModelAvailabilityService
     private let modelDownloadService: ModelDownloadService
+    private let audioPlayer: AudioPlayerService
 
     init(
         transcriber: Transcriber = WhisperKitTranscriber(),
@@ -33,7 +37,8 @@ final class MainWindowViewModel: ObservableObject {
         fileAccess: SecurityScopedFileAccess = .shared,
         settings: AppSettings = .shared,
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
-        modelDownloadService: ModelDownloadService = ModelDownloadService()
+        modelDownloadService: ModelDownloadService = ModelDownloadService(),
+        audioPlayer: AudioPlayerService? = nil
     ) {
         self.transcriber = transcriber
         self.audioFileService = audioFileService
@@ -43,6 +48,7 @@ final class MainWindowViewModel: ObservableObject {
         self.settings = settings
         self.modelAvailability = modelAvailability
         self.modelDownloadService = modelDownloadService
+        self.audioPlayer = audioPlayer ?? AudioPlayerService()
         refreshModelAvailability()
     }
 
@@ -134,7 +140,6 @@ final class MainWindowViewModel: ObservableObject {
     func selectFile(url: URL, preferredFileName: String? = nil) {
         errorMessage = nil
 
-        // #region agent log
         DebugSessionLogger.log(
             location: "MainWindowViewModel.swift:selectFile",
             message: "selectFile called",
@@ -148,11 +153,9 @@ final class MainWindowViewModel: ObservableObject {
             hypothesisId: "A,C",
             runId: "post-fix-v9"
         )
-        // #endregion
 
         do {
             let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
-            // #region agent log
             DebugSessionLogger.log(
                 location: "MainWindowViewModel.swift:selectFile",
                 message: "resolved import file name",
@@ -163,40 +166,22 @@ final class MainWindowViewModel: ObservableObject {
                 hypothesisId: "A",
                 runId: "post-fix-v9"
             )
-            // #endregion
             let importedURL = try audioImportService.importFile(
                 from: url,
                 preferredFileName: resolvedPreferredFileName
             )
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "MainWindowViewModel.swift:selectFile",
-                message: "import succeeded",
-                data: [
-                    "importedURL": importedURL.path,
-                    "importedExtension": importedURL.pathExtension,
-                ],
-                hypothesisId: "B,E"
+            let info = try audioFileService.validate(
+                url: importedURL,
+                preferredFileName: resolvedPreferredFileName
             )
-            // #endregion
-            let info = try audioFileService.validate(url: importedURL)
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "MainWindowViewModel.swift:selectFile",
-                message: "validate succeeded",
-                data: [
-                    "fileName": info.fileName,
-                    "fileExtension": info.fileExtension,
-                    "fileSizeBytes": String(info.fileSizeBytes),
-                ],
-                hypothesisId: "A"
-            )
-            // #endregion
+            stopPlayback()
+            isEditingTranscript = false
+            currentTranscript = nil
+            transcriptText = ""
             selectedFile = info
             uiState = .idle
             progressDisplay = .idle()
         } catch {
-            // #region agent log
             DebugSessionLogger.log(
                 location: "MainWindowViewModel.swift:selectFile",
                 message: "selectFile failed",
@@ -206,7 +191,6 @@ final class MainWindowViewModel: ObservableObject {
                 ],
                 hypothesisId: "A,B,C"
             )
-            // #endregion
             handleError(error)
         }
     }
@@ -243,6 +227,8 @@ final class MainWindowViewModel: ObservableObject {
 
         settings.persist()
         errorMessage = nil
+        stopPlayback()
+        isEditingTranscript = false
         transcriptText = ""
         currentTranscript = nil
         uiState = .preparing
@@ -264,15 +250,22 @@ final class MainWindowViewModel: ObservableObject {
 
         transcriptionTask = Task {
             do {
-                let transcript = try await transcriber.transcribe(job) { update in
+                var transcript = try await transcriber.transcribe(job) { update in
                     Task { @MainActor in
                         self.applyProgressUpdate(update)
                     }
                 }
 
+                transcript = await Self.transcriptWithPlaybackSegments(
+                    transcript,
+                    audioURL: file.url
+                )
+
                 currentTranscript = transcript
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
+                isEditingTranscript = false
+                audioPlayer.load(url: file.url)
                 uiState = .done
                 progressDisplay = .done()
                 refreshModelAvailability()
@@ -312,6 +305,31 @@ final class MainWindowViewModel: ObservableObject {
     func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(transcriptText, forType: .string)
+    }
+
+    func playSegment(_ segment: TranscriptSegment) {
+        guard let file = selectedFile else { return }
+
+        if audioPlayer.loadedURL != file.url {
+            audioPlayer.load(url: file.url)
+        }
+
+        playingSegmentID = segment.id
+        let segmentID = segment.id
+        audioPlayer.playSegment(
+            start: segment.startTime,
+            end: segment.endTime
+        ) { [weak self] in
+            guard let self else { return }
+            if self.playingSegmentID == segmentID {
+                self.playingSegmentID = nil
+            }
+        }
+    }
+
+    func stopPlayback() {
+        audioPlayer.stop()
+        playingSegmentID = nil
     }
 
     func exportTranscript(format: ExportFormat) {
@@ -380,6 +398,38 @@ final class MainWindowViewModel: ObservableObject {
         errorMessage = message
         uiState = .error(message)
         AppLogger.error(message, logger: AppLogger.general)
+    }
+
+    private static func transcriptWithPlaybackSegments(
+        _ transcript: Transcript,
+        audioURL: URL
+    ) async -> Transcript {
+        let segments = transcript.segments.filter {
+            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        guard segments.isEmpty,
+              !transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            var updated = transcript
+            updated.segments = segments
+            return updated
+        }
+
+        let asset = AVURLAsset(url: audioURL)
+        guard let duration = try? await asset.load(.duration).seconds,
+              duration > 0 else {
+            return transcript
+        }
+
+        var updated = transcript
+        updated.segments = [
+            TranscriptSegment(
+                startTime: 0,
+                endTime: duration,
+                text: transcript.fullText
+            )
+        ]
+        return updated
     }
 }
 
