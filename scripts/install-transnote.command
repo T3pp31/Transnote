@@ -40,6 +40,7 @@ while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_
 done
 
 ditto "$SOURCE_APP" "$TARGET_APP"
+xattr -cr "$TARGET_APP" 2>/dev/null || true
 
 osascript -e "display alert \"Transnote をインストールしました\" message \"${APP_NAME} を Applications フォルダに配置しました。\" buttons {\"OK\"} default button \"OK\"" >/dev/null 2>&1 || true
-open "$TARGET_APP"
+open "$TARGET_APP" || true

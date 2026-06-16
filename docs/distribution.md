@@ -84,11 +84,14 @@ xcodebuild archive \
 | `Transnote-<version>.dmg` | 未署名アプリを格納した配布用 DMG |
 | `Transnote.app` | Bundle ID `com.transnote.LocalTranscriber` |
 | `インストール.command` | DMG 内のワンクリックインストーラー（旧版を削除してから配置） |
+| `初めにお読みください.txt` | Gatekeeper 回避手順（未署名配布向け） |
 | `distribution.plist` | DMG 内に同梱される配布設定（インストールスクリプトが参照） |
 
 ## ユーザー向け注意
 
-未署名アプリは初回起動時に macOS の Gatekeeper 警告が出ることがあります。詳細は [docs/install.md](install.md) を参照してください。
+未署名アプリは初回起動時に macOS の Gatekeeper 警告が出ることがあります。**インストール.command** も同様に、ダウンロード直後のダブルクリックでは「開いていません」とブロックされる場合があります。DMG 内の `初めにお読みください.txt` または [docs/install.md](install.md) の手順（右クリック → 開く、またはターミナル実行）を案内してください。
+
+インストールスクリプトは配置後に `xattr -cr` で Applications 内アプリの隔離属性を除去するため、インストール直後の起動がスムーズになります。
 
 ## 検証コマンド
 
@@ -99,6 +102,6 @@ ls -la build/release/Transnote.app/Contents/MacOS/Transnote
 # DMG 内容の確認
 hdiutil attach Transnote-0.1.0.dmg -mountpoint /tmp/transnote-dmg
 ls -la /tmp/transnote-dmg
-# Transnote.app, インストール.command, distribution.plist, Applications があること
+# Transnote.app, インストール.command, 初めにお読みください.txt, distribution.plist, Applications があること
 hdiutil detach /tmp/transnote-dmg
 ```

@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DISTRIBUTION_PLIST="${ROOT_DIR}/Config/distribution.plist"
 INSTALL_SCRIPT_TEMPLATE="${ROOT_DIR}/scripts/install-transnote.command"
+GATEKEEPER_README="${ROOT_DIR}/Config/dmg-gatekeeper-readme.txt"
 
 usage() {
   cat <<EOF
@@ -80,6 +81,9 @@ cp -R "$APP_PATH" "${STAGING_DIR}/"
 cp "$DISTRIBUTION_PLIST" "${STAGING_DIR}/distribution.plist"
 cp "$INSTALL_SCRIPT_TEMPLATE" "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
 chmod +x "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
+if [[ -f "$GATEKEEPER_README" ]]; then
+  cp "$GATEKEEPER_README" "${STAGING_DIR}/初めにお読みください.txt"
+fi
 ln -s /Applications "${STAGING_DIR}/Applications"
 
 mkdir -p "$OUTPUT_DIR"
