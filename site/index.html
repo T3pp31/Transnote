@@ -48,15 +48,25 @@
 
       <section class="panel">
         <h2>インストール</h2>
+        <p>
+          未署名配布のため、<strong>インストール.command</strong> をダブルクリックすると
+          <strong>「開いていません」</strong> と表示されることがあります。右クリック → <strong>開く</strong> でも通らない場合は、
+          <strong>ターミナルからの実行</strong> がいちばん確実です。
+        </p>
         <ol>
           <li>
             <a href="https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg">最新版 DMG</a>
             をダウンロードします（ファイル名は <code>Transnote.dmg</code>）。
           </li>
-          <li>DMG を開き、<strong>初めにお読みください.txt</strong> の Gatekeeper 手順を確認します。</li>
-          <li><strong>インストール.command</strong> を実行します（「開いていません」と出る場合は右クリック → <strong>開く</strong>、またはターミナルから <code>bash "/Volumes/Transnote/インストール.command"</code>）。</li>
+          <li>DMG を開き、<strong>初めにお読みください.txt</strong> を読みます。</li>
+          <li>
+            <strong>ターミナル</strong> を開き、次の2行を1行ずつ実行します（ボリューム名は DMG により <code>Transnote</code> など）:
+            <pre><code>xattr -cr "/Volumes/Transnote/"
+bash "/Volumes/Transnote/インストール.command"</code></pre>
+          </li>
           <li>インストールスクリプトが Applications 内の旧バージョンを削除してから新バージョンを配置します。</li>
-          <li>未署名ビルドのため、初回起動時に Gatekeeper の警告が出る場合は、Finder で Transnote を右クリック → <strong>開く</strong> を選んでください。</li>
+          <li>DMG を Finder から <strong>取り出します</strong>（マウントしたままだとアプリが複数表示されます）。</li>
+          <li>初回起動時に Gatekeeper の警告が出る場合は、Applications 内の Transnote を右クリック → <strong>開く</strong> を選んでください。</li>
           <li>初回利用時に Whisper モデルのダウンロードが必要です。画面の案内に従ってください。</li>
         </ol>
         <p>

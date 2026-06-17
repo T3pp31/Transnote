@@ -23,24 +23,44 @@ if [[ ! -d "$SOURCE_APP" ]]; then
   fail "${APP_NAME}.app が DMG 内に見つかりません。"
 fi
 
+remove_installed_apps() {
+  local base_name="$1"
+  local candidate
+
+  shopt -s nullglob
+  for candidate in "${APPLICATIONS_DIR}/${base_name}.app" "${APPLICATIONS_DIR}/${base_name} "*.app; do
+    if [[ -d "$candidate" ]]; then
+      rm -rf "$candidate"
+    fi
+  done
+  shopt -u nullglob
+}
+
+eject_installer_volume() {
+  if [[ "$SCRIPT_DIR" != /Volumes/* ]]; then
+    return 0
+  fi
+
+  local volume_path="/Volumes/${SCRIPT_DIR#/Volumes/}"
+  volume_path="${volume_path%%/*}"
+  hdiutil detach "$volume_path" -quiet >/dev/null 2>&1 || true
+}
+
 osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
 sleep 1
 
-if [[ -d "$TARGET_APP" ]]; then
-  rm -rf "$TARGET_APP"
-fi
+remove_installed_apps "$APP_NAME"
 
 legacy_index=0
 while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_index}" "$PLIST" 2>/dev/null)"; do
-  legacy_app="${APPLICATIONS_DIR}/${legacy_name}.app"
-  if [[ -d "$legacy_app" ]]; then
-    rm -rf "$legacy_app"
-  fi
+  remove_installed_apps "$legacy_name"
   legacy_index=$((legacy_index + 1))
 done
 
 ditto "$SOURCE_APP" "$TARGET_APP"
 xattr -cr "$TARGET_APP" 2>/dev/null || true
+
+eject_installer_volume
 
 osascript -e "display alert \"Transnote をインストールしました\" message \"${APP_NAME} を Applications フォルダに配置しました。\" buttons {\"OK\"} default button \"OK\"" >/dev/null 2>&1 || true
 open "$TARGET_APP" || true
