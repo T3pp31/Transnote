@@ -114,6 +114,21 @@ main {
   margin-top: 0;
 }
 
+.panel pre {
+  margin: 0.75rem 0;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.panel pre code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 footer {
   text-align: center;
   padding: 2rem 1.5rem 3rem;
