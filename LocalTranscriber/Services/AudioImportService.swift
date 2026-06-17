@@ -13,23 +13,6 @@ struct AudioImportService: Sendable {
     }
 
     func importFile(from sourceURL: URL, preferredFileName: String? = nil) throws -> URL {
-        // #region agent log
-        DebugSessionLogger.log(
-            location: "AudioImportService.swift:importFile",
-            message: "importFile entry",
-            data: [
-                "sourcePath": sourceURL.path,
-                "lastPathComponent": sourceURL.lastPathComponent,
-                "pathExtension": sourceURL.pathExtension,
-                "preferredFileName": preferredFileName ?? "nil",
-                "fileExists": String(fileManager.fileExists(atPath: sourceURL.path)),
-                "alreadyImported": String(isAlreadyImported(sourceURL)),
-            ],
-            hypothesisId: "B,C",
-            runId: "post-fix-v5"
-        )
-        // #endregion
-
         if isAlreadyImported(sourceURL) {
             guard fileManager.fileExists(atPath: sourceURL.path) else {
                 throw AppError.fileNotFound
@@ -38,14 +21,6 @@ struct AudioImportService: Sendable {
         }
 
         guard fileManager.fileExists(atPath: sourceURL.path) else {
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "AudioImportService.swift:importFile",
-                message: "source file not found",
-                data: ["sourcePath": sourceURL.path],
-                hypothesisId: "C"
-            )
-            // #endregion
             throw AppError.fileNotFound
         }
 
@@ -56,17 +31,6 @@ struct AudioImportService: Sendable {
         )
 
         let didAccessSource = sourceURL.startAccessingSecurityScopedResource()
-        // #region agent log
-        DebugSessionLogger.log(
-            location: "AudioImportService.swift:importFile",
-            message: "security scoped access",
-            data: [
-                "didAccessSource": String(didAccessSource),
-                "destinationPath": destinationURL.path,
-            ],
-            hypothesisId: "B"
-        )
-        // #endregion
         defer {
             if didAccessSource {
                 sourceURL.stopAccessingSecurityScopedResource()
@@ -75,42 +39,11 @@ struct AudioImportService: Sendable {
 
         do {
             try fileManager.copyItem(at: sourceURL, to: destinationURL)
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "AudioImportService.swift:importFile",
-                message: "copyItem succeeded",
-                data: ["destinationPath": destinationURL.path],
-                hypothesisId: "B,E"
-            )
-            // #endregion
         } catch {
-            let copyError = error.localizedDescription
             let isReadable = fileManager.isReadableFile(atPath: sourceURL.path)
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "AudioImportService.swift:importFile",
-                message: "copyItem failed, trying fallback",
-                data: [
-                    "copyError": copyError,
-                    "isReadable": String(isReadable),
-                ],
-                hypothesisId: "B"
-            )
-            // #endregion
             if isReadable {
                 let data = try Data(contentsOf: sourceURL)
                 fileManager.createFile(atPath: destinationURL.path, contents: data)
-                // #region agent log
-                DebugSessionLogger.log(
-                    location: "AudioImportService.swift:importFile",
-                    message: "fallback Data write succeeded",
-                    data: [
-                        "destinationPath": destinationURL.path,
-                        "dataSize": String(data.count),
-                    ],
-                    hypothesisId: "B"
-                )
-                // #endregion
             } else {
                 throw AppError.fileAccessDenied
             }

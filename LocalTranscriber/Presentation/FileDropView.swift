@@ -56,19 +56,6 @@ struct FileDropView: View {
         panel.allowedContentTypes = contentTypesForPicker()
 
         if panel.runModal() == .OK, let url = panel.url {
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "FileDropView.swift:openFilePanel",
-                message: "file panel selection",
-                data: [
-                    "url": url.path,
-                    "lastPathComponent": url.lastPathComponent,
-                    "pathExtension": url.pathExtension,
-                ],
-                hypothesisId: "D",
-                runId: "post-fix-v5"
-            )
-            // #endregion
             onFileSelected(url, nil)
         }
     }
@@ -119,20 +106,6 @@ struct FileDropView: View {
         let suggestedName = provider.suggestedName
         let typeIdentifiers = DropImportService.preferredTypeIdentifiers(from: provider)
 
-        // #region agent log
-        DebugSessionLogger.log(
-            location: "FileDropView.swift:handleDrop",
-            message: "drop provider received",
-            data: [
-                "suggestedName": suggestedName ?? "nil",
-                "registeredTypeIdentifiers": provider.registeredTypeIdentifiers.joined(separator: ","),
-                "preferredTypeIdentifiers": typeIdentifiers.joined(separator: ","),
-            ],
-            hypothesisId: "A,D",
-            runId: "post-fix-v9"
-        )
-        // #endregion
-
         loadDropItem(
             provider: provider,
             typeIdentifiers: typeIdentifiers,
@@ -149,15 +122,6 @@ struct FileDropView: View {
         suggestedName: String?
     ) {
         guard index < typeIdentifiers.count else {
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "FileDropView.swift:loadDropItem",
-                message: "all drop type loaders failed",
-                data: ["attemptedTypes": typeIdentifiers.joined(separator: ",")],
-                hypothesisId: "A,C,D",
-                runId: "post-fix-v5"
-            )
-            // #endregion
             AppLogger.error("Drop import failed: unsupported dropped item", logger: AppLogger.fileAccess)
             return
         }
@@ -166,20 +130,6 @@ struct FileDropView: View {
 
         provider.loadFileRepresentation(forTypeIdentifier: typeIdentifier) { tempURL, error in
             guard let tempURL else {
-                if let error {
-                    // #region agent log
-                    DebugSessionLogger.log(
-                        location: "FileDropView.swift:loadDropItem",
-                        message: "loadFileRepresentation failed",
-                        data: [
-                            "typeIdentifier": typeIdentifier,
-                            "error": error.localizedDescription,
-                        ],
-                        hypothesisId: "A,C",
-                        runId: "post-fix-v8"
-                    )
-                    // #endregion
-                }
                 self.loadDropItem(
                     provider: provider,
                     typeIdentifiers: typeIdentifiers,
@@ -188,19 +138,6 @@ struct FileDropView: View {
                 )
                 return
             }
-
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "FileDropView.swift:loadDropItem",
-                message: "loadFileRepresentation succeeded",
-                data: [
-                    "typeIdentifier": typeIdentifier,
-                    "tempURL": tempURL.path,
-                ],
-                hypothesisId: "D",
-                runId: "post-fix-v8"
-            )
-            // #endregion
 
             self.importDroppedRepresentation(
                 tempURL: tempURL,
@@ -222,66 +159,19 @@ struct FileDropView: View {
         )
 
         guard DropImportService.hasSupportedExtension(fileName, supportedExtensions: supportedExtensions) else {
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "FileDropView.swift:importDroppedRepresentation",
-                message: "resolved unsupported extension",
-                data: ["fileName": fileName],
-                hypothesisId: "A",
-                runId: "post-fix-v9"
-            )
-            // #endregion
             AppLogger.error("Drop import failed: unsupported extension for \(fileName)", logger: AppLogger.fileAccess)
             return
         }
-
-        // #region agent log
-        DebugSessionLogger.log(
-            location: "FileDropView.swift:importDroppedRepresentation",
-            message: "importing dropped file synchronously in representation callback",
-            data: [
-                "tempURL": tempURL.path,
-                "preferredFileName": fileName,
-            ],
-            hypothesisId: "E",
-            runId: "post-fix-v10"
-        )
-        // #endregion
 
         do {
             let importedURL = try AudioImportService().importFile(
                 from: tempURL,
                 preferredFileName: fileName
             )
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "FileDropView.swift:importDroppedRepresentation",
-                message: "synchronous drop import succeeded",
-                data: [
-                    "importedURL": importedURL.path,
-                    "preferredFileName": fileName,
-                ],
-                hypothesisId: "E",
-                runId: "post-fix-v10"
-            )
-            // #endregion
             DispatchQueue.main.async {
                 self.onFileSelected(importedURL, nil)
             }
         } catch {
-            // #region agent log
-            DebugSessionLogger.log(
-                location: "FileDropView.swift:importDroppedRepresentation",
-                message: "synchronous drop import failed",
-                data: [
-                    "tempURL": tempURL.path,
-                    "preferredFileName": fileName,
-                    "error": error.localizedDescription,
-                ],
-                hypothesisId: "E",
-                runId: "post-fix-v10"
-            )
-            // #endregion
             AppLogger.error("Drop import failed: \(error.localizedDescription)", logger: AppLogger.fileAccess)
         }
     }

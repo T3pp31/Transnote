@@ -140,32 +140,8 @@ final class MainWindowViewModel: ObservableObject {
     func selectFile(url: URL, preferredFileName: String? = nil) {
         errorMessage = nil
 
-        DebugSessionLogger.log(
-            location: "MainWindowViewModel.swift:selectFile",
-            message: "selectFile called",
-            data: [
-                "url": url.path,
-                "lastPathComponent": url.lastPathComponent,
-                "pathExtension": url.pathExtension,
-                "fileExists": String(FileManager.default.fileExists(atPath: url.path)),
-                "preferredFileNameArg": preferredFileName ?? "nil",
-            ],
-            hypothesisId: "A,C",
-            runId: "post-fix-v9"
-        )
-
         do {
             let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
-            DebugSessionLogger.log(
-                location: "MainWindowViewModel.swift:selectFile",
-                message: "resolved import file name",
-                data: [
-                    "preferredFileName": resolvedPreferredFileName ?? "nil",
-                    "lastPathComponent": url.lastPathComponent,
-                ],
-                hypothesisId: "A",
-                runId: "post-fix-v9"
-            )
             let importedURL = try audioImportService.importFile(
                 from: url,
                 preferredFileName: resolvedPreferredFileName
@@ -182,15 +158,6 @@ final class MainWindowViewModel: ObservableObject {
             uiState = .idle
             progressDisplay = .idle()
         } catch {
-            DebugSessionLogger.log(
-                location: "MainWindowViewModel.swift:selectFile",
-                message: "selectFile failed",
-                data: [
-                    "errorType": String(describing: type(of: error)),
-                    "errorDescription": error.localizedDescription,
-                ],
-                hypothesisId: "A,B,C"
-            )
             handleError(error)
         }
     }
