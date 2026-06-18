@@ -102,6 +102,25 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
         var downloadButton = document.getElementById('download-button');
         if (!downloadButton) return;
 
+        var fallbackDownloadURL =
+          'https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg';
+        var allowedDownloadHosts = ['github.com', 'objects.githubusercontent.com'];
+
+        function isAllowedDownloadURL(urlString) {
+          try {
+            var url = new URL(urlString);
+            if (url.protocol !== 'https:') {
+              return false;
+            }
+            var host = url.hostname.toLowerCase();
+            return allowedDownloadHosts.some(function (allowedHost) {
+              return host === allowedHost || host.endsWith('.' + allowedHost);
+            });
+          } catch (error) {
+            return false;
+          }
+        }
+
         fetch('https://api.github.com/repos/T3pp31/Transnote/releases/latest')
           .then(function (response) {
             return response.json();
@@ -116,8 +135,10 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
                 return asset.name.endsWith('.dmg');
               });
 
-            if (dmg) {
+            if (dmg && isAllowedDownloadURL(dmg.browser_download_url)) {
               downloadButton.href = dmg.browser_download_url;
+            } else {
+              downloadButton.href = fallbackDownloadURL;
             }
           })
           .catch(function () {});

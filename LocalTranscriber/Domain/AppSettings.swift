@@ -73,6 +73,7 @@ struct AppConfig {
     let githubReleasesAPIURL: URL
     let updateDownloadFallbackURL: URL
     let updateDMGAssetName: String
+    let allowedUpdateDownloadHosts: [String]
 
     init(bundle: Bundle = .main) {
         let plistURL = bundle.url(forResource: "Defaults", withExtension: "plist")
@@ -104,6 +105,8 @@ struct AppConfig {
             fallback: "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg"
         )
         updateDMGAssetName = data["UpdateDMGAssetName"] as? String ?? "Transnote.dmg"
+        allowedUpdateDownloadHosts = data["AllowedUpdateDownloadHosts"] as? [String]
+            ?? ["github.com", "objects.githubusercontent.com"]
     }
 
     init(
@@ -116,7 +119,8 @@ struct AppConfig {
         updateCheckEnabled: Bool,
         githubReleasesAPIURL: URL,
         updateDownloadFallbackURL: URL,
-        updateDMGAssetName: String
+        updateDMGAssetName: String,
+        allowedUpdateDownloadHosts: [String] = ["github.com", "objects.githubusercontent.com"]
     ) {
         self.supportedExtensions = supportedExtensions
         self.defaultModelID = defaultModelID
@@ -128,6 +132,7 @@ struct AppConfig {
         self.githubReleasesAPIURL = githubReleasesAPIURL
         self.updateDownloadFallbackURL = updateDownloadFallbackURL
         self.updateDMGAssetName = updateDMGAssetName
+        self.allowedUpdateDownloadHosts = allowedUpdateDownloadHosts
     }
 
     private static let fallbackData: [String: Any] = [
@@ -138,7 +143,8 @@ struct AppConfig {
         "UpdateCheckEnabled": true,
         "GitHubReleasesAPIURL": "https://api.github.com/repos/T3pp31/Transnote/releases/latest",
         "UpdateDownloadFallbackURL": "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg",
-        "UpdateDMGAssetName": "Transnote.dmg"
+        "UpdateDMGAssetName": "Transnote.dmg",
+        "AllowedUpdateDownloadHosts": ["github.com", "objects.githubusercontent.com"]
     ]
 
     private static func url(from string: String?, fallback: String) -> URL {

@@ -44,7 +44,11 @@ struct UpdateCheckService: UpdateChecking {
                 return nil
             }
 
-            let downloadURL = resolveDownloadURL(from: release.assets)
+            guard let downloadURL = resolveDownloadURL(from: release.assets) else {
+                AppLogger.error("Update check failed: no allowed download URL", logger: AppLogger.general)
+                return nil
+            }
+
             return UpdateOffer(
                 latestVersion: latestVersion,
                 currentVersion: currentVersion,
@@ -74,14 +78,28 @@ struct UpdateCheckService: UpdateChecking {
         return try JSONDecoder().decode(GitHubRelease.self, from: data)
     }
 
-    private func resolveDownloadURL(from assets: [GitHubReleaseAsset]) -> URL {
+    private func resolveDownloadURL(from assets: [GitHubReleaseAsset]) -> URL? {
+        let candidateURL: URL
         if let preferred = assets.first(where: { $0.name == config.updateDMGAssetName }) {
-            return preferred.browserDownloadURL
+            candidateURL = preferred.browserDownloadURL
+        } else if let dmg = assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") }) {
+            candidateURL = dmg.browserDownloadURL
+        } else {
+            return validatedFallbackURL()
         }
-        if let dmg = assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") }) {
-            return dmg.browserDownloadURL
-        }
-        return config.updateDownloadFallbackURL
+
+        return UpdateURLValidator.validatedDownloadURL(
+            candidateURL,
+            fallback: config.updateDownloadFallbackURL,
+            allowedHosts: config.allowedUpdateDownloadHosts
+        )
+    }
+
+    private func validatedFallbackURL() -> URL? {
+        UpdateURLValidator.isAllowedDownloadURL(
+            config.updateDownloadFallbackURL,
+            allowedHosts: config.allowedUpdateDownloadHosts
+        ) ? config.updateDownloadFallbackURL : nil
     }
 }
 

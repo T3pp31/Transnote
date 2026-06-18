@@ -12,18 +12,21 @@ enum AudioFileNameResolver {
         let supported = Set(supportedExtensions.map { $0.lowercased() })
 
         if let preferredFileName,
-           isUsableFileName(preferredFileName, supportedExtensions: supported) {
-            return preferredFileName
+           let sanitized = sanitizeFileName(preferredFileName),
+           isUsableFileName(sanitized, supportedExtensions: supported) {
+            return sanitized
         }
 
         if let suggestedName,
-           isUsableFileName(suggestedName, supportedExtensions: supported) {
-            return suggestedName
+           let sanitized = sanitizeFileName(suggestedName),
+           isUsableFileName(sanitized, supportedExtensions: supported) {
+            return sanitized
         }
 
         let component = sourceURL.lastPathComponent
-        if isUsableFileName(component, supportedExtensions: supported) {
-            return component
+        if let sanitized = sanitizeFileName(component),
+           isUsableFileName(sanitized, supportedExtensions: supported) {
+            return sanitized
         }
 
         if let extensionFromTypes = extensionFromTypeIdentifiers(typeIdentifiers, supportedExtensions: supported) {
@@ -38,14 +41,38 @@ enum AudioFileNameResolver {
             return "\(fallbackStem(from: sourceURL)).\(extensionFromMagicBytes)"
         }
 
-        return component
+        if let sanitized = sanitizeFileName(component) {
+            return sanitized
+        }
+        return "imported-audio"
+    }
+
+    static func sanitizeFileName(_ fileName: String) -> String? {
+        if fileName.contains("/") || fileName.contains("\\") {
+            let components = fileName.split { $0 == "/" || $0 == "\\" }
+            guard !components.isEmpty,
+                  !components.contains(where: { $0 == ".." || $0 == "." }) else {
+                return nil
+            }
+            let last = String(components.last!)
+            guard !last.isEmpty else { return nil }
+            return last
+        }
+
+        guard !fileName.isEmpty, fileName != ".", fileName != ".." else {
+            return nil
+        }
+        return fileName
     }
 
     static func isUsableFileName(_ fileName: String, supportedExtensions: Set<String>) -> Bool {
-        guard !fileName.isEmpty, fileName != "file URL" else {
+        guard let sanitized = sanitizeFileName(fileName) else {
             return false
         }
-        let ext = (fileName as NSString).pathExtension.lowercased()
+        guard sanitized != "file URL" else {
+            return false
+        }
+        let ext = (sanitized as NSString).pathExtension.lowercased()
         return supportedExtensions.contains(ext)
     }
 

@@ -87,5 +87,10 @@
 	<string>https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg</string>
 	<key>UpdateDMGAssetName</key>
 	<string>Transnote.dmg</string>
+	<key>AllowedUpdateDownloadHosts</key>
+	<array>
+		<string>github.com</string>
+		<string>objects.githubusercontent.com</string>
+	</array>
 </dict>
 </plist>

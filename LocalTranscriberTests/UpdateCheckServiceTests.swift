@@ -20,9 +20,12 @@ final class UpdateCheckServiceTests: XCTestCase {
             models: [],
             languages: [],
             updateCheckEnabled: true,
-            githubReleasesAPIURL: URL(string: "https://example.com/releases/latest")!,
-            updateDownloadFallbackURL: URL(string: "https://example.com/fallback.dmg")!,
-            updateDMGAssetName: "Transnote.dmg"
+            githubReleasesAPIURL: URL(string: "https://api.github.com/repos/T3pp31/Transnote/releases/latest")!,
+            updateDownloadFallbackURL: URL(
+                string: "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg"
+            )!,
+            updateDMGAssetName: "Transnote.dmg",
+            allowedUpdateDownloadHosts: ["github.com", "objects.githubusercontent.com"]
         )
     }
 
@@ -45,7 +48,7 @@ final class UpdateCheckServiceTests: XCTestCase {
               "assets": [
                 {
                   "name": "Transnote.dmg",
-                  "browser_download_url": "https://example.com/Transnote.dmg"
+                  "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg"
                 }
               ]
             }
@@ -67,15 +70,13 @@ final class UpdateCheckServiceTests: XCTestCase {
 
         let offer = await service.checkForUpdate()
 
+        XCTAssertEqual(offer?.latestVersion, "0.2.0")
+        XCTAssertEqual(offer?.currentVersion, "0.1.0")
         XCTAssertEqual(
-            offer,
-            UpdateOffer(
-                latestVersion: "0.2.0",
-                currentVersion: "0.1.0",
-                downloadURL: URL(string: "https://example.com/Transnote.dmg")!,
-                releaseNotes: "Bug fixes"
-            )
+            offer?.downloadURL,
+            URL(string: "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg")
         )
+        XCTAssertEqual(offer?.releaseNotes, "Bug fixes")
     }
 
     // Given: 現在版と同じリリース
@@ -140,6 +141,92 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertEqual(offer?.downloadURL, config.updateDownloadFallbackURL)
     }
 
+    // Given: 不正なダウンロード URL が返る
+    // When: checkForUpdate を実行
+    // Then: fallback URL を使う
+    func testCheckForUpdateUsesFallbackWhenAssetURLIsNotAllowed() async {
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": null,
+              "assets": [
+                {
+                  "name": "Transnote.dmg",
+                  "browser_download_url": "https://evil.example.com/malware.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertEqual(offer?.downloadURL, config.updateDownloadFallbackURL)
+    }
+
+    // Given: 不正な asset URL と不正な fallback
+    // When: checkForUpdate を実行
+    // Then: nil を返す
+    func testCheckForUpdateReturnsNilWhenNoAllowedDownloadURL() async {
+        let unsafeConfig = AppConfig(
+            supportedExtensions: ["wav"],
+            defaultModelID: "base",
+            defaultLanguageID: "auto",
+            modelsDirectoryName: "Models",
+            models: [],
+            languages: [],
+            updateCheckEnabled: true,
+            githubReleasesAPIURL: config.githubReleasesAPIURL,
+            updateDownloadFallbackURL: URL(string: "https://evil.example.com/fallback.dmg")!,
+            updateDMGAssetName: "Transnote.dmg",
+            allowedUpdateDownloadHosts: ["github.com", "objects.githubusercontent.com"]
+        )
+
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": null,
+              "assets": [
+                {
+                  "name": "Transnote.dmg",
+                  "browser_download_url": "file:///tmp/malware.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: unsafeConfig.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: unsafeConfig,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertNil(offer)
+    }
+
     // Given: API がエラーを返す
     // When: checkForUpdate を実行
     // Then: nil を返す
@@ -178,7 +265,8 @@ final class UpdateCheckServiceTests: XCTestCase {
             updateCheckEnabled: false,
             githubReleasesAPIURL: config.githubReleasesAPIURL,
             updateDownloadFallbackURL: config.updateDownloadFallbackURL,
-            updateDMGAssetName: "Transnote.dmg"
+            updateDMGAssetName: "Transnote.dmg",
+            allowedUpdateDownloadHosts: config.allowedUpdateDownloadHosts
         )
 
         MockURLProtocol.requestHandler = { _ in
