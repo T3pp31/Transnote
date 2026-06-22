@@ -54,6 +54,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
+      - name: Sync MARKETING_VERSION
+        run: |
+          chmod +x ./scripts/set-marketing-version.sh
+          ./scripts/set-marketing-version.sh "${{ steps.version.outputs.version }}"
+
       - name: Run tests
         run: |
           xcodebuild test \
