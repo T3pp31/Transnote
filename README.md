@@ -2,7 +2,7 @@
 
 macOS 向けのオンデバイス文字起こしアプリ。ローカルの音声ファイルを WhisperKit で処理し、結果を画面表示・エクスポートする。音声データは端末内で完結し、クラウドへ送信しない。Whisper モデルの初回ダウンロード時のみネットワークを使用する。
 
-内部アプリ名は LocalTranscriber、公開名は Transnote。現在のバージョンは **v0.1.4**。
+内部アプリ名は LocalTranscriber、公開名は Transnote。現在のバージョンは **v0.1.5**。
 
 <p align="center">
   <img src="Transnote.png" alt="Transnote" width="128" height="128">
@@ -57,7 +57,7 @@ bash "/Volumes/Transnote/インストール.command"
 
 | 項目 | 状態 |
 | --- | --- |
-| バージョン | v0.1.4 |
+| バージョン | v0.1.5 |
 | 実装 | SwiftUI アプリ、テスト、CI 稼働中 |
 | 配布 | 未署名 DMG（GitHub Actions → GitHub Releases / Pages） |
 

@@ -5,7 +5,7 @@ import os
 import uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MARKETING_VERSION = "0.1.4"
+MARKETING_VERSION = "0.1.5"
 
 APP_SOURCES = [
     "LocalTranscriber/LocalTranscriberApp.swift",
