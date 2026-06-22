@@ -5,6 +5,7 @@ import os
 import uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MARKETING_VERSION = "0.1.4"
 
 APP_SOURCES = [
     "LocalTranscriber/LocalTranscriberApp.swift",
@@ -386,7 +387,7 @@ def build_settings(name, cfg_id, is_app=True, is_test=False):
         lines.append("					\"@executable_path/../Frameworks\",")
         lines.append("				);")
         lines.append("				MACOSX_DEPLOYMENT_TARGET = 14.0;")
-        lines.append("				MARKETING_VERSION = 0.1.3;")
+        lines.append(f"				MARKETING_VERSION = {MARKETING_VERSION};")
         lines.append("				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriber;")
         lines.append("				PRODUCT_MODULE_NAME = LocalTranscriber;")
         lines.append("				PRODUCT_NAME = Transnote;")
@@ -399,7 +400,7 @@ def build_settings(name, cfg_id, is_app=True, is_test=False):
         lines.append("				DEVELOPMENT_TEAM = \"\";")
         lines.append("				GENERATE_INFOPLIST_FILE = YES;")
         lines.append("				MACOSX_DEPLOYMENT_TARGET = 14.0;")
-        lines.append("				MARKETING_VERSION = 0.1.3;")
+        lines.append(f"				MARKETING_VERSION = {MARKETING_VERSION};")
         lines.append("				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriberTests;")
         lines.append("				PRODUCT_NAME = \"$(TARGET_NAME)\";")
         lines.append("				SWIFT_EMIT_LOC_STRINGS = NO;")

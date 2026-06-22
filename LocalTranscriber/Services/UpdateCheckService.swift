@@ -33,7 +33,7 @@ struct UpdateCheckService: UpdateChecking {
 
         do {
             let release = try await fetchLatestRelease()
-            let currentVersion = currentVersionProvider()
+            let currentVersion = AppVersion.normalize(currentVersionProvider())
             let latestVersion = AppVersion.normalize(release.tagName)
 
             guard AppVersion.isNewer(latestVersion, than: currentVersion) else {
