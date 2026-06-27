@@ -59,7 +59,7 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
     )
 
     if isStale {
-      AppLogger.info("Bookmark is stale for \(url.path)", logger: AppLogger.fileAccess)
+      AppLogger.info("Bookmark is stale for \(url.lastPathComponent)", logger: AppLogger.fileAccess)
     }
 
     return url
