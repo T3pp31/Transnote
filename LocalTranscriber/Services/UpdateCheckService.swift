@@ -75,7 +75,20 @@ struct UpdateCheckService: UpdateChecking {
             throw UpdateCheckError.httpStatus(httpResponse.statusCode)
         }
 
-        return try JSONDecoder().decode(GitHubRelease.self, from: data)
+        let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
+        guard isValidRepository(release) else {
+            throw UpdateCheckError.invalidResponse
+        }
+        return release
+    }
+
+    private func isValidRepository(_ release: GitHubRelease) -> Bool {
+        let expected = config.expectedGitHubRepository
+        if release.repository.fullName == expected {
+            return true
+        }
+        let expectedPath = "github.com/\(expected)"
+        return release.htmlURL.absoluteString.contains(expectedPath)
     }
 
     private func resolveDownloadURL(from assets: [GitHubReleaseAsset]) -> URL? {
@@ -112,11 +125,23 @@ private struct GitHubRelease: Decodable {
     let tagName: String
     let body: String?
     let assets: [GitHubReleaseAsset]
+    let htmlURL: URL
+    let repository: GitHubReleaseRepository
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case body
         case assets
+        case htmlURL = "html_url"
+        case repository
+    }
+}
+
+private struct GitHubReleaseRepository: Decodable {
+    let fullName: String
+
+    enum CodingKeys: String, CodingKey {
+        case fullName = "full_name"
     }
 }
 

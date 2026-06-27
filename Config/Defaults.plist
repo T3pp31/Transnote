@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>MaxImportFileSizeBytes</key>
+	<integer>524288000</integer>
 	<key>SupportedAudioExtensions</key>
 	<array>
 		<string>wav</string>
@@ -81,6 +83,8 @@
 	</array>
 	<key>UpdateCheckEnabled</key>
 	<true/>
+	<key>ExpectedGitHubRepository</key>
+	<string>T3pp31/Transnote</string>
 	<key>GitHubReleasesAPIURL</key>
 	<string>https://api.github.com/repos/T3pp31/Transnote/releases/latest</string>
 	<key>UpdateDownloadFallbackURL</key>

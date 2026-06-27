@@ -14,18 +14,43 @@ struct TranscriptEditorView: View {
         return !segments.isEmpty
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            header
+    private let cornerRadius: CGFloat = 14
+    private let cardPadding: CGFloat = 22
 
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.bottom, 12)
+
+            Divider()
+                .overlay(Color.primary.opacity(0.08))
+                .padding(.bottom, 12)
+
+            editorContent
+        }
+        .padding(cardPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(cardSurface)
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var editorContent: some View {
+        Group {
             if isEditable {
                 if isEditing {
                     TextEditor(text: $text)
                         .font(.body)
-                        .frame(minHeight: 200)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(Color(NSColor.textBackgroundColor).opacity(0.6))
+                        )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.secondary.opacity(0.2))
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                         )
                 } else if hasPlayableSegments, let segments {
                     segmentPlaybackView(segments: segments)
@@ -43,12 +68,21 @@ struct TranscriptEditorView: View {
                 readOnlyTextView
             }
         }
-        .accessibilityElement(children: .contain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var cardSurface: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color(NSColor.controlBackgroundColor))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            }
     }
 
     private var header: some View {
         HStack {
-            Text("Transcript")
+            Text("文字起こし結果")
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityLabel("文字起こし")
@@ -63,7 +97,7 @@ struct TranscriptEditorView: View {
                 .accessibilityLabel("表示モード")
                 .accessibilityHint("再生モードと編集モードを切り替えます")
             }
-            Button("Copy") {
+            Button("コピー") {
                 onCopy()
             }
             .disabled(text.isEmpty)
@@ -75,14 +109,18 @@ struct TranscriptEditorView: View {
 
     private var readOnlyTextView: some View {
         ScrollView {
-            Text(text.isEmpty ? "Transcription result will appear here." : text)
+            Text(text.isEmpty ? "文字起こし結果がここに表示されます" : text)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
         }
-        .frame(minHeight: 200)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(NSColor.textBackgroundColor).opacity(0.6))
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.2))
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
 
@@ -99,10 +137,14 @@ struct TranscriptEditorView: View {
             }
             .padding(8)
         }
-        .frame(minHeight: 200)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(NSColor.textBackgroundColor).opacity(0.6))
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.secondary.opacity(0.2))
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
 }

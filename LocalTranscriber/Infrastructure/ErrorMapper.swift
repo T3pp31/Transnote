@@ -10,6 +10,7 @@ enum AppError: LocalizedError, Equatable {
     case invalidConfiguration
     case bookmarkResolutionFailed
     case modelNotDownloaded(String)
+    case fileTooLarge
 
     var errorDescription: String? {
         ErrorMapper.userMessage(for: self)
@@ -37,7 +38,10 @@ enum ErrorMapper {
             case .bookmarkResolutionFailed:
                 return "保存済みファイルへのアクセスを復元できませんでした。"
             case .modelNotDownloaded(let modelName):
+                return "モデル「\(modelName)」がダウンロードされていません。ツールバーの「ダウンロード」ボタンからダウンロードしてください。"
                 return "モデル「\(modelName)」がダウンロードされていません。ツールバーの「Download」ボタンからダウンロードしてください。"
+            case .fileTooLarge:
+                return "ファイルサイズが上限（500MB）を超えています。より小さいファイルを選択してください。"
             }
         }
 
@@ -58,6 +62,7 @@ enum ErrorMapper {
             return "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。"
         }
 
-        return description
+        AppLogger.error("Unknown error: \(error)")
+        return "予期しないエラーが発生しました。もう一度お試しください。"
     }
 }
