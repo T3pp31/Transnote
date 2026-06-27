@@ -73,28 +73,41 @@ struct MainWindowView: View {
     }
 
     private var toolbar: some View {
-        HStack(spacing: 12) {
-            Picker("モデル", selection: $settings.selectedModelID) {
-                ForEach(settings.models) { model in
-                    Label {
-                        Text(model.displayName)
-                    } icon: {
-                        Image(systemName: modelIcon(for: model))
-                    }
-                    .tag(model.id)
-                }
-            }
-            .frame(width: 240)
-            .disabled(viewModel.isBusy)
+        VStack(spacing: 16) {
+            settingsToolbarRow
 
-            if viewModel.canDownloadSelectedModel {
-                Button {
-                    viewModel.downloadSelectedModel()
-                } label: {
-                    Label("Download", systemImage: "arrow.down.circle")
+            Divider()
+
+            actionToolbarRow
+        }
+    }
+
+    private var settingsToolbarRow: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Picker("モデル", selection: $settings.selectedModelID) {
+                    ForEach(settings.models) { model in
+                        Label {
+                            Text(model.displayName)
+                        } icon: {
+                            Image(systemName: modelIcon(for: model))
+                        }
+                        .tag(model.id)
+                    }
                 }
+                .frame(width: 220)
                 .disabled(viewModel.isBusy)
-                .help("選択中のモデルをダウンロード")
+
+                if viewModel.canDownloadSelectedModel {
+                    Button {
+                        viewModel.downloadSelectedModel()
+                    } label: {
+                        Image(systemName: "arrow.down.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(viewModel.isBusy)
+                    .help("選択中のモデルをダウンロード")
+                }
             }
 
             Picker("言語", selection: $settings.selectedLanguageID) {
@@ -105,13 +118,13 @@ struct MainWindowView: View {
             .frame(width: 140)
             .disabled(viewModel.isBusy)
 
-            Spacer()
+            Spacer(minLength: 0)
+        }
+    }
 
-            Button("Start") {
-                viewModel.startTranscription()
-            }
-            .disabled(!viewModel.canStartTranscription)
-            .keyboardShortcut(.return, modifiers: [.command])
+    private var actionToolbarRow: some View {
+        HStack(spacing: 12) {
+            Spacer(minLength: 0)
 
             Menu("Export") {
                 ForEach(ExportFormat.allCases) { format in
@@ -120,7 +133,16 @@ struct MainWindowView: View {
                     }
                 }
             }
+            .buttonStyle(.bordered)
             .disabled(!viewModel.canExport)
+
+            Button("Start") {
+                viewModel.startTranscription()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!viewModel.canStartTranscription)
+            .keyboardShortcut(.return, modifiers: [.command])
         }
     }
 
