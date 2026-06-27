@@ -6,30 +6,11 @@ struct MainWindowView: View {
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        VStack(spacing: 16) {
-            toolbar
-            FileDropView(
-                supportedExtensions: settings.supportedExtensions,
-                selectedFile: viewModel.selectedFile,
-                onFileSelected: viewModel.selectFile(url:preferredFileName:)
-            )
-            TranscriptEditorView(
-                text: $viewModel.transcriptText,
-                isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
-                segments: viewModel.currentTranscript?.segments,
-                playingSegmentID: viewModel.playingSegmentID,
-                isEditing: $viewModel.isEditingTranscript,
-                onSegmentTap: viewModel.playSegment,
-                onCopy: viewModel.copyTranscript
-            )
-            StatusBarView(
-                uiState: viewModel.uiState,
-                progress: viewModel.progressDisplay,
-                canCancel: viewModel.canCancel,
-                onCancel: viewModel.cancelTranscription
-            )
+        VStack(spacing: 0) {
+            inputSection
+            resultSection
+            footerSection
         }
-        .padding(20)
         .frame(minWidth: 720, minHeight: 560)
         .onAppear {
             viewModel.refreshModelAvailability()
@@ -69,6 +50,52 @@ struct MainWindowView: View {
             }
         } message: {
             Text(viewModel.errorMessage ?? "")
+        }
+    }
+
+    private var inputSection: some View {
+        VStack(spacing: 16) {
+            toolbar
+            FileDropView(
+                supportedExtensions: settings.supportedExtensions,
+                selectedFile: viewModel.selectedFile,
+                onFileSelected: viewModel.selectFile(url:preferredFileName:)
+            )
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+    }
+
+    private var resultSection: some View {
+        TranscriptEditorView(
+            text: $viewModel.transcriptText,
+            isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
+            segments: viewModel.currentTranscript?.segments,
+            playingSegmentID: viewModel.playingSegmentID,
+            isEditing: $viewModel.isEditingTranscript,
+            onSegmentTap: viewModel.playSegment,
+            onCopy: viewModel.copyTranscript
+        )
+        .frame(maxHeight: .infinity)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 16)
+    }
+
+    private var footerSection: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .overlay(Color.primary.opacity(0.08))
+
+            StatusBarView(
+                uiState: viewModel.uiState,
+                progress: viewModel.progressDisplay,
+                canCancel: viewModel.canCancel,
+                onCancel: viewModel.cancelTranscription
+            )
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .frame(height: 44)
         }
     }
 
