@@ -114,7 +114,7 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
             }
             var host = url.hostname.toLowerCase();
             return allowedDownloadHosts.some(function (allowedHost) {
-              return host === allowedHost || host.endsWith('.' + allowedHost);
+              return host === allowedHost;
             });
           } catch (error) {
             return false;
