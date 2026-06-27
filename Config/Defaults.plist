@@ -81,6 +81,8 @@
 	</array>
 	<key>UpdateCheckEnabled</key>
 	<true/>
+	<key>ExpectedGitHubRepository</key>
+	<string>T3pp31/Transnote</string>
 	<key>GitHubReleasesAPIURL</key>
 	<string>https://api.github.com/repos/T3pp31/Transnote/releases/latest</string>
 	<key>UpdateDownloadFallbackURL</key>

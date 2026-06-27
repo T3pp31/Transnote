@@ -70,6 +70,7 @@ struct AppConfig {
     let models: [ModelOption]
     let languages: [LanguageOption]
     let updateCheckEnabled: Bool
+    let expectedGitHubRepository: String
     let githubReleasesAPIURL: URL
     let updateDownloadFallbackURL: URL
     let updateDMGAssetName: String
@@ -96,6 +97,7 @@ struct AppConfig {
         languages = Self.parseLanguages(from: data["Languages"] as? [[String: Any]] ?? [])
 
         updateCheckEnabled = data["UpdateCheckEnabled"] as? Bool ?? true
+        expectedGitHubRepository = data["ExpectedGitHubRepository"] as? String ?? "T3pp31/Transnote"
         githubReleasesAPIURL = Self.url(
             from: data["GitHubReleasesAPIURL"] as? String,
             fallback: "https://api.github.com/repos/T3pp31/Transnote/releases/latest"
@@ -117,6 +119,7 @@ struct AppConfig {
         models: [ModelOption],
         languages: [LanguageOption],
         updateCheckEnabled: Bool,
+        expectedGitHubRepository: String = "T3pp31/Transnote",
         githubReleasesAPIURL: URL,
         updateDownloadFallbackURL: URL,
         updateDMGAssetName: String,
@@ -129,6 +132,7 @@ struct AppConfig {
         self.models = models
         self.languages = languages
         self.updateCheckEnabled = updateCheckEnabled
+        self.expectedGitHubRepository = expectedGitHubRepository
         self.githubReleasesAPIURL = githubReleasesAPIURL
         self.updateDownloadFallbackURL = updateDownloadFallbackURL
         self.updateDMGAssetName = updateDMGAssetName
@@ -141,6 +145,7 @@ struct AppConfig {
         "DefaultLanguage": "auto",
         "ModelsDirectoryName": "Models",
         "UpdateCheckEnabled": true,
+        "ExpectedGitHubRepository": "T3pp31/Transnote",
         "GitHubReleasesAPIURL": "https://api.github.com/repos/T3pp31/Transnote/releases/latest",
         "UpdateDownloadFallbackURL": "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg",
         "UpdateDMGAssetName": "Transnote.dmg",
