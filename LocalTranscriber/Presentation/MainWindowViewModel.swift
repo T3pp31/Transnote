@@ -337,7 +337,7 @@ final class MainWindowViewModel: ObservableObject {
 
         do {
             try exportService.write(transcript: transcript, format: format, to: url)
-            AppLogger.info("Exported \(format.displayName) to \(url.path)", logger: AppLogger.export)
+            AppLogger.info("Exported \(format.displayName) to \(url.lastPathComponent)", logger: AppLogger.export)
         } catch {
             handleError(error, context: .export(format))
         }
