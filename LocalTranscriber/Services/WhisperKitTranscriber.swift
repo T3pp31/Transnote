@@ -165,7 +165,7 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
             return instance
         } catch {
             AppLogger.error(
-                "Model load failed at \(modelPath.path): \(error.localizedDescription)",
+                "Model load failed at \(modelPath.lastPathComponent): \(error.localizedDescription)",
                 logger: AppLogger.transcription
             )
             throw AppError.transcriptionFailed(
@@ -179,7 +179,7 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         modelDisplayName: String?
     ) throws -> URL {
         if let existingPath = modelAvailability.modelFolder(for: modelName) {
-            AppLogger.info("Using cached model at \(existingPath.path)", logger: AppLogger.transcription)
+            AppLogger.info("Using cached model at \(existingPath.lastPathComponent)", logger: AppLogger.transcription)
             return existingPath
         }
 

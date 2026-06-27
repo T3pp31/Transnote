@@ -21,7 +21,7 @@ struct ModelDownloadService: Sendable {
     ) async throws -> URL {
         if let existingPath = modelAvailability.modelFolder(for: whisperKitModelName) {
             AppLogger.info(
-                "Model already available at \(existingPath.path)",
+                "Model already available at \(existingPath.lastPathComponent)",
                 logger: AppLogger.transcription
             )
             return existingPath
@@ -67,7 +67,7 @@ struct ModelDownloadService: Sendable {
             )
         }
 
-        AppLogger.info("Downloaded model to \(downloadedPath.path)", logger: AppLogger.transcription)
+        AppLogger.info("Downloaded model to \(downloadedPath.lastPathComponent)", logger: AppLogger.transcription)
         return downloadedPath
     }
 }

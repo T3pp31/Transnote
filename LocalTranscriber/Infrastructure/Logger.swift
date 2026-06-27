@@ -10,14 +10,14 @@ enum AppLogger {
     static let fileAccess = Logger(subsystem: subsystem, category: "fileAccess")
 
     static func info(_ message: String, logger: Logger = general) {
-        logger.info("\(message, privacy: .public)")
+        logger.info("\(message, privacy: .private)")
     }
 
     static func error(_ message: String, logger: Logger = general) {
-        logger.error("\(message, privacy: .public)")
+        logger.error("\(message, privacy: .private)")
     }
 
     static func debug(_ message: String, logger: Logger = general) {
-        logger.debug("\(message, privacy: .public)")
+        logger.debug("\(message, privacy: .private)")
     }
 }
