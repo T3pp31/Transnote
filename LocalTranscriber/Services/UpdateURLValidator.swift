@@ -6,10 +6,7 @@ enum UpdateURLValidator {
               let host = url.host?.lowercased() else {
             return false
         }
-        return allowedHosts.contains { allowedHost in
-            let normalized = allowedHost.lowercased()
-            return host == normalized || host.hasSuffix(".\(normalized)")
-        }
+        return allowedHosts.contains { $0.lowercased() == host }
     }
 
     static func validatedDownloadURL(
