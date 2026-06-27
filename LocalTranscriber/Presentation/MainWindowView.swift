@@ -6,30 +6,11 @@ struct MainWindowView: View {
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        VStack(spacing: 16) {
-            toolbar
-            FileDropView(
-                supportedExtensions: settings.supportedExtensions,
-                selectedFile: viewModel.selectedFile,
-                onFileSelected: viewModel.selectFile(url:preferredFileName:)
-            )
-            TranscriptEditorView(
-                text: $viewModel.transcriptText,
-                isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
-                segments: viewModel.currentTranscript?.segments,
-                playingSegmentID: viewModel.playingSegmentID,
-                isEditing: $viewModel.isEditingTranscript,
-                onSegmentTap: viewModel.playSegment,
-                onCopy: viewModel.copyTranscript
-            )
-            StatusBarView(
-                uiState: viewModel.uiState,
-                progress: viewModel.progressDisplay,
-                canCancel: viewModel.canCancel,
-                onCancel: viewModel.cancelTranscription
-            )
+        VStack(spacing: 0) {
+            inputSection
+            resultSection
+            footerSection
         }
-        .padding(20)
         .frame(minWidth: 720, minHeight: 560)
         .onAppear {
             viewModel.refreshModelAvailability()
@@ -72,29 +53,88 @@ struct MainWindowView: View {
         }
     }
 
-    private var toolbar: some View {
-        HStack(spacing: 12) {
-            Picker("モデル", selection: $settings.selectedModelID) {
-                ForEach(settings.models) { model in
-                    Label {
-                        Text(model.displayName)
-                    } icon: {
-                        Image(systemName: modelIcon(for: model))
-                    }
-                    .tag(model.id)
-                }
-            }
-            .frame(width: 240)
-            .disabled(viewModel.isBusy)
+    private var inputSection: some View {
+        VStack(spacing: 16) {
+            toolbar
+            FileDropView(
+                supportedExtensions: settings.supportedExtensions,
+                selectedFile: viewModel.selectedFile,
+                onFileSelected: viewModel.selectFile(url:preferredFileName:)
+            )
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+    }
 
-            if viewModel.canDownloadSelectedModel {
-                Button {
-                    viewModel.downloadSelectedModel()
-                } label: {
-                    Label("ダウンロード", systemImage: "arrow.down.circle")
+    private var resultSection: some View {
+        TranscriptEditorView(
+            text: $viewModel.transcriptText,
+            isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
+            segments: viewModel.currentTranscript?.segments,
+            playingSegmentID: viewModel.playingSegmentID,
+            isEditing: $viewModel.isEditingTranscript,
+            onSegmentTap: viewModel.playSegment,
+            onCopy: viewModel.copyTranscript
+        )
+        .frame(maxHeight: .infinity)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 16)
+    }
+
+    private var footerSection: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .overlay(Color.primary.opacity(0.08))
+
+            StatusBarView(
+                uiState: viewModel.uiState,
+                progress: viewModel.progressDisplay,
+                canCancel: viewModel.canCancel,
+                onCancel: viewModel.cancelTranscription
+            )
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .frame(height: 44)
+        }
+    }
+
+    private var toolbar: some View {
+        VStack(spacing: 16) {
+            settingsToolbarRow
+
+            Divider()
+
+            actionToolbarRow
+        }
+    }
+
+    private var settingsToolbarRow: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 6) {
+                Picker("モデル", selection: $settings.selectedModelID) {
+                    ForEach(settings.models) { model in
+                        Label {
+                            Text(model.displayName)
+                        } icon: {
+                            Image(systemName: modelIcon(for: model))
+                        }
+                        .tag(model.id)
+                    }
                 }
+                .frame(width: 220)
                 .disabled(viewModel.isBusy)
-                .help("選択中のモデルをダウンロード")
+
+                if viewModel.canDownloadSelectedModel {
+                    Button {
+                        viewModel.downloadSelectedModel()
+                    } label: {
+                        Image(systemName: "arrow.down.circle")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(viewModel.isBusy)
+                    .help("選択中のモデルをダウンロード")
+                }
             }
 
             Picker("言語", selection: $settings.selectedLanguageID) {
@@ -105,13 +145,13 @@ struct MainWindowView: View {
             .frame(width: 140)
             .disabled(viewModel.isBusy)
 
-            Spacer()
+            Spacer(minLength: 0)
+        }
+    }
 
-            Button("文字起こしを開始") {
-                viewModel.startTranscription()
-            }
-            .disabled(!viewModel.canStartTranscription)
-            .keyboardShortcut(.return, modifiers: [.command])
+    private var actionToolbarRow: some View {
+        HStack(spacing: 12) {
+            Spacer(minLength: 0)
 
             Menu("エクスポート") {
                 ForEach(ExportFormat.allCases) { format in
@@ -120,7 +160,16 @@ struct MainWindowView: View {
                     }
                 }
             }
+            .buttonStyle(.bordered)
             .disabled(!viewModel.canExport)
+
+            Button("文字起こしを開始") {
+                viewModel.startTranscription()
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(!viewModel.canStartTranscription)
+            .keyboardShortcut(.return, modifiers: [.command])
         }
     }
 

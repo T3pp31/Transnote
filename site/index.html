@@ -11,6 +11,8 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#main-content">メインコンテンツへスキップ</a>
+
     <header class="hero">
       <div class="hero-inner">
         <img src="Transnote.png" alt="Transnote" class="app-icon" width="128" height="128" />
@@ -28,14 +30,13 @@
             >
               最新版をダウンロード
             </a>
-            <a class="button secondary" href="https://github.com/T3pp31/Transnote/releases">リリース一覧</a>
             <a class="button secondary" href="https://github.com/T3pp31/Transnote">GitHub</a>
           </div>
         </div>
       </div>
     </header>
 
-    <main>
+    <main id="main-content">
       <section class="panel">
         <h2>できること</h2>
         <ul>
@@ -49,28 +50,28 @@
       <section class="panel">
         <h2>インストール</h2>
         <p>
-          未署名配布のため、<strong>インストール.command</strong> をダブルクリックすると
-          <strong>「開いていません」</strong> と表示されることがあります。右クリック → <strong>開く</strong> でも通らない場合は、
-          <strong>ターミナルからの実行</strong> がいちばん確実です。
+          未署名配布のため、<code>インストール.command</code> をダブルクリックすると「開いていません」と表示されることがあります。右クリック → 開く でも通らない場合は、ターミナルからの実行がいちばん確実です。
         </p>
         <ol>
           <li>
             <a href="https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg">最新版 DMG</a>
             をダウンロードします（ファイル名は <code>Transnote.dmg</code>）。
           </li>
-          <li>DMG を開き、<strong>初めにお読みください.txt</strong> を読みます。</li>
+          <li>DMG を開き、<code>初めにお読みください.txt</code> を読みます。</li>
           <li>
-            <strong>ターミナル</strong> を開き、次の2行を1行ずつ実行します（ボリューム名は DMG により <code>Transnote</code> など）:
+            ターミナルを開き、次の2行を1行ずつ実行します（ボリューム名は DMG により <code>Transnote</code> など）:
             <pre><code>xattr -cr "/Volumes/Transnote/"
 bash "/Volumes/Transnote/インストール.command"</code></pre>
           </li>
           <li>インストールスクリプトが Applications 内の旧バージョンを削除してから新バージョンを配置します。</li>
-          <li>DMG を Finder から <strong>取り出します</strong>（マウントしたままだとアプリが複数表示されます）。</li>
-          <li>初回起動時に Gatekeeper の警告が出る場合は、Applications 内の Transnote を右クリック → <strong>開く</strong> を選んでください。</li>
+          <li>DMG を Finder から取り出します（マウントしたままだとアプリが複数表示されます）。</li>
+          <li>初回起動時に Gatekeeper の警告が出る場合は、Applications 内の Transnote を右クリック → 開く を選んでください。</li>
           <li>初回利用時に Whisper モデルのダウンロードが必要です。画面の案内に従ってください。</li>
         </ol>
         <p>
-          詳細はリポジトリ内の
+          詳細は
+          <a href="https://github.com/T3pp31/Transnote/releases">リリース一覧</a>
+          またはリポジトリ内の
           <a href="https://github.com/T3pp31/Transnote/blob/main/docs/install.md">インストール手順</a>
           を参照してください。
         </p>
@@ -95,6 +96,12 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
     </main>
 
     <footer>
+      <nav aria-label="メイン">
+        <ul class="footer-nav">
+          <li><a href="https://github.com/T3pp31/Transnote/releases">リリース一覧</a></li>
+          <li><a href="https://github.com/T3pp31/Transnote">GitHub</a></li>
+        </ul>
+      </nav>
       <p>Copyright © 2026 Transnote</p>
     </footer>
     <script>
@@ -114,7 +121,7 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
             }
             var host = url.hostname.toLowerCase();
             return allowedDownloadHosts.some(function (allowedHost) {
-              return host === allowedHost || host.endsWith('.' + allowedHost);
+              return host === allowedHost;
             });
           } catch (error) {
             return false;
