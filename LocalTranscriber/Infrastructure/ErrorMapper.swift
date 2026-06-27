@@ -58,6 +58,7 @@ enum ErrorMapper {
             return "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。"
         }
 
-        return description
+        AppLogger.error("Unknown error: \(error)")
+        return "予期しないエラーが発生しました。もう一度お試しください。"
     }
 }

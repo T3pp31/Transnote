@@ -64,6 +64,7 @@ TEST_SOURCES = [
     "LocalTranscriberTests/AudioPlayerServiceTests.swift",
     "LocalTranscriberTests/AppVersionTests.swift",
     "LocalTranscriberTests/UpdateCheckServiceTests.swift",
+    "LocalTranscriberTests/ErrorMapperTests.swift",
 ]
 
 RESOURCES = [
