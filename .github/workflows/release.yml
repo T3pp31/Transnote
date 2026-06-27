@@ -104,19 +104,64 @@ jobs:
           cp "$versioned_dmg" "$latest_dmg"
           echo "dmg_path=$versioned_dmg" >> "$GITHUB_OUTPUT"
           echo "latest_dmg_path=$latest_dmg" >> "$GITHUB_OUTPUT"
+          echo "versioned_dmg_name=${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg" >> "$GITHUB_OUTPUT"
+          echo "latest_dmg_name=${{ env.APP_NAME }}.dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Compute SHA256 checksums
+        id: checksum
+        run: |
+          set -euo pipefail
+          versioned_dmg="${{ steps.dmg.outputs.dmg_path }}"
+          latest_dmg="${{ steps.dmg.outputs.latest_dmg_path }}"
+          versioned_sha256="${versioned_dmg}.sha256"
+          latest_sha256="${latest_dmg}.sha256"
+          shasum -a 256 "$versioned_dmg" > "$versioned_sha256"
+          shasum -a 256 "$latest_dmg" > "$latest_sha256"
+          versioned_hash="$(awk '{print $1}' "$versioned_sha256")"
+          latest_hash="$(awk '{print $1}' "$latest_sha256")"
+          echo "versioned_sha256_path=$versioned_sha256" >> "$GITHUB_OUTPUT"
+          echo "latest_sha256_path=$latest_sha256" >> "$GITHUB_OUTPUT"
+          echo "versioned_hash=$versioned_hash" >> "$GITHUB_OUTPUT"
+          echo "latest_hash=$latest_hash" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare release notes
+        id: notes
+        run: |
+          set -euo pipefail
+          cat > release_body.md <<EOF
+          未署名ビルドです。DMG を開き、**インストール.command** を実行してインストールしてください（旧バージョンは自動的に置き換えられます）。
+
+          初回起動時に Gatekeeper の警告が出る場合は、Finder でアプリを右クリックして「開く」を選んでください。
+
+          ## SHA256 チェックサム
+
+          ダウンロード後、インストール前に整合性を確認してください。
+
+          | ファイル | SHA256 |
+          | --- | --- |
+          | \`${{ steps.dmg.outputs.versioned_dmg_name }}\` | \`${{ steps.checksum.outputs.versioned_hash }}\` |
+          | \`${{ steps.dmg.outputs.latest_dmg_name }}\` | \`${{ steps.checksum.outputs.latest_hash }}\` |
+
+          \`.sha256\` ファイルも Release 資産として同梱しています。
+
+          \`\`\`bash
+          shasum -a 256 -c ${{ steps.dmg.outputs.versioned_dmg_name }}.sha256
+          \`\`\`
+
+          詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
+
+          > **コード署名について**: 現時点では未署名ビルドを配布しています。Developer ID 署名と Notarization には [Apple Developer Program](https://developer.apple.com/programs/) への加入と CI 用証明書の設定が必要です（将来対応予定）。
+          EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Transnote ${{ steps.version.outputs.version }}
-          body: |
-            未署名ビルドです。DMG を開き、**インストール.command** を実行してインストールしてください（旧バージョンは自動的に置き換えられます）。
-
-            初回起動時に Gatekeeper の警告が出る場合は、Finder でアプリを右クリックして「開く」を選んでください。
-
-            詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
+          body_path: release_body.md
           generate_release_notes: true
           files: |
             ${{ steps.dmg.outputs.dmg_path }}
             ${{ steps.dmg.outputs.latest_dmg_path }}
+            ${{ steps.checksum.outputs.versioned_sha256_path }}
+            ${{ steps.checksum.outputs.latest_sha256_path }}
