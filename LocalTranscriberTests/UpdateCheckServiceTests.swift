@@ -45,6 +45,10 @@ final class UpdateCheckServiceTests: XCTestCase {
             {
               "tag_name": "v0.2.0",
               "body": "Bug fixes",
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+              "repository": {
+                "full_name": "T3pp31/Transnote"
+              },
               "assets": [
                 {
                   "name": "Transnote.dmg",
@@ -88,6 +92,10 @@ final class UpdateCheckServiceTests: XCTestCase {
             {
               "tag_name": "v0.1.0",
               "body": null,
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.1.0",
+              "repository": {
+                "full_name": "T3pp31/Transnote"
+              },
               "assets": []
             }
             """
@@ -119,6 +127,10 @@ final class UpdateCheckServiceTests: XCTestCase {
             {
               "tag_name": "v0.2.0",
               "body": null,
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+              "repository": {
+                "full_name": "T3pp31/Transnote"
+              },
               "assets": []
             }
             """
@@ -150,6 +162,10 @@ final class UpdateCheckServiceTests: XCTestCase {
             {
               "tag_name": "v0.2.0",
               "body": null,
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+              "repository": {
+                "full_name": "T3pp31/Transnote"
+              },
               "assets": [
                 {
                   "name": "Transnote.dmg",
@@ -200,6 +216,10 @@ final class UpdateCheckServiceTests: XCTestCase {
             {
               "tag_name": "v0.2.0",
               "body": null,
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+              "repository": {
+                "full_name": "T3pp31/Transnote"
+              },
               "assets": [
                 {
                   "name": "Transnote.dmg",
@@ -219,6 +239,46 @@ final class UpdateCheckServiceTests: XCTestCase {
 
         let service = UpdateCheckService(
             config: unsafeConfig,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertNil(offer)
+    }
+
+    // Given: 別リポジトリのリリースレスポンス
+    // When: checkForUpdate を実行
+    // Then: nil を返す
+    func testCheckForUpdateReturnsNilWhenRepositoryDoesNotMatch() async {
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": null,
+              "html_url": "https://github.com/evil/OtherApp/releases/tag/v0.2.0",
+              "repository": {
+                "full_name": "evil/OtherApp"
+              },
+              "assets": [
+                {
+                  "name": "Transnote.dmg",
+                  "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: config,
             session: session,
             currentVersionProvider: { "0.1.0" }
         )
