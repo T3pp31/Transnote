@@ -197,3 +197,53 @@ struct MainWindowView: View {
         viewModel.isModelDownloaded(model) ? "checkmark.circle" : "arrow.down.circle"
     }
 }
+
+private struct InlineErrorBanner: View {
+    let title: String?
+    let message: String
+    let canRetry: Bool
+    let onRetry: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .font(.body)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                if let title {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                }
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            if canRetry {
+                Button("再試行", action: onRetry)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("エラーを閉じる")
+        }
+        .padding(12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
