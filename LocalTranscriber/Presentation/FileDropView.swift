@@ -111,48 +111,6 @@ struct FileDropView: View {
         return Color.black.opacity(isHovered ? 0.08 : 0.04)
     }
 
-    private var dropZoneSurface: some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.regularMaterial)
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(dropAccentFill)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(dropBorderColor, lineWidth: 1)
-            }
-            .shadow(
-                color: dropShadowColor,
-                radius: isTargeted ? 12 : (isHovered ? 8 : 4),
-                y: isTargeted ? 4 : 2
-            )
-    }
-
-    private var dropAccentFill: Color {
-        if isTargeted {
-            return Color.accentColor.opacity(0.08)
-        }
-        if isHovered {
-            return Color.primary.opacity(0.02)
-        }
-        return Color(NSColor.controlBackgroundColor).opacity(0.35)
-    }
-
-    private var dropBorderColor: Color {
-        if isTargeted {
-            return Color.accentColor.opacity(0.45)
-        }
-        return Color.primary.opacity(0.08)
-    }
-
-    private var dropShadowColor: Color {
-        if isTargeted {
-            return Color.accentColor.opacity(0.18)
-        }
-        return Color.black.opacity(isHovered ? 0.08 : 0.04)
-    }
-
     private func openFilePanel() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
