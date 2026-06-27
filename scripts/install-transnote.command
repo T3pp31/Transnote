@@ -11,6 +11,38 @@ fail() {
   exit 1
 }
 
+verify_dmg_checksum_if_requested() {
+  [[ -z "${CHECKSUM:-}" ]] && return 0
+
+  if [[ "$SCRIPT_DIR" != /Volumes/* ]]; then
+    fail "CHECKSUM 検証は DMG から実行した場合のみ利用できます。"
+  fi
+
+  local volume_path="/Volumes/${SCRIPT_DIR#/Volumes/}"
+  volume_path="${volume_path%%/*}"
+
+  local dmg_path=""
+  local current_path=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^image-path[[:space:]]*: ]]; then
+      current_path="${line#*: }"
+    elif [[ "$line" == *"$volume_path"* ]] && [[ -n "$current_path" ]]; then
+      dmg_path="$current_path"
+      break
+    fi
+  done < <(hdiutil info 2>/dev/null)
+
+  if [[ -z "$dmg_path" || ! -f "$dmg_path" ]]; then
+    fail "マウント中の DMG パスを取得できませんでした。"
+  fi
+
+  local actual
+  actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+  if [[ "$actual" != "$CHECKSUM" ]]; then
+    fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
+  fi
+}
+
 if [[ ! -f "$PLIST" ]]; then
   fail "配布設定ファイル (distribution.plist) が見つかりません。"
 fi
@@ -22,6 +54,8 @@ TARGET_APP="${APPLICATIONS_DIR}/${APP_NAME}.app"
 if [[ ! -d "$SOURCE_APP" ]]; then
   fail "${APP_NAME}.app が DMG 内に見つかりません。"
 fi
+
+verify_dmg_checksum_if_requested
 
 remove_installed_apps() {
   local base_name="$1"

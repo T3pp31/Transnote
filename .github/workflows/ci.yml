@@ -14,6 +14,26 @@ jobs:
         with:
           xcode-version: '16.4'
 
+      - name: Resolve Swift Package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project LocalTranscriber.xcodeproj \
+            -scheme LocalTranscriber \
+            -derivedDataPath DerivedData
+
+      - name: Verify Package.resolved is committed
+        run: |
+          RESOLVED="LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -f "$RESOLVED" ]; then
+            echo "Package.resolved not found at $RESOLVED"
+            exit 1
+          fi
+          if ! git diff --quiet -- "$RESOLVED"; then
+            echo "Package.resolved is out of date. Run xcodebuild -resolvePackageDependencies and commit the result."
+            git diff -- "$RESOLVED"
+            exit 1
+          fi
+
       - name: Run tests
         run: |
           xcodebuild test \

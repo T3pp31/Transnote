@@ -6,7 +6,39 @@ Transnote は macOS 14 以降向けのオンデバイス文字起こしアプリ
 
 1. [GitHub Releases (latest)](https://github.com/T3pp31/Transnote/releases/latest) を開きます。
 2. `Transnote-<version>.dmg` または `Transnote.dmg` をダウンロードします。
-3. 配布ページから案内される場合は [GitHub Pages](https://t3pp31.github.io/Transnote/) からも同じリンクへ遷移できます。
+3. 同じ Release から `.sha256` ファイルもダウンロードします（任意ですが推奨）。
+4. 配布ページから案内される場合は [GitHub Pages](https://t3pp31.github.io/Transnote/) からも同じリンクへ遷移できます。
+
+## SHA256 チェックサムの確認（推奨）
+
+未署名配布のため、ダウンロードした DMG が改ざんされていないか、インストール前に確認することを推奨します。
+
+### 方法 A: `.sha256` ファイルで検証
+
+DMG と同じフォルダに `.sha256` ファイルを置き、ターミナルで次を実行します。
+
+```bash
+cd ~/Downloads
+shasum -a 256 -c Transnote-0.1.0.dmg.sha256
+```
+
+`Transnote-0.1.0.dmg: OK` と表示されれば整合性に問題ありません。
+
+### 方法 B: Release 本文のハッシュと照合
+
+Release ページに記載されている SHA256 と、ローカルで計算した値を比較します。
+
+```bash
+shasum -a 256 ~/Downloads/Transnote-0.1.0.dmg
+```
+
+### 方法 C: インストールスクリプトで検証（任意）
+
+Release 本文の SHA256 を環境変数 `CHECKSUM` に渡すと、インストール前に DMG の整合性を確認できます。
+
+```bash
+CHECKSUM="<Release に記載の SHA256>" bash "/Volumes/Transnote/インストール.command"
+```
 
 ## インストール（推奨）
 

@@ -88,7 +88,7 @@ final class AudioImportServiceTests: XCTestCase {
         FileManager.default.createFile(atPath: sourceURL.path, contents: Data(repeating: 0, count: 11))
 
         XCTAssertThrowsError(try limitedService.importFile(from: sourceURL)) { error in
-            guard case AppError.fileTooLarge = error as? AppError else {
+            guard case AppError.fileTooLarge = error else {
                 XCTFail("Expected fileTooLarge, got \(error)")
                 return
             }
