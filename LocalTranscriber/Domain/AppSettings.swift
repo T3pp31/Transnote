@@ -74,6 +74,7 @@ struct AppConfig {
     let updateDownloadFallbackURL: URL
     let updateDMGAssetName: String
     let allowedUpdateDownloadHosts: [String]
+    let maxImportFileSizeBytes: Int64
 
     init(bundle: Bundle = .main) {
         let plistURL = bundle.url(forResource: "Defaults", withExtension: "plist")
@@ -107,6 +108,7 @@ struct AppConfig {
         updateDMGAssetName = data["UpdateDMGAssetName"] as? String ?? "Transnote.dmg"
         allowedUpdateDownloadHosts = data["AllowedUpdateDownloadHosts"] as? [String]
             ?? ["github.com", "objects.githubusercontent.com"]
+        maxImportFileSizeBytes = Self.int64(from: data["MaxImportFileSizeBytes"], fallback: 524_288_000)
     }
 
     init(
@@ -120,7 +122,8 @@ struct AppConfig {
         githubReleasesAPIURL: URL,
         updateDownloadFallbackURL: URL,
         updateDMGAssetName: String,
-        allowedUpdateDownloadHosts: [String] = ["github.com", "objects.githubusercontent.com"]
+        allowedUpdateDownloadHosts: [String] = ["github.com", "objects.githubusercontent.com"],
+        maxImportFileSizeBytes: Int64 = 524_288_000
     ) {
         self.supportedExtensions = supportedExtensions
         self.defaultModelID = defaultModelID
@@ -133,6 +136,7 @@ struct AppConfig {
         self.updateDownloadFallbackURL = updateDownloadFallbackURL
         self.updateDMGAssetName = updateDMGAssetName
         self.allowedUpdateDownloadHosts = allowedUpdateDownloadHosts
+        self.maxImportFileSizeBytes = maxImportFileSizeBytes
     }
 
     private static let fallbackData: [String: Any] = [
@@ -144,8 +148,16 @@ struct AppConfig {
         "GitHubReleasesAPIURL": "https://api.github.com/repos/T3pp31/Transnote/releases/latest",
         "UpdateDownloadFallbackURL": "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg",
         "UpdateDMGAssetName": "Transnote.dmg",
-        "AllowedUpdateDownloadHosts": ["github.com", "objects.githubusercontent.com"]
+        "AllowedUpdateDownloadHosts": ["github.com", "objects.githubusercontent.com"],
+        "MaxImportFileSizeBytes": 524_288_000
     ]
+
+    private static func int64(from value: Any?, fallback: Int64) -> Int64 {
+        if let number = value as? NSNumber {
+            return number.int64Value
+        }
+        return fallback
+    }
 
     private static func url(from string: String?, fallback: String) -> URL {
         if let string, let url = URL(string: string) {
