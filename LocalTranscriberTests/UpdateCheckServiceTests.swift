@@ -25,7 +25,8 @@ final class UpdateCheckServiceTests: XCTestCase {
                 string: "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg"
             )!,
             updateDMGAssetName: "Transnote.dmg",
-            allowedUpdateDownloadHosts: ["github.com", "objects.githubusercontent.com"]
+            allowedUpdateDownloadHosts: ["github.com", "objects.githubusercontent.com"],
+            maxImportFileSizeBytes: 524_288_000
         )
     }
 
@@ -208,7 +209,8 @@ final class UpdateCheckServiceTests: XCTestCase {
             githubReleasesAPIURL: config.githubReleasesAPIURL,
             updateDownloadFallbackURL: URL(string: "https://evil.example.com/fallback.dmg")!,
             updateDMGAssetName: "Transnote.dmg",
-            allowedUpdateDownloadHosts: ["github.com", "objects.githubusercontent.com"]
+            allowedUpdateDownloadHosts: ["github.com", "objects.githubusercontent.com"],
+            maxImportFileSizeBytes: 524_288_000
         )
 
         MockURLProtocol.requestHandler = { _ in
@@ -326,7 +328,8 @@ final class UpdateCheckServiceTests: XCTestCase {
             githubReleasesAPIURL: config.githubReleasesAPIURL,
             updateDownloadFallbackURL: config.updateDownloadFallbackURL,
             updateDMGAssetName: "Transnote.dmg",
-            allowedUpdateDownloadHosts: config.allowedUpdateDownloadHosts
+            allowedUpdateDownloadHosts: config.allowedUpdateDownloadHosts,
+            maxImportFileSizeBytes: config.maxImportFileSizeBytes
         )
 
         MockURLProtocol.requestHandler = { _ in

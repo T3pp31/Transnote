@@ -76,6 +76,43 @@ final class AudioImportServiceTests: XCTestCase {
         XCTAssertTrue(importedURL.lastPathComponent.hasPrefix("imported-audio"))
     }
 
+    func testImportFileThrowsWhenFileExceedsSizeLimit() throws {
+        let limitedService = AudioImportService(importsRoot: importsRoot, maxImportFileSizeBytes: 10)
+
+        let sourceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceRoot) }
+
+        let sourceURL = sourceRoot.appendingPathComponent("large.wav")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data(repeating: 0, count: 11))
+
+        XCTAssertThrowsError(try limitedService.importFile(from: sourceURL)) { error in
+            guard case AppError.fileTooLarge = error else {
+                XCTFail("Expected fileTooLarge, got \(error)")
+                return
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: importsRoot.appendingPathComponent("large.wav").path))
+    }
+
+    func testImportFileSucceedsWhenFileWithinSizeLimit() throws {
+        let limitedService = AudioImportService(importsRoot: importsRoot, maxImportFileSizeBytes: 10)
+
+        let sourceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceRoot) }
+
+        let sourceURL = sourceRoot.appendingPathComponent("small.wav")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data(repeating: 0, count: 10))
+
+        let importedURL = try limitedService.importFile(from: sourceURL)
+
+        XCTAssertTrue(importedURL.path.hasPrefix(importsRoot.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path))
+    }
+
     func testValidateAcceptsExtensionFromPreferredFileName() throws {
         let sourceRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
