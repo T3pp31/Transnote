@@ -58,7 +58,7 @@ struct MainWindowView: View {
             }
         }
         .alert(
-            "Error",
+            "エラー",
             isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } }
@@ -91,7 +91,7 @@ struct MainWindowView: View {
                 Button {
                     viewModel.downloadSelectedModel()
                 } label: {
-                    Label("Download", systemImage: "arrow.down.circle")
+                    Label("ダウンロード", systemImage: "arrow.down.circle")
                 }
                 .disabled(viewModel.isBusy)
                 .help("選択中のモデルをダウンロード")
@@ -107,13 +107,13 @@ struct MainWindowView: View {
 
             Spacer()
 
-            Button("Start") {
+            Button("文字起こしを開始") {
                 viewModel.startTranscription()
             }
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
 
-            Menu("Export") {
+            Menu("エクスポート") {
                 ForEach(ExportFormat.allCases) { format in
                     Button(format.displayName) {
                         viewModel.exportTranscript(format: format)

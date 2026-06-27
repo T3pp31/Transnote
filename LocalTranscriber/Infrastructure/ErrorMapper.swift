@@ -37,7 +37,7 @@ enum ErrorMapper {
             case .bookmarkResolutionFailed:
                 return "保存済みファイルへのアクセスを復元できませんでした。"
             case .modelNotDownloaded(let modelName):
-                return "モデル「\(modelName)」がダウンロードされていません。ツールバーの「Download」ボタンからダウンロードしてください。"
+                return "モデル「\(modelName)」がダウンロードされていません。ツールバーの「ダウンロード」ボタンからダウンロードしてください。"
             }
         }
 
