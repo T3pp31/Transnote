@@ -6,6 +6,9 @@ struct FileDropView: View {
     let onFileSelected: (URL, String?) -> Void
 
     @State private var isTargeted = false
+    @State private var isHovered = false
+
+    private let cornerRadius: CGFloat = 18
 
     var body: some View {
         VStack(spacing: 12) {
@@ -31,43 +34,59 @@ struct FileDropView: View {
                 openFilePanel()
             }
             .keyboardShortcut("o", modifiers: [.command])
-            .accessibilityLabel("音声ファイルを選択")
-            .accessibilityHint("ファイル選択ダイアログを開きます")
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(isTargeted ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isTargeted ? Color.accentColor.opacity(0.08) : Color.clear)
-                )
-        )
+        .background(dropZoneSurface)
+        .onHover { hovering in
+            isHovered = hovering
+        }
         .onDrop(of: acceptedDropTypes, isTargeted: $isTargeted) { providers in
             handleDrop(providers: providers)
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(dropZoneAccessibilityLabel)
-        .accessibilityHint(dropZoneAccessibilityHint)
+        .accessibilityLabel(selectedFile?.fileName ?? "音声ファイルのドロップゾーン")
     }
 
-    private var supportedFormatsDescription: String {
-        supportedExtensions.map { $0.uppercased() }.joined(separator: ", ")
+    private var dropZoneSurface: some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(.regularMaterial)
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(dropAccentFill)
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .strokeBorder(dropBorderColor, lineWidth: 1)
+            }
+            .shadow(
+                color: dropShadowColor,
+                radius: isTargeted ? 12 : (isHovered ? 8 : 4),
+                y: isTargeted ? 4 : 2
+            )
     }
 
-    private var dropZoneAccessibilityLabel: String {
-        if let selectedFile {
-            return "選択中の音声ファイル、\(selectedFile.fileName)"
+    private var dropAccentFill: Color {
+        if isTargeted {
+            return Color.accentColor.opacity(0.08)
         }
-        return "音声ファイルのドロップゾーン"
+        if isHovered {
+            return Color.primary.opacity(0.02)
+        }
+        return Color(NSColor.controlBackgroundColor).opacity(0.35)
     }
 
-    private var dropZoneAccessibilityHint: String {
-        if selectedFile != nil {
-            return "別の音声ファイルをドロップまたはファイルを選択で差し替えできます"
+    private var dropBorderColor: Color {
+        if isTargeted {
+            return Color.accentColor.opacity(0.45)
         }
-        return "対応形式は \(supportedFormatsDescription) です。音声ファイルをドロップするか、ファイルを選択してください"
+        return Color.primary.opacity(0.08)
+    }
+
+    private var dropShadowColor: Color {
+        if isTargeted {
+            return Color.accentColor.opacity(0.18)
+        }
+        return Color.black.opacity(isHovered ? 0.08 : 0.04)
     }
 
     private func openFilePanel() {
