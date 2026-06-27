@@ -84,6 +84,8 @@ struct TranscriptEditorView: View {
         HStack {
             Text("文字起こし結果")
                 .font(.headline)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityLabel("文字起こし")
             Spacer()
             if isEditable, !text.isEmpty {
                 Picker("表示", selection: $isEditing) {
@@ -92,6 +94,7 @@ struct TranscriptEditorView: View {
                 }
                 .pickerStyle(.segmented)
                 .frame(width: 140)
+                .accessibilityLabel("表示モード")
                 .accessibilityHint("再生モードと編集モードを切り替えます")
             }
             Button("コピー") {
@@ -99,6 +102,8 @@ struct TranscriptEditorView: View {
             }
             .disabled(text.isEmpty)
             .keyboardShortcut("c", modifiers: [.command])
+            .accessibilityLabel("文字起こしをコピー")
+            .accessibilityHint("クリップボードに文字起こし結果をコピーします")
         }
     }
 
@@ -164,8 +169,8 @@ private struct SegmentPlaybackRow: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .accessibilityLabel("\(segment.text), playable segment")
-        .accessibilityValue(isPlaying ? "Playing" : "")
+        .accessibilityLabel("\(segment.accessibilityStartTimestamp)、\(segment.text)、タップで再生")
+        .accessibilityValue(isPlaying ? "再生中" : "")
         .accessibilityAddTraits(.isButton)
     }
 

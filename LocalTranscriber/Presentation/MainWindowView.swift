@@ -124,6 +124,8 @@ struct MainWindowView: View {
                 }
                 .frame(width: 220)
                 .disabled(viewModel.isBusy)
+                .accessibilityLabel("文字起こしモデル")
+                .accessibilityHint("使用するWhisperモデルを選択します")
 
                 if viewModel.canDownloadSelectedModel {
                     Button {
@@ -134,6 +136,8 @@ struct MainWindowView: View {
                     .buttonStyle(.borderless)
                     .disabled(viewModel.isBusy)
                     .help("選択中のモデルをダウンロード")
+                    .accessibilityLabel("モデルをダウンロード")
+                    .accessibilityHint("選択中の文字起こしモデルをダウンロードします")
                 }
             }
 
@@ -144,6 +148,8 @@ struct MainWindowView: View {
             }
             .frame(width: 140)
             .disabled(viewModel.isBusy)
+            .accessibilityLabel("文字起こし言語")
+            .accessibilityHint("音声の言語を選択します")
 
             Spacer(minLength: 0)
         }
@@ -162,6 +168,8 @@ struct MainWindowView: View {
             }
             .buttonStyle(.bordered)
             .disabled(!viewModel.canExport)
+            .accessibilityLabel("文字起こし結果をエクスポート")
+            .accessibilityHint("テキスト、SRT、VTT などの形式で書き出します")
 
             Button("文字起こしを開始") {
                 viewModel.startTranscription()
@@ -170,6 +178,8 @@ struct MainWindowView: View {
             .controlSize(.large)
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
+            .accessibilityLabel("文字起こしを開始")
+            .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }
     }
 
