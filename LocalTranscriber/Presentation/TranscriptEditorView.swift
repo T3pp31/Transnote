@@ -155,19 +155,50 @@ private struct SegmentPlaybackRow: View {
     let onTap: () -> Void
 
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Button(action: onTap) {
-            Text(segment.text)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(backgroundColor)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: isPlaying ? "speaker.wave.2.fill" : "play.fill")
+                    .font(.caption)
+                    .foregroundStyle(isPlaying ? Color.accentColor : .secondary)
+                    .frame(width: 14)
+                    .symbolEffect(.variableColor, isActive: isPlaying && !reduceMotion)
+
+                Text(segment.formattedStartTime)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .frame(width: 88, alignment: .leading)
+
+                Text(segment.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(backgroundColor)
+            }
+            .overlay(alignment: .leading) {
+                if isPlaying {
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(Color.accentColor)
+                        .frame(width: 3)
+                        .padding(.vertical, 4)
+                }
+            }
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            isHovered = hovering
+            if reduceMotion {
+                isHovered = hovering
+            } else {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    isHovered = hovering
+                }
+            }
         }
         .accessibilityLabel("\(segment.accessibilityStartTimestamp)、\(segment.text)、タップで再生")
         .accessibilityValue(isPlaying ? "再生中" : "")
@@ -176,10 +207,10 @@ private struct SegmentPlaybackRow: View {
 
     private var backgroundColor: Color {
         if isPlaying {
-            return Color.accentColor.opacity(0.25)
+            return Color.accentColor.opacity(0.12)
         }
         if isHovered {
-            return Color.secondary.opacity(0.12)
+            return Color.secondary.opacity(0.08)
         }
         return Color.clear
     }

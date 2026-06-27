@@ -3,6 +3,7 @@ import SwiftUI
 struct StatusBarView: View {
     let uiState: TranscriptionUIState
     let progress: TranscriptionProgressDisplay
+    let inlineErrorTitle: String?
     let canCancel: Bool
     let onCancel: () -> Void
 
@@ -21,19 +22,25 @@ struct StatusBarView: View {
 
     @ViewBuilder
     private var statusContent: some View {
-        switch uiState {
-        case .idle:
-            Label("準備完了", systemImage: "checkmark.circle")
-                .foregroundStyle(.secondary)
-        case .preparing, .transcribing:
-            activeProgressRow
-        case .done:
-            Label("完了", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        case .error(let message):
-            Label(message, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .lineLimit(2)
+        if let inlineErrorTitle {
+            Label(inlineErrorTitle, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .lineLimit(1)
+        } else {
+            switch uiState {
+            case .idle:
+                Label("準備完了", systemImage: "checkmark.circle")
+                    .foregroundStyle(.secondary)
+            case .preparing, .transcribing:
+                activeProgressRow
+            case .done:
+                Label("完了", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            case .error(let message):
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                    .lineLimit(2)
+            }
         }
     }
 
