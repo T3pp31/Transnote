@@ -18,8 +18,21 @@ struct TranscriptSegment: Codable, Identifiable, Sendable {
         self.text = text
     }
 
+    var formattedStartTime: String {
+        Self.formatDisplayTimestamp(startTime, separator: ".")
+    }
+
     var accessibilityStartTimestamp: String {
         Self.formatAccessibilityTimestamp(startTime)
+    }
+
+    private static func formatDisplayTimestamp(_ time: TimeInterval, separator: String) -> String {
+        let totalMilliseconds = max(0, Int(time * 1000))
+        let hours = totalMilliseconds / 3_600_000
+        let minutes = (totalMilliseconds % 3_600_000) / 60_000
+        let seconds = (totalMilliseconds % 60_000) / 1000
+        let milliseconds = totalMilliseconds % 1000
+        return String(format: "%02d:%02d:%02d\(separator)%03d", hours, minutes, seconds, milliseconds)
     }
 
     private static func formatAccessibilityTimestamp(_ time: TimeInterval) -> String {

@@ -11,9 +11,30 @@ final class MainWindowViewModel: ObservableObject {
     @Published var playingSegmentID: UUID?
     @Published var isEditingTranscript = false
     @Published var errorMessage: String?
+    @Published var inlineErrorTitle: String?
+    @Published var inlineErrorMessage: String?
+    @Published var canRetryError = false
+    @Published var criticalErrorTitle: String?
+    @Published var criticalErrorMessage: String?
     @Published var downloadedModelIDs: Set<String> = []
     @Published var isDownloadingModel = false
 
+    private enum RecoverableAction: Equatable {
+        case transcription
+        case modelDownload
+        case fileImport(url: URL, preferredFileName: String?)
+        case export(format: ExportFormat)
+    }
+
+    private enum ErrorContext {
+        case fileImport(url: URL, preferredFileName: String?)
+        case transcription
+        case modelDownload
+        case export(ExportFormat)
+        case general
+    }
+
+    private var lastRecoverableAction: RecoverableAction?
     private var activeJobID: UUID?
     private var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
@@ -99,7 +120,7 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
-        errorMessage = nil
+        clearErrors()
         isDownloadingModel = true
         uiState = .preparing
         progressDisplay = TranscriptionProgressDisplay.from(
@@ -128,7 +149,7 @@ final class MainWindowViewModel: ObservableObject {
                     uiState = .idle
                     progressDisplay = .idle()
                 } else {
-                    handleError(error)
+                    handleError(error, context: .modelDownload)
                 }
             }
 
@@ -138,7 +159,7 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func selectFile(url: URL, preferredFileName: String? = nil) {
-        errorMessage = nil
+        clearErrors()
 
         do {
             let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
@@ -158,7 +179,7 @@ final class MainWindowViewModel: ObservableObject {
             uiState = .idle
             progressDisplay = .idle()
         } catch {
-            handleError(error)
+            handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
         }
     }
 
@@ -179,21 +200,25 @@ final class MainWindowViewModel: ObservableObject {
     func startTranscription() {
         guard let file = selectedFile,
               let model = settings.selectedModel else {
-            let message = AppError.invalidConfiguration.errorDescription ?? "Invalid configuration"
-            errorMessage = message
-            uiState = .error(message)
+            let message = AppError.invalidConfiguration.errorDescription ?? "アプリ設定が不正です。"
+            presentCriticalError(title: "設定エラー", message: message)
             return
         }
 
         guard isModelDownloaded(model) else {
-            let message = AppError.modelNotDownloaded(model.displayName).errorDescription ?? "Model not downloaded"
-            errorMessage = message
-            uiState = .error(message)
+            let message = AppError.modelNotDownloaded(model.displayName).errorDescription
+                ?? "モデルがダウンロードされていません。"
+            presentInlineError(
+                title: "モデル未ダウンロード",
+                message: message,
+                canRetry: false,
+                action: nil
+            )
             return
         }
 
         settings.persist()
-        errorMessage = nil
+        clearErrors()
         stopPlayback()
         isEditingTranscript = false
         transcriptText = ""
@@ -243,7 +268,7 @@ final class MainWindowViewModel: ObservableObject {
                     uiState = .idle
                     progressDisplay = .idle()
                 } else {
-                    handleError(error)
+                    handleError(error, context: .transcription)
                 }
             }
 
@@ -314,7 +339,42 @@ final class MainWindowViewModel: ObservableObject {
             try exportService.write(transcript: transcript, format: format, to: url)
             AppLogger.info("Exported \(format.displayName) to \(url.path)", logger: AppLogger.export)
         } catch {
-            handleError(error)
+            handleError(error, context: .export(format))
+        }
+    }
+
+    func dismissInlineError() {
+        inlineErrorTitle = nil
+        inlineErrorMessage = nil
+        canRetryError = false
+        lastRecoverableAction = nil
+        if criticalErrorMessage == nil {
+            errorMessage = nil
+        }
+        if case .error = uiState {
+            uiState = .idle
+        }
+    }
+
+    func dismissCriticalError() {
+        criticalErrorTitle = nil
+        criticalErrorMessage = nil
+        errorMessage = nil
+        uiState = .idle
+    }
+
+    func retryLastAction() {
+        guard let action = lastRecoverableAction else { return }
+        clearErrors()
+        switch action {
+        case .transcription:
+            startTranscription()
+        case .modelDownload:
+            downloadSelectedModel()
+        case .fileImport(let url, let preferredFileName):
+            selectFile(url: url, preferredFileName: preferredFileName)
+        case .export(let format):
+            exportTranscript(format: format)
         }
     }
 
@@ -360,11 +420,102 @@ final class MainWindowViewModel: ObservableObject {
         return "\(stem.isEmpty ? "transcript" : stem).\(format.fileExtension)"
     }
 
-    private func handleError(_ error: Error) {
-        let message = ErrorMapper.userMessage(for: error)
+    private func clearErrors() {
+        errorMessage = nil
+        inlineErrorTitle = nil
+        inlineErrorMessage = nil
+        canRetryError = false
+        criticalErrorTitle = nil
+        criticalErrorMessage = nil
+        lastRecoverableAction = nil
+    }
+
+    private func presentInlineError(
+        title: String,
+        message: String,
+        canRetry: Bool,
+        action: RecoverableAction?
+    ) {
         errorMessage = message
+        inlineErrorTitle = title
+        inlineErrorMessage = message
+        canRetryError = canRetry
+        lastRecoverableAction = canRetry ? action : nil
+        criticalErrorTitle = nil
+        criticalErrorMessage = nil
+        uiState = .idle
+    }
+
+    private func presentCriticalError(title: String, message: String) {
+        errorMessage = message
+        criticalErrorTitle = title
+        criticalErrorMessage = message
+        inlineErrorTitle = nil
+        inlineErrorMessage = nil
+        canRetryError = false
+        lastRecoverableAction = nil
         uiState = .error(message)
+    }
+
+    private func handleError(_ error: Error, context: ErrorContext) {
+        let message = ErrorMapper.userMessage(for: error)
+
+        if isCriticalError(error) {
+            presentCriticalError(title: criticalTitle(for: error), message: message)
+        } else {
+            let info = inlineErrorInfo(for: error, context: context)
+            presentInlineError(
+                title: info.title,
+                message: message,
+                canRetry: info.canRetry,
+                action: info.action
+            )
+        }
+
         AppLogger.error(message, logger: AppLogger.general)
+    }
+
+    private func isCriticalError(_ error: Error) -> Bool {
+        guard let appError = error as? AppError else { return false }
+        switch appError {
+        case .invalidConfiguration, .bookmarkResolutionFailed:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func criticalTitle(for error: Error) -> String {
+        guard let appError = error as? AppError else { return "エラー" }
+        switch appError {
+        case .invalidConfiguration:
+            return "設定エラー"
+        case .bookmarkResolutionFailed:
+            return "ファイルアクセスエラー"
+        default:
+            return "エラー"
+        }
+    }
+
+    private func inlineErrorInfo(
+        for error: Error,
+        context: ErrorContext
+    ) -> (title: String, canRetry: Bool, action: RecoverableAction?) {
+        switch context {
+        case .fileImport(let url, let preferredFileName):
+            return ("ファイルの読み込みエラー", true, .fileImport(url: url, preferredFileName: preferredFileName))
+        case .transcription:
+            return ("文字起こしエラー", true, .transcription)
+        case .modelDownload:
+            return ("モデルのダウンロードエラー", true, .modelDownload)
+        case .export(let format):
+            return ("エクスポートエラー", true, .export(format: format))
+        case .general:
+            if let appError = error as? AppError, case .modelNotDownloaded = appError {
+                return ("モデル未ダウンロード", false, nil)
+            }
+            return ("エラー", false, nil)
+        }
     }
 
     private static func transcriptWithPlaybackSegments(
