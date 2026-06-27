@@ -39,7 +39,7 @@ struct MainWindowView: View {
             }
         }
         .alert(
-            "Error",
+            "エラー",
             isPresented: Binding(
                 get: { viewModel.errorMessage != nil },
                 set: { if !$0 { viewModel.errorMessage = nil } }
@@ -153,7 +153,7 @@ struct MainWindowView: View {
         HStack(spacing: 12) {
             Spacer(minLength: 0)
 
-            Menu("Export") {
+            Menu("エクスポート") {
                 ForEach(ExportFormat.allCases) { format in
                     Button(format.displayName) {
                         viewModel.exportTranscript(format: format)
@@ -163,7 +163,7 @@ struct MainWindowView: View {
             .buttonStyle(.bordered)
             .disabled(!viewModel.canExport)
 
-            Button("Start") {
+            Button("文字起こしを開始") {
                 viewModel.startTranscription()
             }
             .buttonStyle(.borderedProminent)

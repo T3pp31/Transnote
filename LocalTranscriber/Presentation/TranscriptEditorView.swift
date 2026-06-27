@@ -82,7 +82,7 @@ struct TranscriptEditorView: View {
 
     private var header: some View {
         HStack {
-            Text("Transcript")
+            Text("文字起こし結果")
                 .font(.headline)
             Spacer()
             if isEditable, !text.isEmpty {
@@ -94,7 +94,7 @@ struct TranscriptEditorView: View {
                 .frame(width: 140)
                 .accessibilityHint("再生モードと編集モードを切り替えます")
             }
-            Button("Copy") {
+            Button("コピー") {
                 onCopy()
             }
             .disabled(text.isEmpty)
@@ -104,7 +104,7 @@ struct TranscriptEditorView: View {
 
     private var readOnlyTextView: some View {
         ScrollView {
-            Text(text.isEmpty ? "Transcription result will appear here." : text)
+            Text(text.isEmpty ? "文字起こし結果がここに表示されます" : text)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
         }
