@@ -6,30 +6,11 @@ struct MainWindowView: View {
     @ObservedObject private var settings = AppSettings.shared
 
     var body: some View {
-        VStack(spacing: 16) {
-            toolbar
-            FileDropView(
-                supportedExtensions: settings.supportedExtensions,
-                selectedFile: viewModel.selectedFile,
-                onFileSelected: viewModel.selectFile(url:preferredFileName:)
-            )
-            TranscriptEditorView(
-                text: $viewModel.transcriptText,
-                isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
-                segments: viewModel.currentTranscript?.segments,
-                playingSegmentID: viewModel.playingSegmentID,
-                isEditing: $viewModel.isEditingTranscript,
-                onSegmentTap: viewModel.playSegment,
-                onCopy: viewModel.copyTranscript
-            )
-            StatusBarView(
-                uiState: viewModel.uiState,
-                progress: viewModel.progressDisplay,
-                canCancel: viewModel.canCancel,
-                onCancel: viewModel.cancelTranscription
-            )
+        VStack(spacing: 0) {
+            inputSection
+            resultSection
+            footerSection
         }
-        .padding(20)
         .frame(minWidth: 720, minHeight: 560)
         .onAppear {
             viewModel.refreshModelAvailability()
@@ -72,6 +53,52 @@ struct MainWindowView: View {
         }
     }
 
+    private var inputSection: some View {
+        VStack(spacing: 16) {
+            toolbar
+            FileDropView(
+                supportedExtensions: settings.supportedExtensions,
+                selectedFile: viewModel.selectedFile,
+                onFileSelected: viewModel.selectFile(url:preferredFileName:)
+            )
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+    }
+
+    private var resultSection: some View {
+        TranscriptEditorView(
+            text: $viewModel.transcriptText,
+            isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
+            segments: viewModel.currentTranscript?.segments,
+            playingSegmentID: viewModel.playingSegmentID,
+            isEditing: $viewModel.isEditingTranscript,
+            onSegmentTap: viewModel.playSegment,
+            onCopy: viewModel.copyTranscript
+        )
+        .frame(maxHeight: .infinity)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 16)
+    }
+
+    private var footerSection: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .overlay(Color.primary.opacity(0.08))
+
+            StatusBarView(
+                uiState: viewModel.uiState,
+                progress: viewModel.progressDisplay,
+                canCancel: viewModel.canCancel,
+                onCancel: viewModel.cancelTranscription
+            )
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .frame(height: 44)
+        }
+    }
+
     private var toolbar: some View {
         HStack(spacing: 12) {
             Picker("モデル", selection: $settings.selectedModelID) {
@@ -86,6 +113,8 @@ struct MainWindowView: View {
             }
             .frame(width: 240)
             .disabled(viewModel.isBusy)
+            .accessibilityLabel("文字起こしモデル")
+            .accessibilityHint("使用するWhisperモデルを選択します")
 
             if viewModel.canDownloadSelectedModel {
                 Button {
@@ -95,6 +124,8 @@ struct MainWindowView: View {
                 }
                 .disabled(viewModel.isBusy)
                 .help("選択中のモデルをダウンロード")
+                .accessibilityLabel("モデルをダウンロード")
+                .accessibilityHint("選択中の文字起こしモデルをダウンロードします")
             }
 
             Picker("言語", selection: $settings.selectedLanguageID) {
@@ -104,6 +135,8 @@ struct MainWindowView: View {
             }
             .frame(width: 140)
             .disabled(viewModel.isBusy)
+            .accessibilityLabel("文字起こし言語")
+            .accessibilityHint("音声の言語を選択します")
 
             Spacer()
 
@@ -112,6 +145,8 @@ struct MainWindowView: View {
             }
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
+            .accessibilityLabel("文字起こしを開始")
+            .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
 
             Menu("Export") {
                 ForEach(ExportFormat.allCases) { format in
@@ -121,6 +156,8 @@ struct MainWindowView: View {
                 }
             }
             .disabled(!viewModel.canExport)
+            .accessibilityLabel("文字起こし結果をエクスポート")
+            .accessibilityHint("テキスト、SRT、VTT などの形式で書き出します")
         }
     }
 
