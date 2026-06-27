@@ -66,7 +66,7 @@ struct ModelAvailabilityService: Sendable {
             return true
         }
 
-        return folderName.contains(variant)
+        return folderName.hasSuffix("-\(variant)")
     }
 
     private func matchScore(for url: URL, whisperKitModelName: String) -> Int {
@@ -77,11 +77,11 @@ struct ModelAvailabilityService: Sendable {
             return 100
         }
 
-        if folderName.hasSuffix(variant) {
+        if folderName.hasSuffix("-\(variant)") {
             return 80
         }
 
-        return folderName.contains(variant) ? 10 : 0
+        return 0
     }
 
     /// WhisperKit は modelFolder 直下の .mlmodelc を参照するため、再帰検索は使わない。
