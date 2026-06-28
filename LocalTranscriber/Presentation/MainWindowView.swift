@@ -121,35 +121,20 @@ struct MainWindowView: View {
 
     private var settingsToolbarRow: some View {
         HStack(spacing: 12) {
-            HStack(spacing: 6) {
-                Picker("モデル", selection: $settings.selectedModelID) {
-                    ForEach(settings.models) { model in
-                        Label {
-                            Text(model.displayName)
-                        } icon: {
-                            Image(systemName: modelIcon(for: model))
-                        }
-                        .tag(model.id)
+            Picker("モデル", selection: $settings.selectedModelID) {
+                ForEach(settings.models) { model in
+                    Label {
+                        Text(model.displayName)
+                    } icon: {
+                        Image(systemName: modelIcon(for: model))
                     }
-                }
-                .frame(width: 220)
-                .disabled(viewModel.isBusy)
-                .accessibilityLabel("文字起こしモデル")
-                .accessibilityHint("使用するWhisperモデルを選択します")
-
-                if viewModel.canDownloadSelectedModel {
-                    Button {
-                        viewModel.downloadSelectedModel()
-                    } label: {
-                        Image(systemName: "arrow.down.circle")
-                    }
-                    .buttonStyle(.borderless)
-                    .disabled(viewModel.isBusy)
-                    .help("選択中のモデルをダウンロード")
-                    .accessibilityLabel("モデルをダウンロード")
-                    .accessibilityHint("選択中の文字起こしモデルをダウンロードします")
+                    .tag(model.id)
                 }
             }
+            .frame(width: 220)
+            .disabled(viewModel.isBusy)
+            .accessibilityLabel("文字起こしモデル")
+            .accessibilityHint("使用するWhisperモデルを選択します")
 
             Picker("言語", selection: $settings.selectedLanguageID) {
                 ForEach(settings.languages) { language in
@@ -160,6 +145,26 @@ struct MainWindowView: View {
             .disabled(viewModel.isBusy)
             .accessibilityLabel("文字起こし言語")
             .accessibilityHint("音声の言語を選択します")
+
+            if viewModel.shouldShowModelDownloadButton {
+                Button {
+                    viewModel.downloadSelectedModel()
+                } label: {
+                    Label(
+                        viewModel.isDownloadingModel ? "ダウンロード中…" : "モデルをダウンロード",
+                        systemImage: viewModel.isDownloadingModel
+                            ? "arrow.down.circle.fill"
+                            : "arrow.down.circle"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .disabled(!viewModel.canDownloadSelectedModel)
+                .help("選択中のモデルをダウンロード")
+                .accessibilityLabel(
+                    viewModel.isDownloadingModel ? "モデルをダウンロード中" : "モデルをダウンロード"
+                )
+                .accessibilityHint("選択中の文字起こしモデルをダウンロードします")
+            }
 
             Spacer(minLength: 0)
         }
