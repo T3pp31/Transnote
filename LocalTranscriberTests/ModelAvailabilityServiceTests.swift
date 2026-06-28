@@ -72,4 +72,38 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         // Then: 親ではなく variant フォルダを返す
         XCTAssertEqual(folder?.lastPathComponent, "openai_whisper-base")
     }
+
+    func testShortVariantNameDoesNotMatchUnrelatedDirectory() throws {
+        // Given: "base" を含む無関係ディレクトリに必須モデルファイルを配置
+        let decoyFolder = temporaryRoot.appendingPathComponent("models/database", isDirectory: true)
+        try FileManager.default.createDirectory(at: decoyFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let fileURL = decoyFolder.appendingPathComponent("\(name).mlmodelc")
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+        }
+
+        // When
+        let result = service.isDownloaded(whisperKitModelName: "base")
+
+        // Then: "database" は "base" を含むがハイフン区切りではないためマッチしない
+        XCTAssertFalse(result)
+        XCTAssertNil(service.modelFolder(for: "base"))
+    }
+
+    func testShortVariantNameDoesNotMatchSuffixWithoutHyphen() throws {
+        // Given: "tiny" で終わるがハイフン区切りではない無関係ディレクトリ
+        let decoyFolder = temporaryRoot.appendingPathComponent("models/itiny", isDirectory: true)
+        try FileManager.default.createDirectory(at: decoyFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let fileURL = decoyFolder.appendingPathComponent("\(name).mlmodelc")
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+        }
+
+        // When
+        let result = service.isDownloaded(whisperKitModelName: "tiny")
+
+        // Then: "itiny" は "tiny" で終わるがハイフン区切りではないためマッチしない
+        XCTAssertFalse(result)
+        XCTAssertNil(service.modelFolder(for: "tiny"))
+    }
 }
