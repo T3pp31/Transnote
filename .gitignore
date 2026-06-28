@@ -6,7 +6,7 @@
 *.xcworkspace/*
 !*.xcworkspace/contents.xcworkspacedata
 xcuserdata/
-DerivedData/
+DerivedData*/
 build/
 *.moved-aside
 *.pbxuser
@@ -43,7 +43,7 @@ Models/
 
 # Test artifacts
 *.xcresult
-.derivedData/
+.derivedData*/
 
 # Cursor debug artifacts
 .cursor/
