@@ -94,6 +94,13 @@ final class MainWindowViewModel: ObservableObject {
         return !isModelDownloaded(model)
     }
 
+    var shouldShowModelDownloadButton: Bool {
+        guard let model = settings.selectedModel else {
+            return false
+        }
+        return !isModelDownloaded(model)
+    }
+
     var canCancel: Bool {
         isBusy
     }

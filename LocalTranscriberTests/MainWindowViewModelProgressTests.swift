@@ -92,6 +92,34 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptText, "new result")
     }
 
+    func testModelDownloadButtonIsShownForModelThatIsNotDownloaded() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = []
+
+        XCTAssertTrue(viewModel.shouldShowModelDownloadButton)
+        XCTAssertTrue(viewModel.canDownloadSelectedModel)
+    }
+
+    func testModelDownloadButtonIsHiddenForDownloadedModel() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = ["base"]
+
+        XCTAssertFalse(viewModel.shouldShowModelDownloadButton)
+        XCTAssertFalse(viewModel.canDownloadSelectedModel)
+    }
+
+    func testModelDownloadButtonRemainsShownButCannotRunWhileDownloading() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = []
+        viewModel.isDownloadingModel = true
+
+        XCTAssertTrue(viewModel.shouldShowModelDownloadButton)
+        XCTAssertFalse(viewModel.canDownloadSelectedModel)
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
