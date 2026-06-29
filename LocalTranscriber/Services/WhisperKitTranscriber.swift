@@ -191,6 +191,7 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         let config = WhisperKitConfig(
             model: modelName,
             modelFolder: modelPath.path,
+            downloadBase: AppDirectories.modelsDirectory,
             verbose: false,
             logLevel: .error,
             load: true,
