@@ -190,8 +190,8 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
     private func loadWhisperKit(modelName: String, modelPath: URL) async throws -> WhisperKit {
         let config = WhisperKitConfig(
             model: modelName,
-            modelFolder: modelPath.path,
             downloadBase: AppDirectories.modelsDirectory,
+            modelFolder: modelPath.path,
             verbose: false,
             logLevel: .error,
             load: true,
