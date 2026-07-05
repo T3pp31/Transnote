@@ -71,9 +71,9 @@ struct MainWindowView: View {
                 onFileSelected: viewModel.selectFile(url:preferredFileName:)
             )
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
+        .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
+        .padding(.top, DesignTokens.Spacing.topPadding)
+        .padding(.bottom, DesignTokens.Spacing.bottomPadding)
     }
 
     private var resultSection: some View {
@@ -87,8 +87,8 @@ struct MainWindowView: View {
             onCopy: viewModel.copyTranscript
         )
         .frame(maxHeight: .infinity)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 16)
+        .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
+        .padding(.bottom, DesignTokens.Spacing.bottomPadding)
     }
 
     private var footerSection: some View {
@@ -103,8 +103,8 @@ struct MainWindowView: View {
                 canCancel: viewModel.canCancel,
                 onCancel: viewModel.cancelTranscription
             )
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
+            .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
+            .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)
             .frame(height: 44)
         }
     }
@@ -244,9 +244,9 @@ private struct InlineErrorBanner: View {
             .accessibilityLabel("エラーを閉じる")
         }
         .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.banner))
         .overlay {
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
                 .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)

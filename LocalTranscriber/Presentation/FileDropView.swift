@@ -8,7 +8,7 @@ struct FileDropView: View {
     @State private var isTargeted = false
     @State private var isHovered = false
 
-    private let cornerRadius: CGFloat = 18
+    private let cornerRadius: CGFloat = DesignTokens.Corner.card
 
     var body: some View {
         VStack(spacing: 12) {

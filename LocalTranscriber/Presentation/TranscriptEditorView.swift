@@ -14,8 +14,8 @@ struct TranscriptEditorView: View {
         return !segments.isEmpty
     }
 
-    private let cornerRadius: CGFloat = 14
-    private let cardPadding: CGFloat = 22
+    private let cornerRadius: CGFloat = DesignTokens.Corner.card
+    private let cardPadding: CGFloat = DesignTokens.Card.padding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
