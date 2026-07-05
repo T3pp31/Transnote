@@ -35,6 +35,7 @@ struct FileDropView: View {
                 openFilePanel()
             }
             .keyboardShortcut("o", modifiers: [.command])
+            .help("音声ファイルを選択（⌘O）")
             .accessibilityLabel("音声ファイルを選択")
             .accessibilityHint("ファイル選択ダイアログを開きます")
 

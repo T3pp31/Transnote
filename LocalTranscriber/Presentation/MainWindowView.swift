@@ -59,6 +59,13 @@ struct MainWindowView: View {
                 isModelDownloaded: viewModel.isModelDownloaded
             )
         }
+        .overlay(alignment: .top) {
+            if let toast = viewModel.toast {
+                ToastView(message: toast)
+                    .padding(.top, 12)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.toast)
         .focusedSceneValue(\.transcriptionActions, TranscriptionActionsValue(
             canStart: viewModel.canStartTranscription,
             startTranscription: viewModel.startTranscription,
@@ -194,7 +201,7 @@ struct MainWindowView: View {
             .controlSize(.large)
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
-            .help(viewModel.startTranscriptionDisabledReason ?? "選択した音声ファイルの文字起こしを開始します")
+            .help(viewModel.startTranscriptionDisabledReason ?? "文字起こしを開始（⌘↩）")
             .accessibilityLabel("文字起こしを開始")
             .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }

@@ -88,6 +88,7 @@ struct StatusBarView: View {
             onCancel()
         }
         .keyboardShortcut(.escape, modifiers: [])
+        .help("文字起こしをキャンセル（Esc）")
         .accessibilityLabel("文字起こしをキャンセル")
     }
 
