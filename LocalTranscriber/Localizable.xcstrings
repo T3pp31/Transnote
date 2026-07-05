@@ -113,6 +113,13 @@
         }
       }
     },
+    "使用するWhisperモデルを選択します。モデルは別途ダウンロードが必要です。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Select the Whisper model to use. The model must be downloaded separately." }
+        }
+      }
+    },
     "言語" : {
       "localizations" : {
         "en" : {
@@ -124,6 +131,13 @@
       "localizations" : {
         "en" : {
           "stringUnit" : { "state" : "translated", "value" : "Select the language spoken in the audio" }
+        }
+      }
+    },
+    "音声の言語を選択します。Autoは自動検出です。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Select the language spoken in the audio. Auto detects it automatically." }
         }
       }
     },
