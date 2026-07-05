@@ -84,7 +84,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
 
         // Then
         let expectedLabel = "\(TranscriptionProgressPhase.downloadingModel.localizedDisplayName)、Base"
+        let expectedValue = String(
+            format: NSLocalizedString("%dパーセント完了", comment: "Accessible progress percentage"),
+            45
+        )
         XCTAssertEqual(display.accessibilityLabel, expectedLabel)
-        XCTAssertEqual(display.accessibilityValue, "45パーセント完了")
+        XCTAssertEqual(display.accessibilityValue, expectedValue)
     }
 }
