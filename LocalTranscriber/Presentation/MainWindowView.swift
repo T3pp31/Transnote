@@ -207,7 +207,7 @@ struct MainWindowView: View {
             .controlSize(.large)
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
-            .help(viewModel.startTranscriptionDisabledReason ?? "選択した音声ファイルの文字起こしを開始します")
+            .help(viewModel.startTranscriptionDisabledReason ?? "文字起こしを開始（⌘↩）")
             .accessibilityLabel("文字起こしを開始")
             .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }
