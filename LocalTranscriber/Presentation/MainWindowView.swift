@@ -159,7 +159,7 @@ struct MainWindowView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(!viewModel.canDownloadSelectedModel)
-                .help("選択中のモデルをダウンロード")
+                .help(viewModel.modelDownloadDisabledReason ?? "選択中のモデルをダウンロード")
                 .accessibilityLabel(
                     viewModel.isDownloadingModel ? "モデルをダウンロード中" : "モデルをダウンロード"
                 )
@@ -193,6 +193,7 @@ struct MainWindowView: View {
             .controlSize(.large)
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
+            .help(viewModel.startTranscriptionDisabledReason ?? "選択した音声ファイルの文字起こしを開始します")
             .accessibilityLabel("文字起こしを開始")
             .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }
