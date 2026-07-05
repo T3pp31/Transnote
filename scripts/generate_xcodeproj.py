@@ -37,6 +37,7 @@ APP_SOURCES = [
     "LocalTranscriber/Services/AudioPlayerService.swift",
     "LocalTranscriber/Services/SecurityScopedFileAccess.swift",
     "LocalTranscriber/Services/UpdateCheckService.swift",
+    "LocalTranscriber/Services/UpdateURLValidator.swift",
     "LocalTranscriber/Presentation/MainWindowView.swift",
     "LocalTranscriber/Presentation/MainWindowViewModel.swift",
     "LocalTranscriber/Presentation/UpdateCheckViewModel.swift",
@@ -66,6 +67,8 @@ TEST_SOURCES = [
     "LocalTranscriberTests/AppVersionTests.swift",
     "LocalTranscriberTests/UpdateCheckServiceTests.swift",
     "LocalTranscriberTests/ErrorMapperTests.swift",
+    "LocalTranscriberTests/UpdateURLValidatorTests.swift",
+    "LocalTranscriberTests/AudioFileNameResolverTests.swift",
 ]
 
 RESOURCES = [
