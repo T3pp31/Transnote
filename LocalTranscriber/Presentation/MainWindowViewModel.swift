@@ -99,26 +99,26 @@ final class MainWindowViewModel: ObservableObject {
 
     var startTranscriptionDisabledReason: String? {
         if isBusy {
-            return "文字起こし処理中です"
+            return NSLocalizedString("文字起こし処理中です", comment: "Transcription is busy")
         }
         if selectedFile == nil {
-            return "音声ファイルを選択してください"
+            return NSLocalizedString("音声ファイルを選択してください", comment: "Select an audio file")
         }
         if settings.selectedModel == nil {
-            return "モデルを選択してください"
+            return NSLocalizedString("モデルを選択してください", comment: "Select a model")
         }
         if let model = settings.selectedModel, !isModelDownloaded(model) {
-            return "モデルをダウンロードしてください"
+            return NSLocalizedString("モデルをダウンロードしてください", comment: "Download the selected model")
         }
         return nil
     }
 
     var modelDownloadDisabledReason: String? {
         if isBusy {
-            return "処理中です"
+            return NSLocalizedString("処理中です", comment: "Operation in progress")
         }
         if settings.selectedModel == nil {
-            return "モデルを選択してください"
+            return NSLocalizedString("モデルを選択してください", comment: "Select a model")
         }
         return nil
     }
@@ -241,16 +241,23 @@ final class MainWindowViewModel: ObservableObject {
     func startTranscription() {
         guard let file = selectedFile,
               let model = settings.selectedModel else {
-            let message = AppError.invalidConfiguration.errorDescription ?? "アプリ設定が不正です。"
-            presentCriticalError(title: "設定エラー", message: message)
+            let message = AppError.invalidConfiguration.errorDescription
+                ?? NSLocalizedString("アプリ設定が不正です。", comment: "Invalid configuration")
+            presentCriticalError(
+                title: NSLocalizedString("設定エラー", comment: "Configuration error title"),
+                message: message
+            )
             return
         }
 
         guard isModelDownloaded(model) else {
             let message = AppError.modelNotDownloaded(model.displayName).errorDescription
-                ?? "モデルがダウンロードされていません。"
+                ?? NSLocalizedString(
+                    "モデルがダウンロードされていません。",
+                    comment: "Model is not downloaded"
+            )
             presentInlineError(
-                title: "モデル未ダウンロード",
+                title: NSLocalizedString("モデル未ダウンロード", comment: "Model not downloaded title"),
                 message: message,
                 canRetry: false,
                 action: nil
@@ -340,7 +347,7 @@ final class MainWindowViewModel: ObservableObject {
     func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(transcriptText, forType: .string)
-        showToast("文字起こし結果をコピーしました")
+        showToast(NSLocalizedString("文字起こし結果をコピーしました", comment: "Transcript copied toast"))
     }
 
     func showToast(_ text: String, icon: String = "checkmark.circle.fill") {
@@ -392,7 +399,12 @@ final class MainWindowViewModel: ObservableObject {
 
         do {
             try exportService.write(transcript: transcript, format: format, to: url)
-            showToast("\(format.displayName)でエクスポートしました")
+            showToast(
+                String(
+                    format: NSLocalizedString("%@でエクスポートしました", comment: "Export completed toast"),
+                    format.displayName
+                )
+            )
             AppLogger.info("Exported \(format.displayName) to \(url.lastPathComponent)", logger: AppLogger.export)
         } catch {
             handleError(error, context: .export(format))
@@ -468,7 +480,7 @@ final class MainWindowViewModel: ObservableObject {
         ]
         guard majorPhases.contains(phase), lastAnnouncedPhase != phase else { return }
         lastAnnouncedPhase = phase
-        AccessibilityNotification.Announcement(phase.rawValue).post()
+        AccessibilityNotification.Announcement(phase.localizedDisplayName).post()
     }
 
     private func defaultExportFilename(for transcript: Transcript, format: ExportFormat) -> String {
@@ -542,14 +554,16 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     private func criticalTitle(for error: Error) -> String {
-        guard let appError = error as? AppError else { return "エラー" }
+        guard let appError = error as? AppError else {
+            return NSLocalizedString("エラー", comment: "Generic error title")
+        }
         switch appError {
         case .invalidConfiguration:
-            return "設定エラー"
+            return NSLocalizedString("設定エラー", comment: "Configuration error title")
         case .bookmarkResolutionFailed:
-            return "ファイルアクセスエラー"
+            return NSLocalizedString("ファイルアクセスエラー", comment: "File access error title")
         default:
-            return "エラー"
+            return NSLocalizedString("エラー", comment: "Generic error title")
         }
     }
 
@@ -559,18 +573,26 @@ final class MainWindowViewModel: ObservableObject {
     ) -> (title: String, canRetry: Bool, action: RecoverableAction?) {
         switch context {
         case .fileImport(let url, let preferredFileName):
-            return ("ファイルの読み込みエラー", true, .fileImport(url: url, preferredFileName: preferredFileName))
+            return (
+                NSLocalizedString("ファイルの読み込みエラー", comment: "File import error title"),
+                true,
+                .fileImport(url: url, preferredFileName: preferredFileName)
+            )
         case .transcription:
-            return ("文字起こしエラー", true, .transcription)
+            return (NSLocalizedString("文字起こしエラー", comment: "Transcription error title"), true, .transcription)
         case .modelDownload:
-            return ("モデルのダウンロードエラー", true, .modelDownload)
+            return (
+                NSLocalizedString("モデルのダウンロードエラー", comment: "Model download error title"),
+                true,
+                .modelDownload
+            )
         case .export(let format):
-            return ("エクスポートエラー", true, .export(format: format))
+            return (NSLocalizedString("エクスポートエラー", comment: "Export error title"), true, .export(format: format))
         case .general:
             if let appError = error as? AppError, case .modelNotDownloaded = appError {
-                return ("モデル未ダウンロード", false, nil)
+                return (NSLocalizedString("モデル未ダウンロード", comment: "Model not downloaded title"), false, nil)
             }
-            return ("エラー", false, nil)
+            return (NSLocalizedString("エラー", comment: "Generic error title"), false, nil)
         }
     }
 

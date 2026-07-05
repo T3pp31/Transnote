@@ -42,4 +42,8 @@ enum TranscriptionProgressPhase: String, Sendable {
     case convertingAudio = "音声を変換中…"
     case transcribing = "文字起こし中…"
     case finished = "完了"
+
+    var localizedDisplayName: String {
+        NSLocalizedString(rawValue, comment: "Transcription progress phase")
+    }
 }

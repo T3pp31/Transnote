@@ -16,7 +16,7 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         // Then
         XCTAssertEqual(display.style, .determinate)
         XCTAssertEqual(display.fraction, 0.45)
-        XCTAssertEqual(display.primaryLabel, "モデルをダウンロード中…")
+        XCTAssertEqual(display.primaryLabel, TranscriptionProgressPhase.downloadingModel.localizedDisplayName)
         XCTAssertEqual(display.detailLabel, "Base · 45%")
     }
 
@@ -83,7 +83,16 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         let display = TranscriptionProgressDisplay.from(update: update)
 
         // Then
-        XCTAssertEqual(display.accessibilityLabel, "モデルをダウンロード中…、Base")
-        XCTAssertEqual(display.accessibilityValue, "45パーセント完了")
+        let expectedLabel = String(
+            format: NSLocalizedString("%@、%@", comment: "Progress label and model name"),
+            TranscriptionProgressPhase.downloadingModel.localizedDisplayName,
+            "Base"
+        )
+        let expectedValue = String(
+            format: NSLocalizedString("%dパーセント完了", comment: "Accessible progress percentage"),
+            45
+        )
+        XCTAssertEqual(display.accessibilityLabel, expectedLabel)
+        XCTAssertEqual(display.accessibilityValue, expectedValue)
     }
 }

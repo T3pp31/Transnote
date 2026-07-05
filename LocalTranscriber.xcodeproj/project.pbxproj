@@ -67,6 +67,7 @@
 		A1B2C3D4E5F64789ABCDEF01 /* AudioFileNameResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A74889ABCDEF012 /* AudioFileNameResolverTests.swift */; };
 		F5326CA6E50F49C495FC25A5 /* Defaults.plist in Resources */ = {isa = PBXBuildFile; fileRef = 74BBA14A188041BFB33CAF0A /* Defaults.plist */; };
 		8F3B3951F2564EABA8D4178B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 558F41849BB04A75BA3E7CED /* Assets.xcassets */; };
+		DEADBEEF0324456089ABCDEF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = DEADBEEF0424456089ABCDEF /* Localizable.xcstrings */; };
 		EF7A511BF2804835884EE3BA /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = B47B44A97F03403F9FD0E152 /* WhisperKit */; };
 		76AFE6AE13D7431EAE2718F1 /* Transnote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Transnote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E09411B9C8D2408FA63CDCAE /* LocalTranscriberTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LocalTranscriberTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -133,6 +134,7 @@
 		B2C3D4E5F6A74889ABCDEF012 /* AudioFileNameResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFileNameResolverTests.swift; sourceTree = "<group>"; };
 		74BBA14A188041BFB33CAF0A /* Defaults.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Defaults.plist; sourceTree = "<group>"; };
 		558F41849BB04A75BA3E7CED /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		DEADBEEF0424456089ABCDEF /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		ABCDB3D6F6F94CC0960C847E /* LocalTranscriber.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = LocalTranscriber.entitlements; sourceTree = "<group>"; };
 		655B98B01C9C47EF89BFB2E0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		EC0C833371EA488DACBD3DC3 /* Frameworks */ = {
@@ -225,6 +227,7 @@
 				6050C41FF1E746528C860824 /* Services */,
 				24B4BFEE14B446299FEBED18 /* Presentation */,
 				558F41849BB04A75BA3E7CED /* Assets.xcassets */,
+				DEADBEEF0424456089ABCDEF /* Localizable.xcstrings */,
 				655B98B01C9C47EF89BFB2E0 /* Info.plist */,
 				ABCDB3D6F6F94CC0960C847E /* LocalTranscriber.entitlements */,
 			);
@@ -349,9 +352,9 @@
 			};
 			buildConfigurationList = 5F45FDDA4C5044329BC57341 /* Build configuration list for PBXProject "LocalTranscriber" */;
 			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = en;
+			developmentRegion = ja;
 			hasScannedForEncodings = 0;
-			knownRegions = (en, Base);
+			knownRegions = (en, ja, Base);
 			mainGroup = 2DBE8B7E07E741449665D5F4;
 			packageReferences = (
 				3AF7FC0C43E14EDFBA4E3254 /* XCRemoteSwiftPackageReference argmax-oss-swift */,
@@ -445,6 +448,7 @@
 			files = (
 				F5326CA6E50F49C495FC25A5 /* Defaults.plist in Resources */,
 				8F3B3951F2564EABA8D4178B /* Assets.xcassets in Resources */,
+				DEADBEEF0324456089ABCDEF /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

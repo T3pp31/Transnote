@@ -77,6 +77,7 @@ TEST_SOURCES = [
 RESOURCES = [
     "Config/Defaults.plist",
     "LocalTranscriber/Assets.xcassets",
+    "LocalTranscriber/Localizable.xcstrings",
 ]
 
 EXTRA_FILES = [
@@ -101,6 +102,8 @@ def pbx_file_ref(path):
         return f"{{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = {basename}; sourceTree = \"<group>\"; }}"
     if path.endswith(".xcassets"):
         return f"{{isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = {basename}; sourceTree = \"<group>\"; }}"
+    if path.endswith(".xcstrings"):
+        return f"{{isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = {basename}; sourceTree = \"<group>\"; }}"
     raise ValueError(path)
 
 
@@ -229,6 +232,7 @@ local_children = [
     f"{ids['services_group']} /* Services */",
     f"{ids['presentation_group']} /* Presentation */",
     f"{file_refs['LocalTranscriber/Assets.xcassets']} /* Assets.xcassets */",
+    f"{file_refs['LocalTranscriber/Localizable.xcstrings']} /* Localizable.xcstrings */",
     f"{file_refs['LocalTranscriber/Info.plist']} /* Info.plist */",
     f"{file_refs['LocalTranscriber/LocalTranscriber.entitlements']} /* LocalTranscriber.entitlements */",
 ]
@@ -322,9 +326,9 @@ lines.append("				};")
 lines.append("			};")
 lines.append(f"			buildConfigurationList = {ids['project_config_list']} /* Build configuration list for PBXProject \"LocalTranscriber\" */;")
 lines.append("			compatibilityVersion = \"Xcode 14.0\";")
-lines.append("			developmentRegion = en;")
+lines.append("			developmentRegion = ja;")
 lines.append("			hasScannedForEncodings = 0;")
-lines.append("			knownRegions = (en, Base);")
+lines.append("			knownRegions = (en, ja, Base);")
 lines.append(f"			mainGroup = {ids['main_group']};")
 lines.append("			packageReferences = (")
 lines.append(f"				{ids['pkg_ref']} /* XCRemoteSwiftPackageReference argmax-oss-swift */,")

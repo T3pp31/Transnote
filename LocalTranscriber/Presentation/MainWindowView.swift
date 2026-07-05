@@ -34,14 +34,20 @@ struct MainWindowView: View {
         } message: {
             if let offer = updateChecker.updateOffer {
                 Text(
-                    "バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）。\n"
-                        + "ダウンロード後、DMG 内の「インストール.command」を実行してください。\n"
-                        + "旧バージョンは自動的に置き換えられます。"
+                    String(
+                        format: NSLocalizedString(
+                            "バージョン %@ が利用可能です（現在: %@）。\nダウンロード後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。",
+                            comment: "Update available instructions"
+                        ),
+                        offer.latestVersion,
+                        offer.currentVersion
+                    )
                 )
             }
         }
         .alert(
-            viewModel.criticalErrorTitle ?? "エラー",
+            viewModel.criticalErrorTitle
+                ?? NSLocalizedString("エラー", comment: "Generic error title"),
             isPresented: Binding(
                 get: { viewModel.criticalErrorMessage != nil },
                 set: { if !$0 { viewModel.dismissCriticalError() } }
@@ -159,7 +165,9 @@ struct MainWindowView: View {
                     viewModel.downloadSelectedModel()
                 } label: {
                     Label(
-                        viewModel.isDownloadingModel ? "ダウンロード中…" : "モデルをダウンロード",
+                        viewModel.isDownloadingModel
+                            ? NSLocalizedString("ダウンロード中…", comment: "Downloading model button")
+                            : NSLocalizedString("モデルをダウンロード", comment: "Download model button"),
                         systemImage: viewModel.isDownloadingModel
                             ? "arrow.down.circle.fill"
                             : "arrow.down.circle"
@@ -167,9 +175,14 @@ struct MainWindowView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(!viewModel.canDownloadSelectedModel)
-                .help(viewModel.modelDownloadDisabledReason ?? "選択中のモデルをダウンロード")
+                .help(
+                    viewModel.modelDownloadDisabledReason
+                        ?? NSLocalizedString("選択中のモデルをダウンロード", comment: "Download model help")
+                )
                 .accessibilityLabel(
-                    viewModel.isDownloadingModel ? "モデルをダウンロード中" : "モデルをダウンロード"
+                    viewModel.isDownloadingModel
+                        ? NSLocalizedString("モデルをダウンロード中", comment: "Downloading model accessibility label")
+                        : NSLocalizedString("モデルをダウンロード", comment: "Download model button")
                 )
                 .accessibilityHint("選択中の文字起こしモデルをダウンロードします")
             }
@@ -201,7 +214,10 @@ struct MainWindowView: View {
             .controlSize(.large)
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
-            .help(viewModel.startTranscriptionDisabledReason ?? "文字起こしを開始（⌘↩）")
+            .help(
+                viewModel.startTranscriptionDisabledReason
+                    ?? NSLocalizedString("文字起こしを開始（⌘↩）", comment: "Start transcription shortcut help")
+            )
             .accessibilityLabel("文字起こしを開始")
             .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }

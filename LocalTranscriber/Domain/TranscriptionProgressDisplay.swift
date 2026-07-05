@@ -15,7 +15,11 @@ struct TranscriptionProgressDisplay: Equatable {
 
     var accessibilityLabel: String {
         if let modelName = detailLabel?.components(separatedBy: " · ").first, !modelName.isEmpty {
-            return "\(primaryLabel)、\(modelName)"
+            return String(
+                format: NSLocalizedString("%@、%@", comment: "Progress label and model name"),
+                primaryLabel,
+                modelName
+            )
         }
         return primaryLabel
     }
@@ -24,16 +28,19 @@ struct TranscriptionProgressDisplay: Equatable {
         switch style {
         case .determinate:
             let percent = Int((fraction ?? 0) * 100)
-            return "\(percent)パーセント完了"
+            return String(
+                format: NSLocalizedString("%dパーセント完了", comment: "Accessible progress percentage"),
+                percent
+            )
         case .indeterminate:
-            return "進行中"
+            return NSLocalizedString("進行中", comment: "Accessible indeterminate progress value")
         case .hidden:
             return ""
         }
     }
 
     static func from(update: TranscriptionProgressUpdate) -> TranscriptionProgressDisplay {
-        let primaryLabel = update.phase.rawValue
+        let primaryLabel = update.phase.localizedDisplayName
         let detailLabel = makeDetailLabel(for: update)
 
         let style: ProgressStyle
@@ -65,7 +72,7 @@ struct TranscriptionProgressDisplay: Equatable {
             phase: .finished,
             style: .hidden,
             fraction: nil,
-            primaryLabel: "準備完了",
+            primaryLabel: NSLocalizedString("準備完了", comment: "Idle state label"),
             detailLabel: nil
         )
     }
@@ -75,7 +82,7 @@ struct TranscriptionProgressDisplay: Equatable {
             phase: .finished,
             style: .hidden,
             fraction: 1.0,
-            primaryLabel: "完了",
+            primaryLabel: NSLocalizedString("完了", comment: "Done state label"),
             detailLabel: nil
         )
     }
