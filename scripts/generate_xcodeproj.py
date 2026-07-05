@@ -37,12 +37,14 @@ APP_SOURCES = [
     "LocalTranscriber/Services/AudioPlayerService.swift",
     "LocalTranscriber/Services/SecurityScopedFileAccess.swift",
     "LocalTranscriber/Services/UpdateCheckService.swift",
+    "LocalTranscriber/Services/UpdateURLValidator.swift",
     "LocalTranscriber/Presentation/MainWindowView.swift",
     "LocalTranscriber/Presentation/MainWindowViewModel.swift",
     "LocalTranscriber/Presentation/UpdateCheckViewModel.swift",
     "LocalTranscriber/Presentation/StatusBarView.swift",
     "LocalTranscriber/Presentation/FileDropView.swift",
     "LocalTranscriber/Presentation/TranscriptEditorView.swift",
+    "LocalTranscriber/Presentation/TranscriptionCommands.swift",
 ]
 
 TEST_SOURCES = [

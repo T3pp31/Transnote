@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MainWindowView: View {
     @StateObject private var viewModel = MainWindowViewModel()
@@ -51,6 +52,13 @@ struct MainWindowView: View {
         } message: {
             Text(viewModel.criticalErrorMessage ?? "")
         }
+        .focusedSceneValue(\.transcriptionActions, TranscriptionActionsValue(
+            canStart: viewModel.canStartTranscription,
+            startTranscription: viewModel.startTranscription,
+            canCancel: viewModel.canCancel,
+            cancelTranscription: viewModel.cancelTranscription,
+            openFile: openFilePanel
+        ))
     }
 
     private var inputSection: some View {
@@ -207,6 +215,29 @@ struct MainWindowView: View {
 
     private func modelIcon(for model: ModelOption) -> String {
         viewModel.isModelDownloaded(model) ? "checkmark.circle" : "arrow.down.circle"
+    }
+
+    private func openFilePanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = contentTypesForPicker()
+        if panel.runModal() == .OK, let url = panel.url {
+            viewModel.selectFile(url: url, preferredFileName: nil)
+        }
+    }
+
+    private func contentTypesForPicker() -> [UTType] {
+        settings.supportedExtensions.compactMap { ext in
+            switch ext.lowercased() {
+            case "m4a": return .mpeg4Audio
+            case "mp3": return .mp3
+            case "wav": return .wav
+            case "flac": return UTType(filenameExtension: "flac") ?? .audio
+            default: return UTType(filenameExtension: ext)
+            }
+        }
     }
 }
 
