@@ -128,6 +128,7 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
+        isCancelling = false
         clearErrors()
         isDownloadingModel = true
         uiState = .preparing
@@ -228,6 +229,7 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
+        isCancelling = false
         settings.persist()
         clearErrors()
         stopPlayback()
