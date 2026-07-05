@@ -9,7 +9,7 @@ struct FileDropView: View {
     @State private var isHovered = false
     @State private var dropErrorMessage: String?
 
-    private let cornerRadius: CGFloat = 18
+    private let cornerRadius: CGFloat = DesignTokens.Corner.card
 
     var body: some View {
         VStack(spacing: 12) {

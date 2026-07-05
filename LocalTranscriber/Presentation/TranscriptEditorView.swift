@@ -17,8 +17,8 @@ struct TranscriptEditorView: View {
         return !segments.isEmpty
     }
 
-    private let cornerRadius: CGFloat = 14
-    private let cardPadding: CGFloat = 22
+    private let cornerRadius: CGFloat = DesignTokens.Corner.card
+    private let cardPadding: CGFloat = DesignTokens.Card.padding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -53,11 +53,11 @@ struct TranscriptEditorView: View {
                         .padding(8)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .background(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                                 .fill(Color(NSColor.textBackgroundColor).opacity(0.6))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                         )
                         .focused($isEditorFocused)
@@ -125,11 +125,11 @@ struct TranscriptEditorView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                 .fill(Color(NSColor.textBackgroundColor).opacity(0.6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
@@ -155,11 +155,11 @@ struct TranscriptEditorView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                 .fill(Color(NSColor.textBackgroundColor).opacity(0.6))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
@@ -194,7 +194,7 @@ private struct SegmentPlaybackRow: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background {
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: DesignTokens.Corner.segment)
                     .fill(backgroundColor)
             }
             .overlay(alignment: .leading) {
