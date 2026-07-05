@@ -57,7 +57,7 @@ struct StatusBarView: View {
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(2, reservesSpace: true)
                 }
             }
         }
