@@ -5,6 +5,7 @@ struct MainWindowView: View {
     @StateObject private var viewModel = MainWindowViewModel()
     @StateObject private var updateChecker = UpdateCheckViewModel()
     @ObservedObject private var settings = AppSettings.shared
+    @State private var showingSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,6 +52,12 @@ struct MainWindowView: View {
             }
         } message: {
             Text(viewModel.criticalErrorMessage ?? "")
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(
+                isBusy: viewModel.isBusy,
+                isModelDownloaded: viewModel.isModelDownloaded
+            )
         }
         .overlay(alignment: .top) {
             if let toast = viewModel.toast {
@@ -137,35 +144,15 @@ struct MainWindowView: View {
 
     private var settingsToolbarRow: some View {
         HStack(spacing: 12) {
-            Picker("モデル", selection: $settings.selectedModelID) {
-                ForEach(settings.models) { model in
-                    Label {
-                        Text(model.displayName)
-                    } icon: {
-                        Image(systemName: modelIcon(for: model))
-                    }
-                    .tag(model.id)
-                    .accessibilityLabel(
-                        viewModel.isModelDownloaded(model)
-                            ? "\(model.displayName)、ダウンロード済み"
-                            : "\(model.displayName)、未ダウンロード"
-                    )
-                }
+            Button {
+                showingSettings = true
+            } label: {
+                Label("設定", systemImage: "gearshape")
             }
-            .frame(width: 220)
+            .buttonStyle(.bordered)
             .disabled(viewModel.isBusy)
-            .accessibilityLabel("文字起こしモデル")
-            .accessibilityHint("使用するWhisperモデルを選択します")
-
-            Picker("言語", selection: $settings.selectedLanguageID) {
-                ForEach(settings.languages) { language in
-                    Text(language.displayName).tag(language.id)
-                }
-            }
-            .frame(width: 140)
-            .disabled(viewModel.isBusy)
-            .accessibilityLabel("文字起こし言語")
-            .accessibilityHint("音声の言語を選択します")
+            .accessibilityLabel("設定")
+            .accessibilityHint("モデルや言語の設定を開きます")
 
             if viewModel.shouldShowModelDownloadButton {
                 Button {
@@ -219,11 +206,6 @@ struct MainWindowView: View {
             .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }
     }
-
-    private func modelIcon(for model: ModelOption) -> String {
-        viewModel.isModelDownloaded(model) ? "checkmark.circle" : "arrow.down.circle"
-    }
-
     private func openFilePanel() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
