@@ -36,10 +36,10 @@ final class MainWindowViewModel: ObservableObject {
 
     private var lastRecoverableAction: RecoverableAction?
     private var activeJobID: UUID?
+    private var activeModelDownloadID: UUID?
     private var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
-    private var isCancelling = false
 
     private let transcriber: Transcriber
     private let audioFileService: AudioFileService
@@ -128,7 +128,8 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
-        isCancelling = false
+        let downloadID = UUID()
+        activeModelDownloadID = downloadID
         clearErrors()
         isDownloadingModel = true
         uiState = .preparing
@@ -144,29 +145,29 @@ final class MainWindowViewModel: ObservableObject {
                     modelDisplayName: model.displayName
                 ) { update in
                     Task { @MainActor in
+                        guard self.activeModelDownloadID == downloadID else { return }
                         self.applyModelDownloadProgress(update)
                     }
                 }
 
                 refreshModelAvailability()
-                if isCancelling {
-                    isCancelling = false
-                } else {
+                if activeModelDownloadID == downloadID {
                     uiState = .idle
                     progressDisplay = .idle()
                     announcePhaseIfNeeded(.finished)
                     AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
                 }
             } catch {
-                if Task.isCancelled {
-                    isCancelling = false
-                } else {
+                if activeModelDownloadID == downloadID, !Task.isCancelled {
                     handleError(error, context: .modelDownload)
                 }
             }
 
-            isDownloadingModel = false
-            modelDownloadTask = nil
+            if activeModelDownloadID == downloadID {
+                activeModelDownloadID = nil
+                isDownloadingModel = false
+                modelDownloadTask = nil
+            }
         }
     }
 
@@ -229,7 +230,6 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
-        isCancelling = false
         settings.persist()
         clearErrors()
         stopPlayback()
@@ -257,6 +257,7 @@ final class MainWindowViewModel: ObservableObject {
             do {
                 var transcript = try await transcriber.transcribe(job) { update in
                     Task { @MainActor in
+                        guard self.activeJobID == job.id else { return }
                         self.applyProgressUpdate(update)
                     }
                 }
@@ -266,35 +267,31 @@ final class MainWindowViewModel: ObservableObject {
                     audioURL: file.url
                 )
 
-                if isCancelling {
-                    isCancelling = false
-                } else {
-                    currentTranscript = transcript
-                    transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
-                        ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
-                    isEditingTranscript = false
-                    audioPlayer.load(url: file.url)
-                    uiState = .done
-                    progressDisplay = .done()
-                    refreshModelAvailability()
-                    announcePhaseIfNeeded(.finished)
-                    AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
-                }
+                guard activeJobID == job.id else { return }
+                currentTranscript = transcript
+                transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
+                    ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
+                isEditingTranscript = false
+                audioPlayer.load(url: file.url)
+                uiState = .done
+                progressDisplay = .done()
+                refreshModelAvailability()
+                announcePhaseIfNeeded(.finished)
+                AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
             } catch {
-                if Task.isCancelled {
-                    isCancelling = false
-                } else {
+                if activeJobID == job.id, !Task.isCancelled {
                     handleError(error, context: .transcription)
                 }
             }
 
-            activeJobID = nil
-            transcriptionTask = nil
+            if activeJobID == job.id {
+                activeJobID = nil
+                transcriptionTask = nil
+            }
         }
     }
 
     func cancelTranscription() {
-        isCancelling = true
         if let jobID = activeJobID {
             transcriber.cancel(jobID: jobID)
         }
@@ -304,6 +301,7 @@ final class MainWindowViewModel: ObservableObject {
 
         modelDownloadTask?.cancel()
         modelDownloadTask = nil
+        activeModelDownloadID = nil
         isDownloadingModel = false
 
         uiState = .idle
