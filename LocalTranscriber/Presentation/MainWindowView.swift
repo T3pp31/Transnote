@@ -55,9 +55,9 @@ struct MainWindowView: View {
             if let toast = viewModel.toast {
                 ToastView(message: toast)
                     .padding(.top, 12)
-                    .animation(.easeInOut(duration: 0.25), value: viewModel.toast)
             }
         }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.toast)
     }
 
     private var inputSection: some View {
