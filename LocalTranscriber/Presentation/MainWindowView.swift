@@ -106,7 +106,7 @@ struct MainWindowView: View {
             )
             .padding(.horizontal, 20)
             .padding(.vertical, 10)
-            .frame(height: 44)
+            .frame(minHeight: 44)
         }
     }
 
