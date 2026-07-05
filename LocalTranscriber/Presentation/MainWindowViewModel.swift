@@ -94,6 +94,32 @@ final class MainWindowViewModel: ObservableObject {
         return !isModelDownloaded(model)
     }
 
+    var startTranscriptionDisabledReason: String? {
+        if isBusy {
+            return "文字起こし処理中です"
+        }
+        if selectedFile == nil {
+            return "音声ファイルを選択してください"
+        }
+        if settings.selectedModel == nil {
+            return "モデルを選択してください"
+        }
+        if let model = settings.selectedModel, !isModelDownloaded(model) {
+            return "モデルをダウンロードしてください"
+        }
+        return nil
+    }
+
+    var modelDownloadDisabledReason: String? {
+        if isBusy {
+            return "処理中です"
+        }
+        if settings.selectedModel == nil {
+            return "モデルを選択してください"
+        }
+        return nil
+    }
+
     var shouldShowModelDownloadButton: Bool {
         guard let model = settings.selectedModel else {
             return false
