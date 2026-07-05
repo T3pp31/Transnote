@@ -147,19 +147,18 @@ final class MainWindowViewModel: ObservableObject {
                     }
                 }
 
-                refreshModelAvailability()
-                uiState = .idle
-                progressDisplay = .idle()
-                announcePhaseIfNeeded(.finished)
-                AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
+                if isCancelling {
+                    isCancelling = false
+                } else {
+                    refreshModelAvailability()
+                    uiState = .idle
+                    progressDisplay = .idle()
+                    announcePhaseIfNeeded(.finished)
+                    AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
+                }
             } catch {
                 if Task.isCancelled {
-                    if isCancelling {
-                        isCancelling = false
-                    } else {
-                        uiState = .idle
-                        progressDisplay = .idle()
-                    }
+                    isCancelling = false
                 } else {
                     handleError(error, context: .modelDownload)
                 }
@@ -265,24 +264,23 @@ final class MainWindowViewModel: ObservableObject {
                     audioURL: file.url
                 )
 
-                currentTranscript = transcript
-                transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
-                    ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
-                isEditingTranscript = false
-                audioPlayer.load(url: file.url)
-                uiState = .done
-                progressDisplay = .done()
-                refreshModelAvailability()
-                announcePhaseIfNeeded(.finished)
-                AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
+                if isCancelling {
+                    isCancelling = false
+                } else {
+                    currentTranscript = transcript
+                    transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
+                        ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
+                    isEditingTranscript = false
+                    audioPlayer.load(url: file.url)
+                    uiState = .done
+                    progressDisplay = .done()
+                    refreshModelAvailability()
+                    announcePhaseIfNeeded(.finished)
+                    AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
+                }
             } catch {
                 if Task.isCancelled {
-                    if isCancelling {
-                        isCancelling = false
-                    } else {
-                        uiState = .idle
-                        progressDisplay = .idle()
-                    }
+                    isCancelling = false
                 } else {
                     handleError(error, context: .transcription)
                 }
