@@ -39,6 +39,7 @@ final class MainWindowViewModel: ObservableObject {
     private var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
+    private var isCancelling = false
 
     private let transcriber: Transcriber
     private let audioFileService: AudioFileService
@@ -153,8 +154,12 @@ final class MainWindowViewModel: ObservableObject {
                 AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
             } catch {
                 if Task.isCancelled {
-                    uiState = .idle
-                    progressDisplay = .idle()
+                    if isCancelling {
+                        isCancelling = false
+                    } else {
+                        uiState = .idle
+                        progressDisplay = .idle()
+                    }
                 } else {
                     handleError(error, context: .modelDownload)
                 }
@@ -272,8 +277,12 @@ final class MainWindowViewModel: ObservableObject {
                 AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
             } catch {
                 if Task.isCancelled {
-                    uiState = .idle
-                    progressDisplay = .idle()
+                    if isCancelling {
+                        isCancelling = false
+                    } else {
+                        uiState = .idle
+                        progressDisplay = .idle()
+                    }
                 } else {
                     handleError(error, context: .transcription)
                 }
@@ -285,6 +294,7 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func cancelTranscription() {
+        isCancelling = true
         if let jobID = activeJobID {
             transcriber.cancel(jobID: jobID)
         }
