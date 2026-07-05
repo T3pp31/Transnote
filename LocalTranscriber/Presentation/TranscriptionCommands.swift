@@ -23,23 +23,20 @@ struct TranscriptionCommands: Commands {
     @FocusedValue(\.transcriptionActions) private var actions: TranscriptionActionsValue?
 
     var body: some Commands {
-        CommandGroup(after: .toolbar) {
+        CommandMenu("文字起こし") {
             Button("文字起こしを開始") {
                 actions?.startTranscription()
             }
             .disabled(actions?.canStart != true)
-            .keyboardShortcut(.return, modifiers: [.command])
 
             Button("ファイルを開く…") {
                 actions?.openFile()
             }
-            .keyboardShortcut("o", modifiers: [.command])
 
             Button("文字起こしをキャンセル") {
                 actions?.cancelTranscription()
             }
             .disabled(actions?.canCancel != true)
-            .keyboardShortcut(.escape, modifiers: [])
         }
     }
 }
