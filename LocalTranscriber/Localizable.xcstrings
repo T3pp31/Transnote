@@ -29,6 +29,13 @@
         }
       }
     },
+    "文字起こしを開始（⌘↩）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Start transcription (⌘↩)" }
+        }
+      }
+    },
     "音声ファイルを選択してください" : {
       "localizations" : {
         "en" : {
