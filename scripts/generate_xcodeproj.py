@@ -43,6 +43,7 @@ APP_SOURCES = [
     "LocalTranscriber/Presentation/StatusBarView.swift",
     "LocalTranscriber/Presentation/FileDropView.swift",
     "LocalTranscriber/Presentation/TranscriptEditorView.swift",
+    "LocalTranscriber/Presentation/SettingsView.swift",
 ]
 
 TEST_SOURCES = [
