@@ -51,6 +51,12 @@ struct MainWindowView: View {
         } message: {
             Text(viewModel.criticalErrorMessage ?? "")
         }
+        .focusedSceneValue(\.transcriptionActions, TranscriptionActionsValue(
+            canStart: viewModel.canStartTranscription,
+            startTranscription: viewModel.startTranscription,
+            canCancel: viewModel.canCancel,
+            cancelTranscription: viewModel.cancelTranscription
+        ))
     }
 
     private var inputSection: some View {
