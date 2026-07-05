@@ -9,6 +9,7 @@ struct TranscriptionActionsValue {
     let startTranscription: () -> Void
     let canCancel: Bool
     let cancelTranscription: () -> Void
+    let openFile: () -> Void
 }
 
 extension FocusedValues {
@@ -27,11 +28,18 @@ struct TranscriptionCommands: Commands {
                 actions?.startTranscription()
             }
             .disabled(actions?.canStart != true)
+            .keyboardShortcut(.return, modifiers: [.command])
+
+            Button("ファイルを開く…") {
+                actions?.openFile()
+            }
+            .keyboardShortcut("o", modifiers: [.command])
 
             Button("文字起こしをキャンセル") {
                 actions?.cancelTranscription()
             }
             .disabled(actions?.canCancel != true)
+            .keyboardShortcut(.escape, modifiers: [])
         }
     }
 }
