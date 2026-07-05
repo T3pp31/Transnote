@@ -209,6 +209,9 @@ struct FileDropView: View {
     ) {
         guard index < typeIdentifiers.count else {
             AppLogger.error("Drop import failed: unsupported dropped item", logger: AppLogger.fileAccess)
+            DispatchQueue.main.async {
+                self.dropErrorMessage = "対応している音声ファイルを読み込めませんでした。"
+            }
             return
         }
 
