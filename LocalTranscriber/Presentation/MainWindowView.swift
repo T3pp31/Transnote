@@ -53,7 +53,10 @@ struct MainWindowView: View {
             Text(viewModel.criticalErrorMessage ?? "")
         }
         .sheet(isPresented: $showingSettings) {
-            SettingsView()
+            SettingsView(
+                isBusy: viewModel.isBusy,
+                isModelDownloaded: viewModel.isModelDownloaded
+            )
         }
     }
 
@@ -131,6 +134,7 @@ struct MainWindowView: View {
                 Label("設定", systemImage: "gearshape")
             }
             .buttonStyle(.bordered)
+            .disabled(viewModel.isBusy)
             .accessibilityLabel("設定")
             .accessibilityHint("モデルや言語の設定を開きます")
 

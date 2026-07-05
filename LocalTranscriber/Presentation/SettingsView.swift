@@ -3,6 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.dismiss) private var dismiss
+    let isBusy: Bool
+    let isModelDownloaded: (ModelOption) -> Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -15,11 +17,18 @@ struct SettingsView: View {
                         .font(.headline)
                     Picker("モデル", selection: $settings.selectedModelID) {
                         ForEach(settings.models) { model in
-                            Text(model.displayName).tag(model.id)
+                            Label(
+                                model.displayName,
+                                systemImage: isModelDownloaded(model)
+                                    ? "checkmark.circle"
+                                    : "arrow.down.circle"
+                            )
+                            .tag(model.id)
                         }
                     }
                     .pickerStyle(.menu)
                     .frame(width: 300)
+                    .disabled(isBusy)
                     .onChange(of: settings.selectedModelID) { _ in
                         settings.persist()
                     }
@@ -38,6 +47,7 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                     .frame(width: 300)
+                    .disabled(isBusy)
                     .onChange(of: settings.selectedLanguageID) { _ in
                         settings.persist()
                     }
