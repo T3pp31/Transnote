@@ -486,8 +486,8 @@ lines.append(f"		{ids['pkg_ref']} /* XCRemoteSwiftPackageReference argmax-oss-sw
 lines.append("			isa = XCRemoteSwiftPackageReference;")
 lines.append("			repositoryURL = \"https://github.com/argmaxinc/argmax-oss-swift\";")
 lines.append("			requirement = {")
-lines.append("				kind = upToNextMajorVersion;")
-lines.append("				minimumVersion = 0.9.0;")
+lines.append("				kind = upToNextMinorVersion;")
+lines.append("				minimumVersion = 0.18.0;")
 lines.append("			};")
 lines.append("		};")
 
