@@ -207,14 +207,21 @@ final class MainWindowViewModel: ObservableObject {
     func startTranscription() {
         guard let file = selectedFile,
               let model = settings.selectedModel else {
-            let message = AppError.invalidConfiguration.errorDescription ?? "アプリ設定が不正です。"
-            presentCriticalError(title: "設定エラー", message: message)
+            let message = AppError.invalidConfiguration.errorDescription
+                ?? NSLocalizedString("アプリ設定が不正です。", comment: "Invalid configuration")
+            presentCriticalError(
+                title: NSLocalizedString("設定エラー", comment: "Configuration error title"),
+                message: message
+            )
             return
         }
 
         guard isModelDownloaded(model) else {
             let message = AppError.modelNotDownloaded(model.displayName).errorDescription
-                ?? "モデルがダウンロードされていません。"
+                ?? NSLocalizedString(
+                    "モデルがダウンロードされていません。",
+                    comment: "Model is not downloaded"
+                )
             presentInlineError(
                 title: "モデル未ダウンロード",
                 message: message,
@@ -493,14 +500,16 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     private func criticalTitle(for error: Error) -> String {
-        guard let appError = error as? AppError else { return "エラー" }
+        guard let appError = error as? AppError else {
+            return NSLocalizedString("エラー", comment: "Generic error title")
+        }
         switch appError {
         case .invalidConfiguration:
-            return "設定エラー"
+            return NSLocalizedString("設定エラー", comment: "Configuration error title")
         case .bookmarkResolutionFailed:
-            return "ファイルアクセスエラー"
+            return NSLocalizedString("ファイルアクセスエラー", comment: "File access error title")
         default:
-            return "エラー"
+            return NSLocalizedString("エラー", comment: "Generic error title")
         }
     }
 
@@ -510,18 +519,26 @@ final class MainWindowViewModel: ObservableObject {
     ) -> (title: String, canRetry: Bool, action: RecoverableAction?) {
         switch context {
         case .fileImport(let url, let preferredFileName):
-            return ("ファイルの読み込みエラー", true, .fileImport(url: url, preferredFileName: preferredFileName))
+            return (
+                NSLocalizedString("ファイルの読み込みエラー", comment: "File import error title"),
+                true,
+                .fileImport(url: url, preferredFileName: preferredFileName)
+            )
         case .transcription:
-            return ("文字起こしエラー", true, .transcription)
+            return (NSLocalizedString("文字起こしエラー", comment: "Transcription error title"), true, .transcription)
         case .modelDownload:
-            return ("モデルのダウンロードエラー", true, .modelDownload)
+            return (
+                NSLocalizedString("モデルのダウンロードエラー", comment: "Model download error title"),
+                true,
+                .modelDownload
+            )
         case .export(let format):
-            return ("エクスポートエラー", true, .export(format: format))
+            return (NSLocalizedString("エクスポートエラー", comment: "Export error title"), true, .export(format: format))
         case .general:
             if let appError = error as? AppError, case .modelNotDownloaded = appError {
-                return ("モデル未ダウンロード", false, nil)
+                return (NSLocalizedString("モデル未ダウンロード", comment: "Model not downloaded title"), false, nil)
             }
-            return ("エラー", false, nil)
+            return (NSLocalizedString("エラー", comment: "Generic error title"), false, nil)
         }
     }
 

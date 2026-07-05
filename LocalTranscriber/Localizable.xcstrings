@@ -8,6 +8,160 @@
         }
       }
     },
+    "エラー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Error" }
+        }
+      }
+    },
+    "設定エラー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Configuration Error" }
+        }
+      }
+    },
+    "ファイルアクセスエラー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "File Access Error" }
+        }
+      }
+    },
+    "ファイルの読み込みエラー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "File Import Error" }
+        }
+      }
+    },
+    "文字起こしエラー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Transcription Error" }
+        }
+      }
+    },
+    "モデルのダウンロードエラー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Model Download Error" }
+        }
+      }
+    },
+    "エクスポートエラー" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Export Error" }
+        }
+      }
+    },
+    "モデル未ダウンロード" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Model Not Downloaded" }
+        }
+      }
+    },
+    "未対応のファイル形式です: %@。wav / mp3 / m4a / flac に対応しています。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Unsupported file format: %@. Supported formats: wav, mp3, m4a, and flac." }
+        }
+      }
+    },
+    "選択したファイルが見つかりません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "The selected file could not be found." }
+        }
+      }
+    },
+    "ファイルへのアクセスが拒否されました。もう一度ファイルを選択してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Access to the file was denied. Please select the file again." }
+        }
+      }
+    },
+    "文字起こしをキャンセルしました。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Transcription was cancelled." }
+        }
+      }
+    },
+    "エクスポートに失敗しました: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Export failed: %@" }
+        }
+      }
+    },
+    "アプリ設定が不正です。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "The app configuration is invalid." }
+        }
+      }
+    },
+    "保存済みファイルへのアクセスを復元できませんでした。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Access to the saved file could not be restored." }
+        }
+      }
+    },
+    "モデル「%@」がダウンロードされていません。ツールバーの「ダウンロード」ボタンからダウンロードしてください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Model “%@” has not been downloaded. Download it using the Download button in the toolbar." }
+        }
+      }
+    },
+    "モデルがダウンロードされていません。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "The model has not been downloaded." }
+        }
+      }
+    },
+    "ファイルサイズが上限（500MB）を超えています。より小さいファイルを選択してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "The file exceeds the 500 MB limit. Select a smaller file." }
+        }
+      }
+    },
+    "処理がキャンセルされました。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "The operation was cancelled." }
+        }
+      }
+    },
+    "モデルの読み込みに失敗しました。モデル管理から再ダウンロードしてください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Failed to load the model. Download it again from model management." }
+        }
+      }
+    },
+    "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Failed to download the model. Check your network connection." }
+        }
+      }
+    },
+    "予期しないエラーが発生しました。もう一度お試しください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "An unexpected error occurred. Please try again." }
+        }
+      }
+    },
     "準備中…" : {
       "localizations" : {
         "en" : {

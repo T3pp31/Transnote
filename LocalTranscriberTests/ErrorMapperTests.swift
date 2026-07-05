@@ -9,7 +9,13 @@ final class ErrorMapperTests: XCTestCase {
     func testUnknownErrorReturnsGenericMessage() {
         let message = ErrorMapper.userMessage(for: UnknownTestError())
 
-        XCTAssertEqual(message, "予期しないエラーが発生しました。もう一度お試しください。")
+        XCTAssertEqual(
+            message,
+            NSLocalizedString(
+                "予期しないエラーが発生しました。もう一度お試しください。",
+                comment: "Unexpected error"
+            )
+        )
         XCTAssertFalse(message.contains("Internal secret error details"))
     }
 }

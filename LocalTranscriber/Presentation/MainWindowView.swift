@@ -39,7 +39,8 @@ struct MainWindowView: View {
             }
         }
         .alert(
-            viewModel.criticalErrorTitle ?? "エラー",
+            viewModel.criticalErrorTitle
+                ?? NSLocalizedString("エラー", comment: "Generic error title"),
             isPresented: Binding(
                 get: { viewModel.criticalErrorMessage != nil },
                 set: { if !$0 { viewModel.dismissCriticalError() } }
