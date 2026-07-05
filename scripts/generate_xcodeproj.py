@@ -45,6 +45,8 @@ APP_SOURCES = [
     "LocalTranscriber/Presentation/FileDropView.swift",
     "LocalTranscriber/Presentation/TranscriptEditorView.swift",
     "LocalTranscriber/Presentation/ToastView.swift",
+    "LocalTranscriber/Presentation/DesignTokens.swift",
+    "LocalTranscriber/Presentation/TranscriptionCommands.swift",
 ]
 
 TEST_SOURCES = [

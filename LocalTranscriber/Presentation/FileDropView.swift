@@ -7,8 +7,9 @@ struct FileDropView: View {
 
     @State private var isTargeted = false
     @State private var isHovered = false
+    @State private var dropErrorMessage: String?
 
-    private let cornerRadius: CGFloat = 18
+    private let cornerRadius: CGFloat = DesignTokens.Corner.card
 
     var body: some View {
         VStack(spacing: 12) {
@@ -36,6 +37,26 @@ struct FileDropView: View {
             .keyboardShortcut("o", modifiers: [.command])
             .accessibilityLabel("音声ファイルを選択")
             .accessibilityHint("ファイル選択ダイアログを開きます")
+
+            if let dropErrorMessage {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(dropErrorMessage)
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                        .multilineTextAlignment(.leading)
+                    Spacer()
+                    Button {
+                        self.dropErrorMessage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.orange.opacity(0.6))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("エラーを閉じる")
+                }
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(24)
@@ -94,7 +115,7 @@ struct FileDropView: View {
         if isHovered {
             return Color.primary.opacity(0.02)
         }
-        return Color(NSColor.controlBackgroundColor).opacity(0.35)
+        return Color(NSColor.controlBackgroundColor).opacity(0.5)
     }
 
     private var dropBorderColor: Color {
@@ -119,6 +140,7 @@ struct FileDropView: View {
         panel.allowedContentTypes = contentTypesForPicker()
 
         if panel.runModal() == .OK, let url = panel.url {
+            dropErrorMessage = nil
             onFileSelected(url, nil)
         }
     }
@@ -164,6 +186,7 @@ struct FileDropView: View {
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
+        dropErrorMessage = nil
         guard let provider = providers.first else { return false }
 
         let suggestedName = provider.suggestedName
@@ -186,6 +209,9 @@ struct FileDropView: View {
     ) {
         guard index < typeIdentifiers.count else {
             AppLogger.error("Drop import failed: unsupported dropped item", logger: AppLogger.fileAccess)
+            DispatchQueue.main.async {
+                self.dropErrorMessage = "対応している音声ファイルを読み込めませんでした。"
+            }
             return
         }
 
@@ -223,6 +249,9 @@ struct FileDropView: View {
 
         guard DropImportService.hasSupportedExtension(fileName, supportedExtensions: supportedExtensions) else {
             AppLogger.error("Drop import failed: unsupported extension for \(fileName)", logger: AppLogger.fileAccess)
+            DispatchQueue.main.async {
+                self.dropErrorMessage = ErrorMapper.userMessage(for: AppError.unsupportedFileExtension(fileName))
+            }
             return
         }
 
@@ -232,10 +261,14 @@ struct FileDropView: View {
                 preferredFileName: fileName
             )
             DispatchQueue.main.async {
+                self.dropErrorMessage = nil
                 self.onFileSelected(importedURL, nil)
             }
         } catch {
             AppLogger.error("Drop import failed: \(error.localizedDescription)", logger: AppLogger.fileAccess)
+            DispatchQueue.main.async {
+                self.dropErrorMessage = ErrorMapper.userMessage(for: error)
+            }
         }
     }
 }
