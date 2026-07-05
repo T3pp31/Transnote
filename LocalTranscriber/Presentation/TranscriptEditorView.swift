@@ -97,15 +97,24 @@ struct TranscriptEditorView: View {
                 .accessibilityLabel("表示モード")
                 .accessibilityHint("再生モードと編集モードを切り替えます")
             }
-            Button("コピー") {
-                onCopy()
+            if isEditing {
+                copyButton
+                    .help("文字起こし結果全体をコピー")
+            } else {
+                copyButton
+                    .keyboardShortcut("c", modifiers: [.command])
+                    .help("文字起こし結果をコピー（⌘C）")
             }
-            .disabled(text.isEmpty)
-            .keyboardShortcut("c", modifiers: [.command])
-            .help("文字起こし結果をコピー（⌘C）")
-            .accessibilityLabel("文字起こしをコピー")
-            .accessibilityHint("クリップボードに文字起こし結果をコピーします")
         }
+    }
+
+    private var copyButton: some View {
+        Button("コピー") {
+            onCopy()
+        }
+        .disabled(text.isEmpty)
+        .accessibilityLabel("文字起こしをコピー")
+        .accessibilityHint("クリップボードに文字起こし結果全体をコピーします")
     }
 
     private var readOnlyTextView: some View {
