@@ -8,6 +8,118 @@
         }
       }
     },
+    "アップデートが利用可能です" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Update Available" }
+        }
+      }
+    },
+    "ダウンロード" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Download" }
+        }
+      }
+    },
+    "後で" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Later" }
+        }
+      }
+    },
+    "バージョン %@ が利用可能です（現在: %@）。\nダウンロード後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Version %@ is available (current: %@).\nAfter downloading, run “Install.command” in the DMG.\nThe previous version will be replaced automatically." }
+        }
+      }
+    },
+    "モデル" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Model" }
+        }
+      }
+    },
+    "使用するWhisperモデルを選択します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Select the Whisper model to use" }
+        }
+      }
+    },
+    "言語" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Language" }
+        }
+      }
+    },
+    "音声の言語を選択します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Select the language spoken in the audio" }
+        }
+      }
+    },
+    "選択中のモデルをダウンロード" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Download the selected model" }
+        }
+      }
+    },
+    "モデルをダウンロード中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Downloading model" }
+        }
+      }
+    },
+    "選択中の文字起こしモデルをダウンロードします" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Download the selected transcription model" }
+        }
+      }
+    },
+    "文字起こし結果をエクスポート" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Export transcription result" }
+        }
+      }
+    },
+    "テキスト、SRT、VTT などの形式で書き出します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Export as text, SRT, VTT, or another format" }
+        }
+      }
+    },
+    "選択した音声ファイルの文字起こしを開始します" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Start transcribing the selected audio file" }
+        }
+      }
+    },
+    "再試行" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Retry" }
+        }
+      }
+    },
+    "エラーを閉じる" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Dismiss error" }
+        }
+      }
+    },
     "エラー" : {
       "localizations" : {
         "en" : {

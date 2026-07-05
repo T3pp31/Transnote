@@ -32,9 +32,14 @@ struct MainWindowView: View {
         } message: {
             if let offer = updateChecker.updateOffer {
                 Text(
-                    "バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）。"
-                        + "ダウンロード後、DMG 内の「インストール.command」を実行してください。"
-                        + "旧バージョンは自動的に置き換えられます。"
+                    String(
+                        format: NSLocalizedString(
+                            "バージョン %@ が利用可能です（現在: %@）。\nダウンロード後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。",
+                            comment: "Update available instructions"
+                        ),
+                        offer.latestVersion,
+                        offer.currentVersion
+                    )
                 )
             }
         }
@@ -152,7 +157,9 @@ struct MainWindowView: View {
                     viewModel.downloadSelectedModel()
                 } label: {
                     Label(
-                        viewModel.isDownloadingModel ? "ダウンロード中…" : "モデルをダウンロード",
+                        viewModel.isDownloadingModel
+                            ? NSLocalizedString("ダウンロード中…", comment: "Downloading model button")
+                            : NSLocalizedString("モデルをダウンロード", comment: "Download model button"),
                         systemImage: viewModel.isDownloadingModel
                             ? "arrow.down.circle.fill"
                             : "arrow.down.circle"
@@ -162,7 +169,9 @@ struct MainWindowView: View {
                 .disabled(!viewModel.canDownloadSelectedModel)
                 .help("選択中のモデルをダウンロード")
                 .accessibilityLabel(
-                    viewModel.isDownloadingModel ? "モデルをダウンロード中" : "モデルをダウンロード"
+                    viewModel.isDownloadingModel
+                        ? NSLocalizedString("モデルをダウンロード中", comment: "Downloading model accessibility label")
+                        : NSLocalizedString("モデルをダウンロード", comment: "Download model button")
                 )
                 .accessibilityHint("選択中の文字起こしモデルをダウンロードします")
             }

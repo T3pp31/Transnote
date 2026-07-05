@@ -221,9 +221,9 @@ final class MainWindowViewModel: ObservableObject {
                 ?? NSLocalizedString(
                     "モデルがダウンロードされていません。",
                     comment: "Model is not downloaded"
-                )
+            )
             presentInlineError(
-                title: "モデル未ダウンロード",
+                title: NSLocalizedString("モデル未ダウンロード", comment: "Model not downloaded title"),
                 message: message,
                 canRetry: false,
                 action: nil
