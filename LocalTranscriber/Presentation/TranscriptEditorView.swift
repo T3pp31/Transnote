@@ -9,6 +9,8 @@ struct TranscriptEditorView: View {
     let onSegmentTap: (TranscriptSegment) -> Void
     let onCopy: () -> Void
 
+    @FocusState private var isEditorFocused: Bool
+
     private var hasPlayableSegments: Bool {
         guard let segments else { return false }
         return !segments.isEmpty
@@ -32,6 +34,11 @@ struct TranscriptEditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(cardSurface)
         .accessibilityElement(children: .contain)
+        .onChange(of: isEditing) { isEditing in
+            if isEditing {
+                isEditorFocused = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -52,6 +59,7 @@ struct TranscriptEditorView: View {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                         )
+                        .focused($isEditorFocused)
                 } else if hasPlayableSegments, let segments {
                     segmentPlaybackView(segments: segments)
                 } else {
