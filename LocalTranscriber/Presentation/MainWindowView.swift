@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MainWindowView: View {
     @StateObject private var viewModel = MainWindowViewModel()
@@ -32,8 +33,8 @@ struct MainWindowView: View {
         } message: {
             if let offer = updateChecker.updateOffer {
                 Text(
-                    "バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）。"
-                        + "ダウンロード後、DMG 内の「インストール.command」を実行してください。"
+                    "バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）。\n"
+                        + "ダウンロード後、DMG 内の「インストール.command」を実行してください。\n"
                         + "旧バージョンは自動的に置き換えられます。"
                 )
             }
@@ -51,6 +52,13 @@ struct MainWindowView: View {
         } message: {
             Text(viewModel.criticalErrorMessage ?? "")
         }
+        .focusedSceneValue(\.transcriptionActions, TranscriptionActionsValue(
+            canStart: viewModel.canStartTranscription,
+            startTranscription: viewModel.startTranscription,
+            canCancel: viewModel.canCancel,
+            cancelTranscription: viewModel.cancelTranscription,
+            openFile: openFilePanel
+        ))
     }
 
     private var inputSection: some View {
@@ -80,6 +88,7 @@ struct MainWindowView: View {
         TranscriptEditorView(
             text: $viewModel.transcriptText,
             isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
+            isBusy: viewModel.isBusy,
             segments: viewModel.currentTranscript?.segments,
             playingSegmentID: viewModel.playingSegmentID,
             isEditing: $viewModel.isEditingTranscript,
@@ -105,7 +114,7 @@ struct MainWindowView: View {
             )
             .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
             .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)
-            .frame(height: 44)
+            .frame(minHeight: 44)
         }
     }
 
@@ -129,6 +138,11 @@ struct MainWindowView: View {
                         Image(systemName: modelIcon(for: model))
                     }
                     .tag(model.id)
+                    .accessibilityLabel(
+                        viewModel.isModelDownloaded(model)
+                            ? "\(model.displayName)、ダウンロード済み"
+                            : "\(model.displayName)、未ダウンロード"
+                    )
                 }
             }
             .frame(width: 220)
@@ -159,7 +173,7 @@ struct MainWindowView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(!viewModel.canDownloadSelectedModel)
-                .help("選択中のモデルをダウンロード")
+                .help(viewModel.modelDownloadDisabledReason ?? "選択中のモデルをダウンロード")
                 .accessibilityLabel(
                     viewModel.isDownloadingModel ? "モデルをダウンロード中" : "モデルをダウンロード"
                 )
@@ -193,6 +207,7 @@ struct MainWindowView: View {
             .controlSize(.large)
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
+            .help(viewModel.startTranscriptionDisabledReason ?? "選択した音声ファイルの文字起こしを開始します")
             .accessibilityLabel("文字起こしを開始")
             .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }
@@ -200,6 +215,29 @@ struct MainWindowView: View {
 
     private func modelIcon(for model: ModelOption) -> String {
         viewModel.isModelDownloaded(model) ? "checkmark.circle" : "arrow.down.circle"
+    }
+
+    private func openFilePanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = contentTypesForPicker()
+        if panel.runModal() == .OK, let url = panel.url {
+            viewModel.selectFile(url: url, preferredFileName: nil)
+        }
+    }
+
+    private func contentTypesForPicker() -> [UTType] {
+        settings.supportedExtensions.compactMap { ext in
+            switch ext.lowercased() {
+            case "m4a": return .mpeg4Audio
+            case "mp3": return .mp3
+            case "wav": return .wav
+            case "flac": return UTType(filenameExtension: "flac") ?? .audio
+            default: return UTType(filenameExtension: ext)
+            }
+        }
     }
 }
 
@@ -247,7 +285,7 @@ private struct InlineErrorBanner: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.banner))
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }

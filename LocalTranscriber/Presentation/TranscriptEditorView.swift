@@ -3,11 +3,14 @@ import SwiftUI
 struct TranscriptEditorView: View {
     @Binding var text: String
     let isEditable: Bool
+    let isBusy: Bool
     let segments: [TranscriptSegment]?
     let playingSegmentID: UUID?
     @Binding var isEditing: Bool
     let onSegmentTap: (TranscriptSegment) -> Void
     let onCopy: () -> Void
+
+    @FocusState private var isEditorFocused: Bool
 
     private var hasPlayableSegments: Bool {
         guard let segments else { return false }
@@ -32,6 +35,11 @@ struct TranscriptEditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(cardSurface)
         .accessibilityElement(children: .contain)
+        .onChange(of: isEditing) { isEditing in
+            if isEditing {
+                isEditorFocused = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -52,6 +60,7 @@ struct TranscriptEditorView: View {
                             RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
                         )
+                        .focused($isEditorFocused)
                 } else if hasPlayableSegments, let segments {
                     segmentPlaybackView(segments: segments)
                 } else {
@@ -76,7 +85,7 @@ struct TranscriptEditorView: View {
             .fill(Color(NSColor.controlBackgroundColor))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
             }
     }
 
@@ -109,7 +118,8 @@ struct TranscriptEditorView: View {
 
     private var readOnlyTextView: some View {
         ScrollView {
-            Text(text.isEmpty ? "文字起こし結果がここに表示されます" : text)
+            Text(text.isEmpty ? emptyStateMessage : text)
+                .foregroundStyle(text.isEmpty ? .secondary : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
         }
@@ -122,6 +132,12 @@ struct TranscriptEditorView: View {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
         )
+    }
+
+    private var emptyStateMessage: String {
+        isBusy
+            ? "処理が完了するまでお待ちください"
+            : "音声ファイルをドロップまたは選択して、文字起こしを開始してください"
     }
 
     private func segmentPlaybackView(segments: [TranscriptSegment]) -> some View {
@@ -207,7 +223,7 @@ private struct SegmentPlaybackRow: View {
 
     private var backgroundColor: Color {
         if isPlaying {
-            return Color.accentColor.opacity(0.12)
+            return Color.accentColor.opacity(0.18)
         }
         if isHovered {
             return Color.secondary.opacity(0.08)
