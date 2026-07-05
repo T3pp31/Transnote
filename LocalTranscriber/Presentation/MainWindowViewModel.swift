@@ -36,6 +36,7 @@ final class MainWindowViewModel: ObservableObject {
 
     private var lastRecoverableAction: RecoverableAction?
     private var activeJobID: UUID?
+    private var activeModelDownloadID: UUID?
     private var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
@@ -153,6 +154,8 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
+        let downloadID = UUID()
+        activeModelDownloadID = downloadID
         clearErrors()
         isDownloadingModel = true
         uiState = .preparing
@@ -168,26 +171,29 @@ final class MainWindowViewModel: ObservableObject {
                     modelDisplayName: model.displayName
                 ) { update in
                     Task { @MainActor in
+                        guard self.activeModelDownloadID == downloadID else { return }
                         self.applyModelDownloadProgress(update)
                     }
                 }
 
                 refreshModelAvailability()
-                uiState = .idle
-                progressDisplay = .idle()
-                announcePhaseIfNeeded(.finished)
-                AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
-            } catch {
-                if Task.isCancelled {
+                if activeModelDownloadID == downloadID {
                     uiState = .idle
                     progressDisplay = .idle()
-                } else {
+                    announcePhaseIfNeeded(.finished)
+                    AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
+                }
+            } catch {
+                if activeModelDownloadID == downloadID, !Task.isCancelled {
                     handleError(error, context: .modelDownload)
                 }
             }
 
-            isDownloadingModel = false
-            modelDownloadTask = nil
+            if activeModelDownloadID == downloadID {
+                activeModelDownloadID = nil
+                isDownloadingModel = false
+                modelDownloadTask = nil
+            }
         }
     }
 
@@ -277,6 +283,7 @@ final class MainWindowViewModel: ObservableObject {
             do {
                 var transcript = try await transcriber.transcribe(job) { update in
                     Task { @MainActor in
+                        guard self.activeJobID == job.id else { return }
                         self.applyProgressUpdate(update)
                     }
                 }
@@ -286,6 +293,7 @@ final class MainWindowViewModel: ObservableObject {
                     audioURL: file.url
                 )
 
+                guard activeJobID == job.id else { return }
                 currentTranscript = transcript
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
@@ -297,16 +305,15 @@ final class MainWindowViewModel: ObservableObject {
                 announcePhaseIfNeeded(.finished)
                 AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
             } catch {
-                if Task.isCancelled {
-                    uiState = .idle
-                    progressDisplay = .idle()
-                } else {
+                if activeJobID == job.id, !Task.isCancelled {
                     handleError(error, context: .transcription)
                 }
             }
 
-            activeJobID = nil
-            transcriptionTask = nil
+            if activeJobID == job.id {
+                activeJobID = nil
+                transcriptionTask = nil
+            }
         }
     }
 
@@ -320,6 +327,7 @@ final class MainWindowViewModel: ObservableObject {
 
         modelDownloadTask?.cancel()
         modelDownloadTask = nil
+        activeModelDownloadID = nil
         isDownloadingModel = false
 
         uiState = .idle
