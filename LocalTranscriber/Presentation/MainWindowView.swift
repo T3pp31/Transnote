@@ -129,6 +129,11 @@ struct MainWindowView: View {
                         Image(systemName: modelIcon(for: model))
                     }
                     .tag(model.id)
+                    .accessibilityLabel(
+                        viewModel.isModelDownloaded(model)
+                            ? "\(model.displayName)、ダウンロード済み"
+                            : "\(model.displayName)、未ダウンロード"
+                    )
                 }
             }
             .frame(width: 220)
