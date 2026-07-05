@@ -54,7 +54,7 @@ struct MainWindowView: View {
     }
 
     private var inputSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignTokens.Spacing.sectionSpacing) {
             toolbar
             if viewModel.inlineErrorMessage != nil {
                 InlineErrorBanner(
@@ -110,7 +110,7 @@ struct MainWindowView: View {
     }
 
     private var toolbar: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignTokens.Spacing.sectionSpacing) {
             settingsToolbarRow
 
             Divider()
