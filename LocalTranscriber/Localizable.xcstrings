@@ -1,6 +1,13 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%dパーセント完了" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "%d percent complete" }
+        }
+      }
+    },
     "準備中…" : {
       "localizations" : {
         "en" : {
@@ -138,6 +145,13 @@
       "localizations" : {
         "en" : {
           "stringUnit" : { "state" : "translated", "value" : "Transcription Language" }
+        }
+      }
+    },
+    "進行中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "In progress" }
         }
       }
     }

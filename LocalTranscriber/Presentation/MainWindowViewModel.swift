@@ -419,7 +419,7 @@ final class MainWindowViewModel: ObservableObject {
         ]
         guard majorPhases.contains(phase), lastAnnouncedPhase != phase else { return }
         lastAnnouncedPhase = phase
-        AccessibilityNotification.Announcement(phase.rawValue).post()
+        AccessibilityNotification.Announcement(phase.localizedDisplayName).post()
     }
 
     private func defaultExportFilename(for transcript: Transcript, format: ExportFormat) -> String {
