@@ -1,9 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct MainWindowView: View {
     @StateObject private var viewModel = MainWindowViewModel()
     @StateObject private var updateChecker = UpdateCheckViewModel()
     @ObservedObject private var settings = AppSettings.shared
+    @State private var showingSettings = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -57,10 +59,30 @@ struct MainWindowView: View {
         } message: {
             Text(viewModel.criticalErrorMessage ?? "")
         }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView(
+                isBusy: viewModel.isBusy,
+                isModelDownloaded: viewModel.isModelDownloaded
+            )
+        }
+        .overlay(alignment: .top) {
+            if let toast = viewModel.toast {
+                ToastView(message: toast)
+                    .padding(.top, 12)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: viewModel.toast)
+        .focusedSceneValue(\.transcriptionActions, TranscriptionActionsValue(
+            canStart: viewModel.canStartTranscription,
+            startTranscription: viewModel.startTranscription,
+            canCancel: viewModel.canCancel,
+            cancelTranscription: viewModel.cancelTranscription,
+            openFile: openFilePanel
+        ))
     }
 
     private var inputSection: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignTokens.Spacing.sectionSpacing) {
             toolbar
             if viewModel.inlineErrorMessage != nil {
                 InlineErrorBanner(
@@ -77,15 +99,16 @@ struct MainWindowView: View {
                 onFileSelected: viewModel.selectFile(url:preferredFileName:)
             )
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 20)
-        .padding(.bottom, 16)
+        .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
+        .padding(.top, DesignTokens.Spacing.topPadding)
+        .padding(.bottom, DesignTokens.Spacing.bottomPadding)
     }
 
     private var resultSection: some View {
         TranscriptEditorView(
             text: $viewModel.transcriptText,
             isEditable: viewModel.uiState == .done || viewModel.currentTranscript != nil,
+            isBusy: viewModel.isBusy,
             segments: viewModel.currentTranscript?.segments,
             playingSegmentID: viewModel.playingSegmentID,
             isEditing: $viewModel.isEditingTranscript,
@@ -93,8 +116,8 @@ struct MainWindowView: View {
             onCopy: viewModel.copyTranscript
         )
         .frame(maxHeight: .infinity)
-        .padding(.horizontal, 20)
-        .padding(.bottom, 16)
+        .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
+        .padding(.bottom, DesignTokens.Spacing.bottomPadding)
     }
 
     private var footerSection: some View {
@@ -109,14 +132,14 @@ struct MainWindowView: View {
                 canCancel: viewModel.canCancel,
                 onCancel: viewModel.cancelTranscription
             )
-            .padding(.horizontal, 20)
-            .padding(.vertical, 10)
-            .frame(height: 44)
+            .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
+            .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)
+            .frame(minHeight: 44)
         }
     }
 
     private var toolbar: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: DesignTokens.Spacing.sectionSpacing) {
             settingsToolbarRow
 
             Divider()
@@ -127,30 +150,15 @@ struct MainWindowView: View {
 
     private var settingsToolbarRow: some View {
         HStack(spacing: 12) {
-            Picker("モデル", selection: $settings.selectedModelID) {
-                ForEach(settings.models) { model in
-                    Label {
-                        Text(model.displayName)
-                    } icon: {
-                        Image(systemName: modelIcon(for: model))
-                    }
-                    .tag(model.id)
-                }
+            Button {
+                showingSettings = true
+            } label: {
+                Label("設定", systemImage: "gearshape")
             }
-            .frame(width: 220)
+            .buttonStyle(.bordered)
             .disabled(viewModel.isBusy)
-            .accessibilityLabel("文字起こしモデル")
-            .accessibilityHint("使用するWhisperモデルを選択します")
-
-            Picker("言語", selection: $settings.selectedLanguageID) {
-                ForEach(settings.languages) { language in
-                    Text(language.displayName).tag(language.id)
-                }
-            }
-            .frame(width: 140)
-            .disabled(viewModel.isBusy)
-            .accessibilityLabel("文字起こし言語")
-            .accessibilityHint("音声の言語を選択します")
+            .accessibilityLabel("設定")
+            .accessibilityHint("モデルや言語の設定を開きます")
 
             if viewModel.shouldShowModelDownloadButton {
                 Button {
@@ -167,7 +175,7 @@ struct MainWindowView: View {
                 }
                 .buttonStyle(.bordered)
                 .disabled(!viewModel.canDownloadSelectedModel)
-                .help("選択中のモデルをダウンロード")
+                .help(viewModel.modelDownloadDisabledReason ?? "選択中のモデルをダウンロード")
                 .accessibilityLabel(
                     viewModel.isDownloadingModel
                         ? NSLocalizedString("モデルをダウンロード中", comment: "Downloading model accessibility label")
@@ -203,13 +211,32 @@ struct MainWindowView: View {
             .controlSize(.large)
             .disabled(!viewModel.canStartTranscription)
             .keyboardShortcut(.return, modifiers: [.command])
+            .help(viewModel.startTranscriptionDisabledReason ?? "文字起こしを開始（⌘↩）")
             .accessibilityLabel("文字起こしを開始")
             .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }
     }
+    private func openFilePanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = contentTypesForPicker()
+        if panel.runModal() == .OK, let url = panel.url {
+            viewModel.selectFile(url: url, preferredFileName: nil)
+        }
+    }
 
-    private func modelIcon(for model: ModelOption) -> String {
-        viewModel.isModelDownloaded(model) ? "checkmark.circle" : "arrow.down.circle"
+    private func contentTypesForPicker() -> [UTType] {
+        settings.supportedExtensions.compactMap { ext in
+            switch ext.lowercased() {
+            case "m4a": return .mpeg4Audio
+            case "mp3": return .mp3
+            case "wav": return .wav
+            case "flac": return UTType(filenameExtension: "flac") ?? .audio
+            default: return UTType(filenameExtension: ext)
+            }
+        }
     }
 }
 
@@ -254,10 +281,10 @@ private struct InlineErrorBanner: View {
             .accessibilityLabel("エラーを閉じる")
         }
         .padding(12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.banner))
         .overlay {
-            RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
+                .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }

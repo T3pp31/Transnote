@@ -57,7 +57,7 @@ struct StatusBarView: View {
                     Text(detail)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(2, reservesSpace: true)
                 }
             }
         }
@@ -88,6 +88,7 @@ struct StatusBarView: View {
             onCancel()
         }
         .keyboardShortcut(.escape, modifiers: [])
+        .help("文字起こしをキャンセル（Esc）")
         .accessibilityLabel("文字起こしをキャンセル")
     }
 

@@ -11,5 +11,8 @@ struct LocalTranscriberApp: App {
             MainWindowView()
         }
         .defaultSize(width: 800, height: 640)
+        .commands {
+            TranscriptionCommands()
+        }
     }
 }
