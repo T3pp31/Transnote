@@ -18,6 +18,7 @@ final class MainWindowViewModel: ObservableObject {
     @Published var criticalErrorMessage: String?
     @Published var downloadedModelIDs: Set<String> = []
     @Published var isDownloadingModel = false
+    @Published var toast: ToastMessage?
 
     private enum RecoverableAction: Equatable {
         case transcription
@@ -39,6 +40,7 @@ final class MainWindowViewModel: ObservableObject {
     private var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
+    private var toastDismissTask: Task<Void, Never>?
 
     private let transcriber: Transcriber
     private let audioFileService: AudioFileService
@@ -304,6 +306,18 @@ final class MainWindowViewModel: ObservableObject {
     func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(transcriptText, forType: .string)
+        showToast("文字起こし結果をコピーしました")
+    }
+
+    func showToast(_ text: String, icon: String = "checkmark.circle.fill") {
+        toastDismissTask?.cancel()
+        toast = ToastMessage(text: text, icon: icon)
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            if !Task.isCancelled {
+                toast = nil
+            }
+        }
     }
 
     func playSegment(_ segment: TranscriptSegment) {
@@ -344,6 +358,7 @@ final class MainWindowViewModel: ObservableObject {
 
         do {
             try exportService.write(transcript: transcript, format: format, to: url)
+            showToast("\(format.displayName)でエクスポートしました")
             AppLogger.info("Exported \(format.displayName) to \(url.lastPathComponent)", logger: AppLogger.export)
         } catch {
             handleError(error, context: .export(format))
