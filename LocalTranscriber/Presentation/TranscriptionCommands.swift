@@ -32,6 +32,7 @@ struct TranscriptionCommands: Commands {
             Button("ファイルを開く…") {
                 actions?.openFile()
             }
+            .disabled(actions == nil)
 
             Button("文字起こしをキャンセル") {
                 actions?.cancelTranscription()
