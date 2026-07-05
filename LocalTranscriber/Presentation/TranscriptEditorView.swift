@@ -102,6 +102,7 @@ struct TranscriptEditorView: View {
             }
             .disabled(text.isEmpty)
             .keyboardShortcut("c", modifiers: [.command])
+            .help("文字起こし結果をコピー（⌘C）")
             .accessibilityLabel("文字起こしをコピー")
             .accessibilityHint("クリップボードに文字起こし結果をコピーします")
         }
