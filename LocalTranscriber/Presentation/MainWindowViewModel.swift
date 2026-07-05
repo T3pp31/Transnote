@@ -148,10 +148,10 @@ final class MainWindowViewModel: ObservableObject {
                     }
                 }
 
+                refreshModelAvailability()
                 if isCancelling {
                     isCancelling = false
                 } else {
-                    refreshModelAvailability()
                     uiState = .idle
                     progressDisplay = .idle()
                     announcePhaseIfNeeded(.finished)
