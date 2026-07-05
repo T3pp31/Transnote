@@ -85,7 +85,7 @@ struct TranscriptEditorView: View {
             .fill(Color(NSColor.controlBackgroundColor))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
             }
     }
 
@@ -223,7 +223,7 @@ private struct SegmentPlaybackRow: View {
 
     private var backgroundColor: Color {
         if isPlaying {
-            return Color.accentColor.opacity(0.12)
+            return Color.accentColor.opacity(0.18)
         }
         if isHovered {
             return Color.secondary.opacity(0.08)

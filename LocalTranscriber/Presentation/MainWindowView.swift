@@ -285,7 +285,7 @@ private struct InlineErrorBanner: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
         .overlay {
             RoundedRectangle(cornerRadius: 10)
-                .strokeBorder(Color.orange.opacity(0.25), lineWidth: 1)
+                .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }

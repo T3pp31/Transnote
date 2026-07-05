@@ -115,7 +115,7 @@ struct FileDropView: View {
         if isHovered {
             return Color.primary.opacity(0.02)
         }
-        return Color(NSColor.controlBackgroundColor).opacity(0.35)
+        return Color(NSColor.controlBackgroundColor).opacity(0.5)
     }
 
     private var dropBorderColor: Color {
