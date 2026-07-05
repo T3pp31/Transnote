@@ -109,7 +109,8 @@ struct TranscriptEditorView: View {
 
     private var readOnlyTextView: some View {
         ScrollView {
-            Text(text.isEmpty ? "文字起こし結果がここに表示されます" : text)
+            Text(text.isEmpty ? "音声ファイルをドロップまたは選択して、文字起こしを開始してください" : text)
+                .foregroundStyle(text.isEmpty ? .secondary : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
         }
