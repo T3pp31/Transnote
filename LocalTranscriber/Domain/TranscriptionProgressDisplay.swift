@@ -33,7 +33,7 @@ struct TranscriptionProgressDisplay: Equatable {
     }
 
     static func from(update: TranscriptionProgressUpdate) -> TranscriptionProgressDisplay {
-        let primaryLabel = update.phase.rawValue
+        let primaryLabel = update.phase.localizedDisplayName
         let detailLabel = makeDetailLabel(for: update)
 
         let style: ProgressStyle
