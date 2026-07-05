@@ -99,26 +99,26 @@ final class MainWindowViewModel: ObservableObject {
 
     var startTranscriptionDisabledReason: String? {
         if isBusy {
-            return "文字起こし処理中です"
+            return NSLocalizedString("文字起こし処理中です", comment: "Transcription is busy")
         }
         if selectedFile == nil {
-            return "音声ファイルを選択してください"
+            return NSLocalizedString("音声ファイルを選択してください", comment: "Select an audio file")
         }
         if settings.selectedModel == nil {
-            return "モデルを選択してください"
+            return NSLocalizedString("モデルを選択してください", comment: "Select a model")
         }
         if let model = settings.selectedModel, !isModelDownloaded(model) {
-            return "モデルをダウンロードしてください"
+            return NSLocalizedString("モデルをダウンロードしてください", comment: "Download the selected model")
         }
         return nil
     }
 
     var modelDownloadDisabledReason: String? {
         if isBusy {
-            return "処理中です"
+            return NSLocalizedString("処理中です", comment: "Operation in progress")
         }
         if settings.selectedModel == nil {
-            return "モデルを選択してください"
+            return NSLocalizedString("モデルを選択してください", comment: "Select a model")
         }
         return nil
     }
@@ -347,7 +347,7 @@ final class MainWindowViewModel: ObservableObject {
     func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(transcriptText, forType: .string)
-        showToast("文字起こし結果をコピーしました")
+        showToast(NSLocalizedString("文字起こし結果をコピーしました", comment: "Transcript copied toast"))
     }
 
     func showToast(_ text: String, icon: String = "checkmark.circle.fill") {
@@ -399,7 +399,12 @@ final class MainWindowViewModel: ObservableObject {
 
         do {
             try exportService.write(transcript: transcript, format: format, to: url)
-            showToast("\(format.displayName)でエクスポートしました")
+            showToast(
+                String(
+                    format: NSLocalizedString("%@でエクスポートしました", comment: "Export completed toast"),
+                    format.displayName
+                )
+            )
             AppLogger.info("Exported \(format.displayName) to \(url.lastPathComponent)", logger: AppLogger.export)
         } catch {
             handleError(error, context: .export(format))

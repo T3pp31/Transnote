@@ -15,7 +15,11 @@ struct TranscriptionProgressDisplay: Equatable {
 
     var accessibilityLabel: String {
         if let modelName = detailLabel?.components(separatedBy: " · ").first, !modelName.isEmpty {
-            return "\(primaryLabel)、\(modelName)"
+            return String(
+                format: NSLocalizedString("%@、%@", comment: "Progress label and model name"),
+                primaryLabel,
+                modelName
+            )
         }
         return primaryLabel
     }

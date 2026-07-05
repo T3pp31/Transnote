@@ -83,7 +83,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         let display = TranscriptionProgressDisplay.from(update: update)
 
         // Then
-        let expectedLabel = "\(TranscriptionProgressPhase.downloadingModel.localizedDisplayName)、Base"
+        let expectedLabel = String(
+            format: NSLocalizedString("%@、%@", comment: "Progress label and model name"),
+            TranscriptionProgressPhase.downloadingModel.localizedDisplayName,
+            "Base"
+        )
         let expectedValue = String(
             format: NSLocalizedString("%dパーセント完了", comment: "Accessible progress percentage"),
             45

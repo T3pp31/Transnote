@@ -8,6 +8,62 @@
         }
       }
     },
+    "%@、%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "%@, %@" }
+        }
+      }
+    },
+    "%@でエクスポートしました" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Exported as %@" }
+        }
+      }
+    },
+    "文字起こし処理中です" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Transcription is in progress" }
+        }
+      }
+    },
+    "音声ファイルを選択してください" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Select an audio file" }
+        }
+      }
+    },
+    "モデルを選択してください" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Select a model" }
+        }
+      }
+    },
+    "モデルをダウンロードしてください" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Download the selected model" }
+        }
+      }
+    },
+    "処理中です" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Operation in progress" }
+        }
+      }
+    },
+    "文字起こし結果をコピーしました" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Transcription copied" }
+        }
+      }
+    },
     "アップデートが利用可能です" : {
       "localizations" : {
         "en" : {
