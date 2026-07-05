@@ -31,11 +31,11 @@ struct MainWindowView: View {
             }
         } message: {
             if let offer = updateChecker.updateOffer {
-                VStack(alignment: .leading) {
-                    Text("バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）。")
-                    Text("ダウンロード後、DMG 内の「インストール.command」を実行してください。")
-                    Text("旧バージョンは自動的に置き換えられます。")
-                }
+                Text(
+                    "バージョン \(offer.latestVersion) が利用可能です（現在: \(offer.currentVersion)）。\n"
+                        + "ダウンロード後、DMG 内の「インストール.command」を実行してください。\n"
+                        + "旧バージョンは自動的に置き換えられます。"
+                )
             }
         }
         .alert(
