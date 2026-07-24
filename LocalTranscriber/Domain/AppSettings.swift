@@ -78,15 +78,24 @@ struct AppConfig {
     let maxImportFileSizeBytes: Int64
 
     init(bundle: Bundle = .main) {
-        let plistURL = bundle.url(forResource: "Defaults", withExtension: "plist")
-            ?? bundle.bundleURL.deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("Config/Defaults.plist")
-
         let data: [String: Any]
-        if let loaded = NSDictionary(contentsOf: plistURL) as? [String: Any] {
+        if let bundledURL = bundle.url(forResource: "Defaults", withExtension: "plist"),
+           let loaded = NSDictionary(contentsOf: bundledURL) as? [String: Any] {
             data = loaded
         } else {
+            #if DEBUG
+            let developmentPlistURL = bundle.bundleURL
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent("Config/Defaults.plist")
+            if let loaded = NSDictionary(contentsOf: developmentPlistURL) as? [String: Any] {
+                data = loaded
+            } else {
+                data = Self.fallbackData
+            }
+            #else
             data = Self.fallbackData
+            #endif
         }
 
         supportedExtensions = data["SupportedAudioExtensions"] as? [String] ?? ["wav", "mp3", "m4a", "flac"]
