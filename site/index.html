@@ -134,13 +134,9 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
           })
           .then(function (release) {
             var assets = release.assets || [];
-            var dmg =
-              assets.find(function (asset) {
-                return asset.name === 'Transnote.dmg';
-              }) ||
-              assets.find(function (asset) {
-                return asset.name.endsWith('.dmg');
-              });
+            var dmg = assets.find(function (asset) {
+              return asset.name === 'Transnote.dmg';
+            });
 
             if (dmg && isAllowedDownloadURL(dmg.browser_download_url)) {
               downloadButton.href = dmg.browser_download_url;

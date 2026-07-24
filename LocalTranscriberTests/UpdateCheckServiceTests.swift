@@ -249,6 +249,46 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertNil(offer)
     }
 
+    // Given: 期待する DMG 以外の .dmg のみが添付されたリリース
+    // When: checkForUpdate を実行
+    // Then: fallback URL を使う
+    func testCheckForUpdateUsesFallbackWhenOnlyUnexpectedDMGExists() async {
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": null,
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+              "repository": {
+                "full_name": "T3pp31/Transnote"
+              },
+              "assets": [
+                {
+                  "name": "Other.dmg",
+                  "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Other.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertEqual(offer?.downloadURL, config.updateDownloadFallbackURL)
+    }
+
     // Given: 別リポジトリのリリースレスポンス
     // When: checkForUpdate を実行
     // Then: nil を返す
