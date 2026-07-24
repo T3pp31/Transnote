@@ -34,6 +34,31 @@ jobs:
             exit 1
           fi
 
+      - name: Install Syft
+        run: |
+          set -euo pipefail
+          SYFT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :SyftVersion' Config/sbom.plist)"
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin "${SYFT_VERSION}"
+
+      - name: Generate SBOM
+        id: sbom
+        run: |
+          set -euo pipefail
+          chmod +x ./scripts/generate-sbom.sh
+          sbom_path="$(./scripts/generate-sbom.sh --mode ci)"
+          artifact_name="$(/usr/libexec/PlistBuddy -c 'Print :CIArtifactName' Config/sbom.plist)"
+          retention_days="$(/usr/libexec/PlistBuddy -c 'Print :CIArtifactRetentionDays' Config/sbom.plist)"
+          echo "sbom_path=${sbom_path}" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
+          echo "retention_days=${retention_days}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.sbom.outputs.artifact_name }}
+          path: build/sbom/
+          retention-days: ${{ steps.sbom.outputs.retention_days }}
+
       - name: Run tests
         run: |
           xcodebuild test \

@@ -91,6 +91,22 @@ jobs:
             --archive "${{ env.ARCHIVE_PATH }}" \
             --output "${{ env.RELEASE_APP_DIR }}"
 
+      - name: Install Syft
+        run: |
+          set -euo pipefail
+          SYFT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :SyftVersion' Config/sbom.plist)"
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin "${SYFT_VERSION}"
+
+      - name: Generate SBOM
+        id: sbom
+        run: |
+          set -euo pipefail
+          chmod +x ./scripts/generate-sbom.sh
+          sbom_path="$(./scripts/generate-sbom.sh \
+            --mode release \
+            --version "${{ steps.version.outputs.version }}")"
+          echo "sbom_path=${sbom_path}" >> "$GITHUB_OUTPUT"
+
       - name: Create DMG
         id: dmg
         run: |
@@ -165,3 +181,4 @@ jobs:
             ${{ steps.dmg.outputs.latest_dmg_path }}
             ${{ steps.checksum.outputs.versioned_sha256_path }}
             ${{ steps.checksum.outputs.latest_sha256_path }}
+            ${{ steps.sbom.outputs.sbom_path }}
