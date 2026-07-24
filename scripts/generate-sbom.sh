@@ -160,4 +160,15 @@ rm -f "$OUTPUT_PATH"
 "$SYFT_BIN" scan "$INPUT_PATH" \
   --output "${OUTPUT_FORMAT}=${OUTPUT_PATH}"
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "jq not found (required to validate SBOM components)" >&2
+  exit 1
+fi
+
+library_count="$(jq '[.components[]? | select(.type == "library")] | length' "$OUTPUT_PATH")"
+if [[ "$library_count" -eq 0 ]]; then
+  echo "SBOM has no library components: $OUTPUT_PATH" >&2
+  exit 1
+fi
+
 echo "$OUTPUT_PATH"

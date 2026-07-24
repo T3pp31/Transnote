@@ -91,6 +91,8 @@ CI では `Package.resolved`（宣言依存のロックファイル）を、Rele
 
 生成物は `build/sbom/` に出力されます。CI では artifact `sbom-cyclonedx` として保存されます（保持 30 日）。
 
+`generate-sbom.sh` は生成後に CycloneDX の `library` 型 `components` が 1 件以上あることを検証し、0 件の場合は非ゼロ終了で CI / Release を失敗させます（Syft の退行やスキャン失敗で空 SBOM が artifact に残るのを防ぐ）。
+
 ## Pages の有効化
 
 初回のみ、リポジトリ設定で GitHub Pages の Source を **GitHub Actions** に設定してください。以降は `pages.yml` が `site/` をデプロイします。
@@ -123,7 +125,8 @@ CI では `Package.resolved`（宣言依存のロックファイル）を、Rele
 shasum -a 256 -c Transnote-0.1.0.dmg.sha256
 
 # SBOM の妥当性確認（開発者向け）
-jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' build/sbom/Transnote-sbom.cdx.json
+# generate-sbom.sh 実行時にも library components の件数チェックが行われる
+jq -e '[.components[]? | select(.type == "library")] | length > 0' build/sbom/Transnote-sbom.cdx.json
 
 hdiutil verify Transnote-0.1.0.dmg
 ls -la build/release/Transnote.app/Contents/MacOS/Transnote
