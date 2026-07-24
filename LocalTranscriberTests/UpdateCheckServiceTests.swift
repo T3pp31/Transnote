@@ -289,6 +289,46 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertNil(offer)
     }
 
+    // Given: html_url に期待リポジトリ文字列が埋め込まれた別リポジトリ
+    // When: checkForUpdate を実行
+    // Then: nil を返す
+    func testCheckForUpdateReturnsNilWhenRepositoryHTMLURLContainsExpectedPath() async {
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": null,
+              "html_url": "https://evil.example/redirect?x=github.com/T3pp31/Transnote",
+              "repository": {
+                "full_name": "evil/OtherApp"
+              },
+              "assets": [
+                {
+                  "name": "Transnote.dmg",
+                  "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertNil(offer)
+    }
+
     // Given: API がエラーを返す
     // When: checkForUpdate を実行
     // Then: nil を返す
