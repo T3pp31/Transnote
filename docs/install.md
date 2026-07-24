@@ -6,12 +6,12 @@ Transnote は macOS 14 以降向けのオンデバイス文字起こしアプリ
 
 1. [GitHub Releases (latest)](https://github.com/T3pp31/Transnote/releases/latest) を開きます。
 2. `Transnote-<version>.dmg` または `Transnote.dmg` をダウンロードします。
-3. 同じ Release から `.sha256` ファイルもダウンロードします（任意ですが推奨）。
+3. 同じ Release から `Transnote.dmg.sha256`（またはバージョン付き `.sha256`）も **必ず** ダウンロードし、DMG と同じフォルダに保存します。インストールスクリプトはデフォルトでこのチェックサムを検証します。
 4. 配布ページから案内される場合は [GitHub Pages](https://t3pp31.github.io/Transnote/) からも同じリンクへ遷移できます。
 
-## SHA256 チェックサムの確認（推奨）
+## SHA256 チェックサムの確認
 
-未署名配布のため、ダウンロードした DMG が改ざんされていないか、インストール前に確認することを推奨します。
+未署名配布のため、ダウンロードした DMG が改ざんされていないか、インストール前に確認します。**インストール.command** は、DMG と同じフォルダにある `.sha256` ファイルを自動的に検証します。
 
 ### 方法 A: `.sha256` ファイルで検証
 
@@ -32,9 +32,9 @@ Release ページに記載されている SHA256 と、ローカルで計算し�
 shasum -a 256 ~/Downloads/Transnote-0.1.0.dmg
 ```
 
-### 方法 C: インストールスクリプトで検証（任意）
+### 方法 C: CHECKSUM 環境変数で検証（上級者向け）
 
-Release 本文の SHA256 を環境変数 `CHECKSUM` に渡すと、インストール前に DMG の整合性を確認できます。
+Release 本文の SHA256 を環境変数 `CHECKSUM` に渡すと、サイドカーが無い場合でもインストール前に DMG の整合性を確認できます。
 
 ```bash
 CHECKSUM="<Release に記載の SHA256>" bash "/Volumes/Transnote/インストール.command"

@@ -11,11 +11,9 @@ fail() {
   exit 1
 }
 
-verify_dmg_checksum_if_requested() {
-  [[ -z "${CHECKSUM:-}" ]] && return 0
-
+find_mounted_dmg_path() {
   if [[ "$SCRIPT_DIR" != /Volumes/* ]]; then
-    fail "CHECKSUM 検証は DMG から実行した場合のみ利用できます。"
+    return 1
   fi
 
   local volume_path="/Volumes/${SCRIPT_DIR#/Volumes/}"
@@ -33,14 +31,47 @@ verify_dmg_checksum_if_requested() {
   done < <(hdiutil info 2>/dev/null)
 
   if [[ -z "$dmg_path" || ! -f "$dmg_path" ]]; then
+    return 1
+  fi
+
+  printf '%s' "$dmg_path"
+}
+
+verify_dmg_checksum() {
+  local dmg_path
+  if ! dmg_path="$(find_mounted_dmg_path)"; then
     fail "マウント中の DMG パスを取得できませんでした。"
   fi
 
-  local actual
-  actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
-  if [[ "$actual" != "$CHECKSUM" ]]; then
-    fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
+  if [[ -n "${CHECKSUM:-}" ]]; then
+    local actual
+    actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+    if [[ "$actual" != "$CHECKSUM" ]]; then
+      fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
+    fi
+    return 0
   fi
+
+  local sidecar_path="${dmg_path}.sha256"
+  if [[ -f "$sidecar_path" ]]; then
+    if ! shasum -a 256 -c "$sidecar_path" >/dev/null 2>&1; then
+      fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
+    fi
+    return 0
+  fi
+
+  local bundled_path="${SCRIPT_DIR}/Transnote.dmg.sha256"
+  if [[ -f "$bundled_path" ]]; then
+    local expected actual
+    expected="$(awk '{print $1}' "$bundled_path")"
+    actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
+    if [[ "$actual" != "$expected" ]]; then
+      fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
+    fi
+    return 0
+  fi
+
+  fail "SHA256 チェックサムファイルが見つかりません。Release から Transnote.dmg と同じフォルダに Transnote.dmg.sha256 もダウンロードしてください。"
 }
 
 if [[ ! -f "$PLIST" ]]; then
@@ -55,7 +86,7 @@ if [[ ! -d "$SOURCE_APP" ]]; then
   fail "${APP_NAME}.app が DMG 内に見つかりません。"
 fi
 
-verify_dmg_checksum_if_requested
+verify_dmg_checksum
 
 remove_installed_apps() {
   local base_name="$1"
