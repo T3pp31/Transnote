@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>SyftVersion</key>
+	<string>v1.49.0</string>
+	<key>OutputFormat</key>
+	<string>cyclonedx-json</string>
+	<key>AppName</key>
+	<string>Transnote</string>
+	<key>ReleaseOutputFilenamePattern</key>
+	<string>{AppName}-{Version}.cdx.json</string>
+	<key>CIOutputFilename</key>
+	<string>{AppName}-sbom.cdx.json</string>
+	<key>OutputDirectory</key>
+	<string>build/sbom</string>
+	<key>PackageResolvedPath</key>
+	<string>LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved</string>
+	<key>ReleaseScanMode</key>
+	<string>app-bundle</string>
+	<key>CIScanMode</key>
+	<string>package-resolved</string>
+	<key>CIArtifactName</key>
+	<string>sbom-cyclonedx</string>
+	<key>CIArtifactRetentionDays</key>
+	<integer>30</integer>
+</dict>
+</plist>

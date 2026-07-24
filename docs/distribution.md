@@ -11,7 +11,8 @@ vX.Y.Z タグ push または workflow_dispatch
   → Transnote.app を取り出し
   → DMG 作成（Transnote.app + インストール.command + Applications リンク）
   → SHA256 チェックサム生成
-  → GitHub Release へアップロード（DMG + .sha256、本文にハッシュ記載）
+  → SBOM 生成（Transnote-<version>.cdx.json）
+  → GitHub Release へアップロード（DMG + .sha256 + SBOM、本文にハッシュ記載）
 ```
 
 GitHub Pages は `main` ブランチの `site/` 更新時に自動デプロイされ、[releases/latest](https://github.com/T3pp31/Transnote/releases/latest) へ誘導します。
@@ -45,8 +46,10 @@ git push origin v0.1.0
 | --- | --- |
 | `scripts/export-release-app.sh` | `.xcarchive` から `Transnote.app` を取り出す |
 | `scripts/create-dmg.sh` | `Transnote.app` から `Transnote-<version>.dmg` を作成 |
+| `scripts/generate-sbom.sh` | Syft で CycloneDX JSON 形式の SBOM を生成 |
 | `scripts/install-transnote.command` | DMG 同梱用インストールスクリプト（旧版削除→新版配置） |
 | `Config/distribution.plist` | 配布時のアプリ名・旧名・インストールスクリプト名 |
+| `Config/sbom.plist` | SBOM 生成設定（Syft バージョン・出力形式・パス） |
 
 ### archive の例
 
@@ -74,6 +77,20 @@ xcodebuild archive \
   --output build/dist
 ```
 
+### SBOM の例
+
+CI では `Package.resolved`（宣言依存のロックファイル）を、Release では配布用 `Transnote.app` をスキャンします。Whisper モデルなどランタイムで取得するコンポーネントは SBOM 対象外です。
+
+```bash
+# CI 相当（依存ロックのみ）
+./scripts/generate-sbom.sh --mode ci
+
+# Release 相当（.app が必要）
+./scripts/generate-sbom.sh --mode release --version 0.1.0
+```
+
+生成物は `build/sbom/` に出力されます。CI では artifact `sbom-cyclonedx` として保存されます（保持 30 日）。
+
 ## Pages の有効化
 
 初回のみ、リポジトリ設定で GitHub Pages の Source を **GitHub Actions** に設定してください。以降は `pages.yml` が `site/` をデプロイします。
@@ -86,6 +103,8 @@ xcodebuild archive \
 | `Transnote.dmg` | 最新版向けエイリアス DMG（内容は versioned と同一） |
 | `Transnote-<version>.dmg.sha256` | versioned DMG の SHA256 チェックサム |
 | `Transnote.dmg.sha256` | latest DMG の SHA256 チェックサム |
+| `Transnote-<version>.cdx.json` | CycloneDX JSON 形式の SBOM（配布バイナリベース、Release 添付） |
+| `Transnote-sbom.cdx.json` | CycloneDX JSON 形式の SBOM（依存ロックベース、CI artifact） |
 | `Transnote.app` | Bundle ID `com.transnote.LocalTranscriber` |
 | `インストール.command` | DMG 内のワンクリックインストーラー（旧版を削除してから配置） |
 | `初めにお読みください.txt` | Gatekeeper 回避手順（未署名配布向け） |
@@ -102,6 +121,9 @@ xcodebuild archive \
 ```bash
 # ダウンロード後の整合性確認（ユーザー向け）
 shasum -a 256 -c Transnote-0.1.0.dmg.sha256
+
+# SBOM の妥当性確認（開発者向け）
+jq -e '.bomFormat == "CycloneDX" and (.components | length > 0)' build/sbom/Transnote-sbom.cdx.json
 
 hdiutil verify Transnote-0.1.0.dmg
 ls -la build/release/Transnote.app/Contents/MacOS/Transnote
