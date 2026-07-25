@@ -92,17 +92,12 @@ struct UpdateCheckService: UpdateChecking {
     }
 
     private func resolveDownloadURL(from assets: [GitHubReleaseAsset]) -> URL? {
-        let candidateURL: URL
-        if let preferred = assets.first(where: { $0.name == config.updateDMGAssetName }) {
-            candidateURL = preferred.browserDownloadURL
-        } else if let dmg = assets.first(where: { $0.name.lowercased().hasSuffix(".dmg") }) {
-            candidateURL = dmg.browserDownloadURL
-        } else {
+        guard let preferred = assets.first(where: { $0.name == config.updateDMGAssetName }) else {
             return validatedFallbackURL()
         }
 
         return UpdateURLValidator.validatedDownloadURL(
-            candidateURL,
+            preferred.browserDownloadURL,
             fallback: config.updateDownloadFallbackURL,
             allowedHosts: config.allowedUpdateDownloadHosts
         )
