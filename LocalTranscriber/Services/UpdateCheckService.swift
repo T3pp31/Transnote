@@ -83,12 +83,7 @@ struct UpdateCheckService: UpdateChecking {
     }
 
     private func isValidRepository(_ release: GitHubRelease) -> Bool {
-        let expected = config.expectedGitHubRepository
-        if release.repository.fullName == expected {
-            return true
-        }
-        let expectedPath = "github.com/\(expected)"
-        return release.htmlURL.absoluteString.contains(expectedPath)
+        release.repository.fullName == config.expectedGitHubRepository
     }
 
     private func resolveDownloadURL(from assets: [GitHubReleaseAsset]) -> URL? {
