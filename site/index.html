@@ -111,6 +111,7 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
 
         var fallbackDownloadURL =
           'https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg';
+        var expectedRepository = 'T3pp31/Transnote';
         var allowedDownloadHosts = ['github.com', 'objects.githubusercontent.com'];
 
         function isAllowedDownloadURL(urlString) {
@@ -133,6 +134,16 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
             return response.json();
           })
           .then(function (release) {
+            var expectedReleasePagePrefix =
+              'https://github.com/' + expectedRepository + '/releases/';
+            if (
+              !release ||
+              typeof release.html_url !== 'string' ||
+              !release.html_url.startsWith(expectedReleasePagePrefix)
+            ) {
+              return;
+            }
+
             var assets = release.assets || [];
             var dmg = assets.find(function (asset) {
               return asset.name === 'Transnote.dmg';
