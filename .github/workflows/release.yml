@@ -91,11 +91,15 @@ jobs:
             --archive "${{ env.ARCHIVE_PATH }}" \
             --output "${{ env.RELEASE_APP_DIR }}"
 
-      - name: Install Syft
+      - name: Read Syft version
+        id: syft_config
         run: |
-          set -euo pipefail
-          SYFT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :SyftVersion' Config/sbom.plist)"
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin "${SYFT_VERSION}"
+          echo "version=$(/usr/libexec/PlistBuddy -c 'Print :SyftVersion' Config/sbom.plist)" >> "$GITHUB_OUTPUT"
+
+      - name: Install Syft
+        uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          syft-version: ${{ steps.syft_config.outputs.version }}
 
       - name: Generate SBOM
         id: sbom
