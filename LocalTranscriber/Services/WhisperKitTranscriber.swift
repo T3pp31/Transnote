@@ -69,11 +69,11 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                 .make(phase: .convertingAudio, fraction: 0, modelDisplayName: job.modelDisplayName)
             )
 
-            var completedWindowTexts: [String] = []
+            var completedText: String = ""
             whisperKit.segmentDiscoveryCallback = { segments in
                 guard let partialText = TranscriptPartialTextBuilder.appendPresentableWindowText(
                     from: segments.map(\.text),
-                    to: &completedWindowTexts
+                    to: &completedText
                 ) else {
                     return
                 }
