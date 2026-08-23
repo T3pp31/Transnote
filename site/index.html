@@ -134,7 +134,13 @@ bash "/Volumes/Transnote/インストール.command"</code></pre>
             return response.json();
           })
           .then(function (release) {
-            if (!release || release.repository?.full_name !== expectedRepository) {
+            var expectedReleasePagePrefix =
+              'https://github.com/' + expectedRepository + '/releases/';
+            if (
+              !release ||
+              typeof release.html_url !== 'string' ||
+              !release.html_url.startsWith(expectedReleasePagePrefix)
+            ) {
               return;
             }
 
