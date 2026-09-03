@@ -107,13 +107,37 @@ struct TranscriptionProgressDisplay: Equatable {
             return "\(percent)%"
 
         case .loadingModel:
-            return update.modelDisplayName
+            let guidance = NSLocalizedString(
+                "初回のモデル読み込みは時間がかかることがあります",
+                comment: "Loading model indeterminate progress guidance"
+            )
+            if let modelName = update.modelDisplayName {
+                return "\(modelName) · \(guidance)"
+            }
+            return guidance
 
         case .transcribing:
             let percent = Int(update.fraction * 100)
+            if let partialText = update.partialText,
+               TranscriptTextSanitizer.presentableText(from: partialText) != nil {
+                let partialGuidance = NSLocalizedString("途中結果を表示中", comment: "Partial transcription guidance")
+                return percent > 0 ? "\(partialGuidance) · \(percent)%" : partialGuidance
+            }
             return percent > 0 ? "\(percent)%" : nil
 
-        case .initializing, .convertingAudio, .finished:
+        case .convertingAudio:
+            return NSLocalizedString(
+                "音声ファイルを変換しています。完了までお待ちください。",
+                comment: "Converting audio indeterminate progress guidance"
+            )
+
+        case .initializing:
+            return NSLocalizedString(
+                "文字起こしの準備をしています。",
+                comment: "Initializing indeterminate progress guidance"
+            )
+
+        case .finished:
             return update.modelDisplayName
         }
     }

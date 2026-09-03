@@ -95,6 +95,22 @@ struct TranscriptEditorView: View {
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityLabel("文字起こし")
+            if isBusy, !text.isEmpty {
+                Text(
+                    NSLocalizedString("途中結果", comment: "Partial transcription result badge")
+                )
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.orange.opacity(0.16))
+                )
+                .foregroundStyle(.orange)
+                .accessibilityLabel(
+                    NSLocalizedString("途中結果", comment: "Partial transcription result badge")
+                )
+            }
             Spacer()
             if isEditable, !text.isEmpty {
                 Picker("表示", selection: $isEditing) {
