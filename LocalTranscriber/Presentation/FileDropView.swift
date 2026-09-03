@@ -13,9 +13,9 @@ struct FileDropView: View {
     private let cornerRadius: CGFloat = DesignTokens.Corner.card
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: DesignTokens.Spacing.controlSpacing) {
             Image(systemName: "waveform.circle.fill")
-                .font(.system(size: 44))
+                .font(.system(size: DesignTokens.Icon.hero))
                 .foregroundStyle(.secondary)
 
             if let selectedFile {
@@ -41,19 +41,19 @@ struct FileDropView: View {
             .accessibilityHint("ファイルを開くダイアログを開きます")
 
             if let dropErrorMessage {
-                HStack(spacing: 8) {
+                HStack(spacing: DesignTokens.Spacing.compactSpacing) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(DesignTokens.Colors.warning)
                     Text(dropErrorMessage)
                         .font(.footnote)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(DesignTokens.Colors.warning)
                         .multilineTextAlignment(.leading)
                     Spacer()
                     Button {
                         self.dropErrorMessage = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.orange.opacity(0.6))
+                            .foregroundStyle(DesignTokens.Colors.warning.opacity(0.6))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("エラーを閉じる")

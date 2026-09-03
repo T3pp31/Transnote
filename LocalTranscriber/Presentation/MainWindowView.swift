@@ -90,7 +90,7 @@ struct MainWindowView: View {
         .overlay(alignment: .top) {
             if let toast = viewModel.toast {
                 ToastView(message: toast)
-                    .padding(.top, 12)
+                    .padding(.top, DesignTokens.Spacing.controlSpacing)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: viewModel.toast)
@@ -196,7 +196,7 @@ struct MainWindowView: View {
     }
 
     private var settingsToolbarRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignTokens.Spacing.controlSpacing) {
             Button {
                 showingSettings = true
             } label: {
@@ -239,7 +239,7 @@ struct MainWindowView: View {
     }
 
     private var actionToolbarRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignTokens.Spacing.controlSpacing) {
             Spacer(minLength: 0)
 
             Menu("エクスポート") {
@@ -301,9 +301,9 @@ private struct InlineErrorBanner: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.controlSpacing) {
             Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(DesignTokens.Colors.warning)
                 .font(.body)
                 .padding(.top, 1)
 
@@ -318,7 +318,7 @@ private struct InlineErrorBanner: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: DesignTokens.Spacing.compactSpacing)
 
             if canRetry {
                 Button("再試行", action: onRetry)
@@ -333,11 +333,11 @@ private struct InlineErrorBanner: View {
             .buttonStyle(.plain)
             .accessibilityLabel("エラーを閉じる")
         }
-        .padding(12)
+        .padding(DesignTokens.Spacing.controlSpacing)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.banner))
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
-                .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
+                .strokeBorder(DesignTokens.Colors.warning.opacity(0.35), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }

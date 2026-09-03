@@ -20,9 +20,9 @@ struct ToastView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: DesignTokens.Spacing.compactSpacing) {
             Image(systemName: message.icon)
-                .foregroundStyle(.green)
+                .foregroundStyle(DesignTokens.Colors.success)
             Text(message.text)
                 .font(.subheadline)
             if let action = message.action {
@@ -32,11 +32,11 @@ struct ToastView: View {
                     .accessibilityLabel(action.label)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(.horizontal, DesignTokens.Spacing.sectionSpacing)
+        .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
                 .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)
         }
         .shadow(color: DesignTokens.Colors.toastShadow(colorScheme), radius: 8, y: 2)
