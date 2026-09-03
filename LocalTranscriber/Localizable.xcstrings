@@ -463,6 +463,20 @@
         }
       }
     },
+    "このモデルをダウンロード" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Download This Model" }
+        }
+      }
+    },
+    "選択中のモデルをダウンロードします" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Downloads the selected model" }
+        }
+      }
+    },
     "ダウンロード中…" : {
       "localizations" : {
         "en" : {
