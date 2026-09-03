@@ -130,6 +130,15 @@ final class MainWindowViewModel: ObservableObject {
         return !isModelDownloaded(model)
     }
 
+    var modelDownloadGuidance: String? {
+        shouldShowModelDownloadButton
+            ? NSLocalizedString(
+                "初回はモデルのダウンロードが必要です（音声は端末内で処理し、通信はダウンロード時のみ）",
+                comment: "Model download onboarding guidance"
+            )
+            : nil
+    }
+
     var canCancel: Bool {
         isBusy
     }

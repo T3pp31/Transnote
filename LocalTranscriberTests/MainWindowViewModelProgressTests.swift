@@ -120,6 +120,23 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertFalse(viewModel.canDownloadSelectedModel)
     }
 
+    func testModelDownloadGuidanceIsShownForModelThatIsNotDownloaded() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = []
+
+        XCTAssertNotNil(viewModel.modelDownloadGuidance)
+        XCTAssertTrue(viewModel.modelDownloadGuidance?.contains("ダウンロード") == true)
+    }
+
+    func testModelDownloadGuidanceIsHiddenForDownloadedModel() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = ["base"]
+
+        XCTAssertNil(viewModel.modelDownloadGuidance)
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
