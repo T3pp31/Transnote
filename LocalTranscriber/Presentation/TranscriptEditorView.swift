@@ -131,7 +131,8 @@ struct TranscriptEditorView: View {
             }
             if isEditing {
                 copyButton
-                    .help("文字起こし結果全体をコピー")
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
+                    .help("文字起こし結果全体をコピー（⌘⇧C）")
             } else {
                 copyButton
                     .keyboardShortcut("c", modifiers: [.command])
