@@ -31,13 +31,13 @@ struct FileDropView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Button("ファイルを選択…") {
+            Button("ファイルを開く…") {
                 openFilePanel()
             }
             .keyboardShortcut("o", modifiers: [.command])
-            .help("音声ファイルを選択（⌘O）")
-            .accessibilityLabel("音声ファイルを選択")
-            .accessibilityHint("ファイル選択ダイアログを開きます")
+            .help("音声ファイルを開く（⌘O）")
+            .accessibilityLabel("音声ファイルを開く")
+            .accessibilityHint("ファイルを開くダイアログを開きます")
 
             if let dropErrorMessage {
                 HStack(spacing: 8) {
@@ -86,9 +86,9 @@ struct FileDropView: View {
 
     private var dropZoneAccessibilityHint: String {
         if selectedFile != nil {
-            return "別の音声ファイルをドロップまたはファイルを選択で差し替えできます"
+            return "別の音声ファイルをドロップまたはファイルを開くで差し替えできます"
         }
-        return "対応形式は \(supportedFormatsDescription) です。音声ファイルをドロップするか、ファイルを選択してください"
+        return "対応形式は \(supportedFormatsDescription) です。音声ファイルをドロップするか、ファイルを開いてください"
     }
 
     private var dropZoneSurface: some View {
