@@ -181,6 +181,19 @@ final class MainWindowViewModel: ObservableObject {
         downloadedModelIDs.contains(model.id)
     }
 
+    func modelDownloadSuccessToastMessage() -> String {
+        if selectedFile != nil {
+            return NSLocalizedString(
+                "モデルのダウンロードが完了しました。文字起こしを開始できます。",
+                comment: "Model download success toast when file is selected"
+            )
+        }
+        return NSLocalizedString(
+            "モデルのダウンロードが完了しました。音声ファイルを選択してください。",
+            comment: "Model download success toast when no file is selected"
+        )
+    }
+
     func downloadSelectedModel() {
         guard let model = settings.selectedModel,
               canDownloadSelectedModel else {
@@ -214,6 +227,7 @@ final class MainWindowViewModel: ObservableObject {
                     uiState = .idle
                     progressDisplay = .idle()
                     announcePhaseIfNeeded(.finished)
+                    showToast(modelDownloadSuccessToastMessage())
                     AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
                 }
             } catch {
