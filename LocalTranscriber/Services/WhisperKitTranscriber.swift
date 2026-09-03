@@ -150,7 +150,10 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
 
         guard modelAvailability.validateModelFolder(modelPath) else {
             throw AppError.transcriptionFailed(
-                "モデルファイルが不正です。ツールバーの「Download」ボタンから再ダウンロードしてください。"
+                NSLocalizedString(
+                    "モデルファイルが不正です。ツールバーの「モデルをダウンロード」ボタンから再ダウンロードしてください。",
+                    comment: "Invalid model files guidance"
+                )
             )
         }
 
@@ -169,7 +172,10 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                 logger: AppLogger.transcription
             )
             throw AppError.transcriptionFailed(
-                "モデルの読み込みに失敗しました。ツールバーの「Download」ボタンから再ダウンロードしてください。"
+                NSLocalizedString(
+                    "モデルの読み込みに失敗しました。ツールバーの「モデルをダウンロード」ボタンから再ダウンロードしてください。",
+                    comment: "Model load failed guidance"
+                )
             )
         }
     }
