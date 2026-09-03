@@ -29,8 +29,11 @@ struct StatusBarView: View {
         } else {
             switch uiState {
             case .idle:
-                Label("準備完了", systemImage: "checkmark.circle")
-                    .foregroundStyle(.secondary)
+                Label(
+                    NSLocalizedString("待機中", comment: "Idle state label"),
+                    systemImage: "circle.dashed"
+                )
+                .foregroundStyle(.secondary)
             case .preparing, .transcribing:
                 activeProgressRow
             case .done:

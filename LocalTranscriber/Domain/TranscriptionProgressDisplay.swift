@@ -72,7 +72,7 @@ struct TranscriptionProgressDisplay: Equatable {
             phase: .finished,
             style: .hidden,
             fraction: nil,
-            primaryLabel: NSLocalizedString("準備完了", comment: "Idle state label"),
+            primaryLabel: NSLocalizedString("待機中", comment: "Idle state label"),
             detailLabel: nil
         )
     }
