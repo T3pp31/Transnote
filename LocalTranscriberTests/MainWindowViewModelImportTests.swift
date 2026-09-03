@@ -79,4 +79,90 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedFile?.fileExtension, "m4a")
         XCTAssertEqual(viewModel.selectedFile?.fileName, "imported-audio.m4a")
     }
+
+    private func seedExistingTranscriptResult() {
+        viewModel.currentTranscript = Transcript(
+            sourceFileName: "old.wav",
+            fullText: "existing text"
+        )
+        viewModel.transcriptText = "existing text"
+    }
+
+    func testSelectFileAppliesImmediatelyWhenThereIsNoExistingResult() throws {
+        let sourceURL = sourceRoot.appendingPathComponent("CFNetworkDownload_tmp")
+        let m4aHeader = Data([
+            0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70,
+            0x4d, 0x34, 0x41, 0x20, 0x00, 0x00, 0x00, 0x00,
+            0x6d, 0x70, 0x34, 0x32, 0x69, 0x73, 0x6f, 0x6d
+        ])
+        FileManager.default.createFile(atPath: sourceURL.path, contents: m4aHeader)
+
+        viewModel.selectFile(url: sourceURL)
+
+        XCTAssertFalse(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+        XCTAssertNotNil(viewModel.selectedFile)
+    }
+
+    func testSelectFileAwaitsConfirmationWhenAnExistingResultIsPresent() throws {
+        seedExistingTranscriptResult()
+        let sourceURL = sourceRoot.appendingPathComponent("CFNetworkDownload_tmp")
+        let m4aHeader = Data([
+            0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70,
+            0x4d, 0x34, 0x41, 0x20, 0x00, 0x00, 0x00, 0x00,
+            0x6d, 0x70, 0x34, 0x32, 0x69, 0x73, 0x6f, 0x6d
+        ])
+        FileManager.default.createFile(atPath: sourceURL.path, contents: m4aHeader)
+
+        let previousFile = viewModel.selectedFile
+
+        viewModel.selectFile(url: sourceURL)
+
+        // Confirmation is pending, file not switched yet
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertNotNil(viewModel.pendingFileImport)
+        XCTAssertEqual(viewModel.selectedFile, previousFile)
+        XCTAssertEqual(viewModel.transcriptText, "existing text")
+    }
+
+    func testApplyPendingFileImportReplacesResultAfterConfirmation() throws {
+        seedExistingTranscriptResult()
+        let sourceURL = sourceRoot.appendingPathComponent("CFNetworkDownload_tmp")
+        let m4aHeader = Data([
+            0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70,
+            0x4d, 0x34, 0x41, 0x20, 0x00, 0x00, 0x00, 0x00,
+            0x6d, 0x70, 0x34, 0x32, 0x69, 0x73, 0x6f, 0x6d
+        ])
+        FileManager.default.createFile(atPath: sourceURL.path, contents: m4aHeader)
+
+        viewModel.selectFile(url: sourceURL)
+        viewModel.applyPendingFileImport()
+
+        XCTAssertFalse(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+        XCTAssertNil(viewModel.currentTranscript)
+        XCTAssertEqual(viewModel.transcriptText, "")
+        XCTAssertEqual(viewModel.selectedFile?.fileExtension, "m4a")
+    }
+
+    func testCancelPendingFileImportKeepsExistingResult() throws {
+        seedExistingTranscriptResult()
+        let sourceURL = sourceRoot.appendingPathComponent("CFNetworkDownload_tmp")
+        let m4aHeader = Data([
+            0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70,
+            0x4d, 0x34, 0x41, 0x20, 0x00, 0x00, 0x00, 0x00,
+            0x6d, 0x70, 0x34, 0x32, 0x69, 0x73, 0x6f, 0x6d
+        ])
+        FileManager.default.createFile(atPath: sourceURL.path, contents: m4aHeader)
+
+        let previousFile = viewModel.selectedFile
+
+        viewModel.selectFile(url: sourceURL)
+        viewModel.cancelPendingFileImport()
+
+        XCTAssertFalse(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+        XCTAssertEqual(viewModel.selectedFile, previousFile)
+        XCTAssertEqual(viewModel.transcriptText, "existing text")
+    }
 }

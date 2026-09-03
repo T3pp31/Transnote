@@ -59,6 +59,25 @@ struct MainWindowView: View {
         } message: {
             Text(viewModel.criticalErrorMessage ?? "")
         }
+        .alert(
+            NSLocalizedString("文字起こし結果を置き換えますか？", comment: "Replace transcript confirmation title"),
+            isPresented: $viewModel.confirmFileImport
+        ) {
+            Button(
+                NSLocalizedString("置き換える", comment: "Replace transcript confirmation action"),
+                action: viewModel.applyPendingFileImport
+            )
+            Button(NSLocalizedString("キャンセル", comment: "Cancel"), role: .cancel) {
+                viewModel.cancelPendingFileImport()
+            }
+        } message: {
+            Text(
+                NSLocalizedString(
+                    "新しいファイルを選ぶと、現在の文字起こし結果は失われます。",
+                    comment: "Replace transcript confirmation message"
+                )
+            )
+        }
         .sheet(isPresented: $showingSettings) {
             SettingsView(
                 isBusy: viewModel.isBusy,
