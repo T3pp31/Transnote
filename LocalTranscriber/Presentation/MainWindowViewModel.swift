@@ -169,6 +169,12 @@ final class MainWindowViewModel: ObservableObject {
         canExport
     }
 
+    static func hasPlayableSegments(in transcript: Transcript) -> Bool {
+        transcript.segments.contains {
+            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     func refreshModelAvailability() {
         downloadedModelIDs = Set(
             settings.models
@@ -382,7 +388,7 @@ final class MainWindowViewModel: ObservableObject {
                 currentTranscript = transcript
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
-                isEditingTranscript = false
+                isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
                 audioPlayer.load(url: file.url)
                 uiState = .done
                 progressDisplay = .done()
