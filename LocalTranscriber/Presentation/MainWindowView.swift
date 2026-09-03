@@ -26,9 +26,10 @@ struct MainWindowView: View {
                 set: { if !$0 { updateChecker.dismissUpdateOffer() } }
             )
         ) {
-            Button("ダウンロード") {
-                updateChecker.openDownloadPage()
-            }
+            Button(
+                NSLocalizedString("アップデートを入手", comment: "Update alert primary action"),
+                action: updateChecker.openDownloadPage
+            )
             Button("後で", role: .cancel) {
                 updateChecker.dismissUpdateOffer()
             }
@@ -37,7 +38,7 @@ struct MainWindowView: View {
                 Text(
                     String(
                         format: NSLocalizedString(
-                            "バージョン %@ が利用可能です（現在: %@）。\nダウンロード後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。",
+                            "バージョン %@ が利用可能です（現在: %@）。\nアップデートファイル取得後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。",
                             comment: "Update available instructions"
                         ),
                         offer.latestVersion,
@@ -160,7 +161,6 @@ struct MainWindowView: View {
             StatusBarView(
                 uiState: viewModel.uiState,
                 progress: viewModel.progressDisplay,
-                inlineErrorTitle: viewModel.inlineErrorTitle,
                 canCancel: viewModel.canCancel,
                 cancelAccessibilityLabel: viewModel.cancelActionAccessibilityLabel,
                 cancelHelp: viewModel.cancelActionHelp,

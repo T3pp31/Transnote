@@ -99,6 +99,13 @@
         }
       }
     },
+    "アップデートを入手" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Get Update" }
+        }
+      }
+    },
     "後で" : {
       "localizations" : {
         "en" : {
@@ -110,6 +117,13 @@
       "localizations" : {
         "en" : {
           "stringUnit" : { "state" : "translated", "value" : "Version %@ is available (current: %@).\nAfter downloading, run “Install.command” in the DMG.\nThe previous version will be replaced automatically." }
+        }
+      }
+    },
+    "バージョン %@ が利用可能です（現在: %@）。\nアップデートファイル取得後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Version %@ is available (current: %@).\nAfter obtaining the update file, run “Install.command” in the DMG.\nThe previous version will be replaced automatically." }
         }
       }
     },
