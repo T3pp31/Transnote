@@ -10,7 +10,7 @@ struct LocalTranscriberApp: App {
         WindowGroup("Transnote") {
             MainWindowView()
         }
-        .defaultSize(width: 800, height: 640)
+        .defaultSize(width: 800, height: 680)
         .commands {
             TranscriptionCommands()
         }

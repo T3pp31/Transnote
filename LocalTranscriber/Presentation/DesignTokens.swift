@@ -19,4 +19,10 @@ enum DesignTokens {
     enum Card {
         static let padding: CGFloat = 22
     }
+
+    enum Layout {
+        static let windowMinHeight: CGFloat = 600
+        static let dropZoneMinHeight: CGFloat = 120
+        static let dropZoneMaxHeight: CGFloat = 220
+    }
 }
