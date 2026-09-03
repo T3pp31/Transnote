@@ -1,11 +1,20 @@
 import SwiftUI
 
-struct ToastMessage: Identifiable, Equatable {
+struct ToastMessage: Identifiable {
     let id = UUID()
     let text: String
-    let icon: String
+    var icon: String
+    var action: (label: String, handler: @Sendable () -> Void)?
 }
 
+extension ToastMessage: Equatable {
+    static func == (lhs: ToastMessage, rhs: ToastMessage) -> Bool {
+        // `handler` はクロージャのため比較できないので無視する
+        lhs.id == rhs.id
+            && lhs.text == rhs.text
+            && lhs.icon == rhs.icon
+    }
+}
 struct ToastView: View {
     let message: ToastMessage
 
@@ -15,6 +24,12 @@ struct ToastView: View {
                 .foregroundStyle(.green)
             Text(message.text)
                 .font(.subheadline)
+            if let action = message.action {
+                Button(action.label, action: action.handler)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .accessibilityLabel(action.label)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
