@@ -9,6 +9,7 @@ struct TranscriptionActionsValue {
     let startTranscription: () -> Void
     let canCancel: Bool
     let cancelTranscription: () -> Void
+    let cancelMenuTitle: String
     let openFile: () -> Void
 }
 
@@ -34,7 +35,7 @@ struct TranscriptionCommands: Commands {
             }
             .disabled(actions == nil)
 
-            Button("文字起こしをキャンセル") {
+            Button(actions?.cancelMenuTitle ?? NSLocalizedString("キャンセル", comment: "Cancel")) {
                 actions?.cancelTranscription()
             }
             .disabled(actions?.canCancel != true)

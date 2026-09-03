@@ -99,6 +99,7 @@ struct MainWindowView: View {
             startTranscription: viewModel.startTranscription,
             canCancel: viewModel.canCancel,
             cancelTranscription: viewModel.cancelTranscription,
+            cancelMenuTitle: viewModel.cancelMenuTitle,
             openFile: openFilePanel
         ))
     }
@@ -159,6 +160,8 @@ struct MainWindowView: View {
                 progress: viewModel.progressDisplay,
                 inlineErrorTitle: viewModel.inlineErrorTitle,
                 canCancel: viewModel.canCancel,
+                cancelAccessibilityLabel: viewModel.cancelActionAccessibilityLabel,
+                cancelHelp: viewModel.cancelActionHelp,
                 onCancel: viewModel.cancelTranscription
             )
             .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)

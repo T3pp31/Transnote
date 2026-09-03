@@ -137,6 +137,27 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertNil(viewModel.modelDownloadGuidance)
     }
 
+    func testCancelActionLabelsSwitchForModelDownload() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.isDownloadingModel = true
+
+        XCTAssertEqual(viewModel.cancelActionAccessibilityLabel, "ダウンロードをキャンセル")
+        XCTAssertEqual(viewModel.cancelMenuTitle, "ダウンロードをキャンセル")
+        XCTAssertTrue(viewModel.cancelActionHelp.contains("ダウンロード"))
+    }
+
+    func testCancelActionLabelsStayOnTranscriptionDuringTranscription() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.uiState = .transcribing
+        viewModel.isDownloadingModel = false
+
+        XCTAssertEqual(viewModel.cancelActionAccessibilityLabel, "文字起こしをキャンセル")
+        XCTAssertEqual(viewModel.cancelMenuTitle, "文字起こしをキャンセル")
+        XCTAssertTrue(viewModel.cancelActionHelp.contains("文字起こし"))
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
