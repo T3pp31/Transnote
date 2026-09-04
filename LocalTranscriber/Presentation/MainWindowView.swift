@@ -81,7 +81,9 @@ struct MainWindowView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(
                 isBusy: viewModel.isBusy,
-                isModelDownloaded: viewModel.isModelDownloaded
+                canDownloadSelectedModel: viewModel.canDownloadSelectedModel,
+                isModelDownloaded: viewModel.isModelDownloaded,
+                onDownloadSelectedModel: viewModel.downloadSelectedModel
             )
         }
         .overlay(alignment: .top) {

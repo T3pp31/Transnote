@@ -4,7 +4,9 @@ struct SettingsView: View {
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.dismiss) private var dismiss
     let isBusy: Bool
+    let canDownloadSelectedModel: Bool
     let isModelDownloaded: (ModelOption) -> Bool
+    let onDownloadSelectedModel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -35,6 +37,29 @@ struct SettingsView: View {
                     Text("使用するWhisperモデルを選択します。モデルは別途ダウンロードが必要です。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if let selectedModel = settings.selectedModel,
+                       !isModelDownloaded(selectedModel) {
+                        Button {
+                            onDownloadSelectedModel()
+                        } label: {
+                            Label(
+                                NSLocalizedString(
+                                    "このモデルをダウンロード",
+                                    comment: "Download selected model from settings"
+                                ),
+                                systemImage: "arrow.down.circle"
+                            )
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canDownloadSelectedModel)
+                        .accessibilityHint(
+                            NSLocalizedString(
+                                "選択中のモデルをダウンロードします",
+                                comment: "Download selected model accessibility hint"
+                            )
+                        )
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
