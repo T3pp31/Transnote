@@ -32,7 +32,7 @@ struct TranscriptEditorView: View {
                 .padding(.bottom, 12)
 
             Divider()
-                .overlay(Color.primary.opacity(0.08))
+                .overlay(DesignTokens.Colors.border(colorScheme))
                 .padding(.bottom, 12)
 
             editorContent
