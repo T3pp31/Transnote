@@ -390,15 +390,23 @@ final class MainWindowViewModel: ObservableObject {
         showToast(NSLocalizedString("文字起こし結果をコピーしました", comment: "Transcript copied toast"))
     }
 
-    func showToast(_ text: String, icon: String = "checkmark.circle.fill") {
+    func showToast(_ text: String, icon: String = "checkmark.circle.fill", action: (label: String, handler: @Sendable () -> Void)? = nil) {
         toastDismissTask?.cancel()
-        toast = ToastMessage(text: text, icon: icon)
+        toast = ToastMessage(text: text, icon: icon, action: action)
+        // Action buttons need a longer window so users can click before auto-dismiss.
+        let dismissNanoseconds: UInt64 = action == nil ? 2_500_000_000 : 7_000_000_000
         toastDismissTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            try? await Task.sleep(nanoseconds: dismissNanoseconds)
             if !Task.isCancelled {
                 toast = nil
             }
         }
+    }
+
+    private func dismissToast() {
+        toastDismissTask?.cancel()
+        toastDismissTask = nil
+        toast = nil
     }
 
     func playSegment(_ segment: TranscriptSegment) {
@@ -441,8 +449,17 @@ final class MainWindowViewModel: ObservableObject {
             try exportService.write(transcript: transcript, format: format, to: url)
             showToast(
                 String(
-                    format: NSLocalizedString("%@でエクスポートしました", comment: "Export completed toast"),
-                    format.displayName
+                    format: NSLocalizedString("保存しました: %@", comment: "Export completed toast"),
+                    url.lastPathComponent
+                ),
+                action: (
+                    label: NSLocalizedString("Finder で表示", comment: "Reveal in Finder toast action"),
+                    handler: { [weak self] in
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                        Task { @MainActor in
+                            self?.dismissToast()
+                        }
+                    }
                 )
             )
             AppLogger.info("Exported \(format.displayName) to \(url.lastPathComponent)", logger: AppLogger.export)

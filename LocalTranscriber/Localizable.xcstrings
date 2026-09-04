@@ -71,6 +71,20 @@
         }
       }
     },
+    "保存しました: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Saved: %@" }
+        }
+      }
+    },
+    "Finder で表示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Show in Finder" }
+        }
+      }
+    },
     "アップデートが利用可能です" : {
       "localizations" : {
         "en" : {
