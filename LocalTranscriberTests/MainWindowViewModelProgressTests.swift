@@ -187,6 +187,29 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.uiState, .idle)
     }
 
+    func testStartTranscriptionDisabledReasonTracksBlockingCondition() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = ["base"]
+
+        // No file selected: reason points at the missing file
+        XCTAssertEqual(
+            viewModel.startTranscriptionDisabledReason,
+            "音声ファイルを選択してください"
+        )
+
+        // File selected: no blocking condition remains, start is available
+        viewModel.selectedFile = AudioFileInfo(
+            url: audioURL,
+            fileName: audioURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 64,
+            formattedFileSize: "64 bytes"
+        )
+        XCTAssertNil(viewModel.startTranscriptionDisabledReason)
+        XCTAssertTrue(viewModel.canStartTranscription)
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(

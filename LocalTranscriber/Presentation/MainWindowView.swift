@@ -259,19 +259,27 @@ struct MainWindowView: View {
             .accessibilityLabel("文字起こし結果をエクスポート")
             .accessibilityHint("テキスト、SRT、VTT などの形式で書き出します")
 
-            Button("文字起こしを開始") {
-                viewModel.startTranscription()
+            VStack(alignment: .trailing, spacing: 4) {
+                if !viewModel.canStartTranscription, let reason = viewModel.startTranscriptionDisabledReason {
+                    Text(reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel(reason)
+                }
+                Button("文字起こしを開始") {
+                    viewModel.startTranscription()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .disabled(!viewModel.canStartTranscription)
+                .keyboardShortcut(.return, modifiers: [.command])
+                .help(
+                    viewModel.startTranscriptionDisabledReason
+                        ?? NSLocalizedString("文字起こしを開始（⌘↩）", comment: "Start transcription shortcut help")
+                )
+                .accessibilityLabel("文字起こしを開始")
+                .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
             }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .disabled(!viewModel.canStartTranscription)
-            .keyboardShortcut(.return, modifiers: [.command])
-            .help(
-                viewModel.startTranscriptionDisabledReason
-                    ?? NSLocalizedString("文字起こしを開始（⌘↩）", comment: "Start transcription shortcut help")
-            )
-            .accessibilityLabel("文字起こしを開始")
-            .accessibilityHint("選択した音声ファイルの文字起こしを開始します")
         }
     }
     private func openFilePanel() {
