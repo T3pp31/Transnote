@@ -208,9 +208,40 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
+    @Published var confirmFileImport = false
+    @Published var pendingFileImport: (url: URL, preferredFileName: String?)?
+
+    var hasExistingResult: Bool {
+        (currentTranscript?.fullText ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty == false
+    }
+
     func selectFile(url: URL, preferredFileName: String? = nil) {
         clearErrors()
 
+        if hasExistingResult {
+            pendingFileImport = (url, preferredFileName)
+            confirmFileImport = true
+            return
+        }
+
+        applyFileImport(url: url, preferredFileName: preferredFileName)
+    }
+
+    func applyPendingFileImport() {
+        guard let pending = pendingFileImport else { return }
+        confirmFileImport = false
+        pendingFileImport = nil
+        applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+    }
+
+    func cancelPendingFileImport() {
+        confirmFileImport = false
+        pendingFileImport = nil
+    }
+
+    private func applyFileImport(url: URL, preferredFileName: String?) {
         do {
             let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
             let importedURL = try audioImportService.importFile(
