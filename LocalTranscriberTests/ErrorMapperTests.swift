@@ -22,7 +22,7 @@ final class ErrorMapperTests: XCTestCase {
     func testModelNotDownloadedErrorMentionsToolbarButtonLabel() {
         let message = ErrorMapper.userMessage(for: AppError.modelNotDownloaded("Base"))
 
-        XCTAssertTrue(message.contains("モデルをダウンロード"))
+        XCTAssertTrue(message.contains(NSLocalizedString("モデルをダウンロード", comment: "Download model button")))
         XCTAssertFalse(message.contains("「ダウンロード」ボタン"))
     }
 }
