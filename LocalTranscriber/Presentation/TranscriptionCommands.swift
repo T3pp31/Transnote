@@ -10,6 +10,8 @@ struct TranscriptionActionsValue {
     let canCancel: Bool
     let cancelTranscription: () -> Void
     let cancelMenuTitle: String
+    let canCopy: Bool
+    let copyTranscript: () -> Void
     let openFile: () -> Void
 }
 
@@ -28,16 +30,25 @@ struct TranscriptionCommands: Commands {
             Button("文字起こしを開始") {
                 actions?.startTranscription()
             }
+            .keyboardShortcut(.return, modifiers: [.command])
             .disabled(actions?.canStart != true)
 
             Button("ファイルを開く…") {
                 actions?.openFile()
             }
+            .keyboardShortcut("o", modifiers: [.command])
             .disabled(actions == nil)
+
+            Button("結果をすべてコピー") {
+                actions?.copyTranscript()
+            }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+            .disabled(actions?.canCopy != true)
 
             Button(actions?.cancelMenuTitle ?? NSLocalizedString("キャンセル", comment: "Cancel")) {
                 actions?.cancelTranscription()
             }
+            .keyboardShortcut(.escape, modifiers: [])
             .disabled(actions?.canCancel != true)
         }
     }

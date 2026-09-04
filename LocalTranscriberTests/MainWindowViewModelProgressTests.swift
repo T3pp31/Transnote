@@ -158,6 +158,15 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(viewModel.cancelActionHelp.contains("文字起こし"))
     }
 
+    func testCanCopyTranscriptRequiresNonEmptyResult() {
+        viewModel = MainWindowViewModel()
+        XCTAssertFalse(viewModel.canCopyTranscript)
+
+        viewModel.currentTranscript = Transcript(sourceFileName: "a.wav", fullText: "text")
+        viewModel.transcriptText = "text"
+        XCTAssertTrue(viewModel.canCopyTranscript)
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(

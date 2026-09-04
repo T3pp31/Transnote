@@ -100,6 +100,8 @@ struct MainWindowView: View {
             canCancel: viewModel.canCancel,
             cancelTranscription: viewModel.cancelTranscription,
             cancelMenuTitle: viewModel.cancelMenuTitle,
+            canCopy: viewModel.canCopyTranscript,
+            copyTranscript: viewModel.copyTranscript,
             openFile: openFilePanel
         ))
     }

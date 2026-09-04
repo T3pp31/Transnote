@@ -165,6 +165,10 @@ final class MainWindowViewModel: ObservableObject {
         currentTranscript != nil && !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var canCopyTranscript: Bool {
+        canExport
+    }
+
     func refreshModelAvailability() {
         downloadedModelIDs = Set(
             settings.models
