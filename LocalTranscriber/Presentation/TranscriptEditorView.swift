@@ -18,6 +18,10 @@ struct TranscriptEditorView: View {
         return !segments.isEmpty
     }
 
+    private var isShowingEmptyPlaceholder: Bool {
+        text.isEmpty && !isBusy && !isEditable
+    }
+
     private let cornerRadius: CGFloat = DesignTokens.Corner.card
     private let cardPadding: CGFloat = DesignTokens.Card.padding
 
@@ -35,6 +39,7 @@ struct TranscriptEditorView: View {
         .padding(cardPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(cardSurface)
+        .opacity(isShowingEmptyPlaceholder ? 0.72 : 1)
         .accessibilityElement(children: .contain)
         .onChange(of: isEditing) { isEditing in
             if isEditing {

@@ -60,6 +60,10 @@ struct FileDropView: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .frame(
+            minHeight: DesignTokens.Layout.dropZoneMinHeight,
+            maxHeight: DesignTokens.Layout.dropZoneMaxHeight
+        )
         .padding(24)
         .background(dropZoneSurface)
         .onHover { hovering in
