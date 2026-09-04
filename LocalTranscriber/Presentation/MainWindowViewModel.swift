@@ -143,6 +143,24 @@ final class MainWindowViewModel: ObservableObject {
         isBusy
     }
 
+    var cancelActionAccessibilityLabel: String {
+        if isDownloadingModel {
+            return NSLocalizedString("ダウンロードをキャンセル", comment: "Cancel model download accessibility label")
+        }
+        return NSLocalizedString("文字起こしをキャンセル", comment: "Cancel transcription accessibility label")
+    }
+
+    var cancelActionHelp: String {
+        if isDownloadingModel {
+            return NSLocalizedString("ダウンロードをキャンセル（Esc）", comment: "Cancel model download shortcut help")
+        }
+        return NSLocalizedString("文字起こしをキャンセル（Esc）", comment: "Cancel transcription shortcut help")
+    }
+
+    var cancelMenuTitle: String {
+        cancelActionAccessibilityLabel
+    }
+
     var canExport: Bool {
         currentTranscript != nil && !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }

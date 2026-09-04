@@ -449,6 +449,20 @@
         }
       }
     },
+    "ダウンロードをキャンセル" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Cancel Download" }
+        }
+      }
+    },
+    "ダウンロードをキャンセル（Esc）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Cancel download (Esc)" }
+        }
+      }
+    },
     "コピー" : {
       "localizations" : {
         "en" : {

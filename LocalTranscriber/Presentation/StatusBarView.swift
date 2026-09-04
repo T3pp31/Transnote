@@ -5,6 +5,8 @@ struct StatusBarView: View {
     let progress: TranscriptionProgressDisplay
     let inlineErrorTitle: String?
     let canCancel: Bool
+    let cancelAccessibilityLabel: String
+    let cancelHelp: String
     let onCancel: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -91,8 +93,8 @@ struct StatusBarView: View {
             onCancel()
         }
         .keyboardShortcut(.escape, modifiers: [])
-        .help("文字起こしをキャンセル（Esc）")
-        .accessibilityLabel("文字起こしをキャンセル")
+        .help(cancelHelp)
+        .accessibilityLabel(cancelAccessibilityLabel)
     }
 
     private var shouldAnnounceProgress: Bool {
