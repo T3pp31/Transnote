@@ -47,6 +47,16 @@ struct TranscriptEditorView: View {
                 isEditorFocused = true
             }
         }
+        .onChange(of: isEditable) { editable in
+            if editable && !hasPlayableSegments {
+                isEditing = true
+            }
+        }
+        .onChange(of: hasPlayableSegments) { hasSegments in
+            if isEditable && !hasSegments {
+                isEditing = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -119,15 +129,22 @@ struct TranscriptEditorView: View {
                 )
             }
             Spacer()
-            if isEditable, !text.isEmpty {
+            if isEditable, !text.isEmpty, hasPlayableSegments {
                 Picker("表示", selection: $isEditing) {
-                    Text("再生").tag(false)
+                    Text(
+                        NSLocalizedString("セグメント", comment: "Segment playback mode picker label")
+                    ).tag(false)
                     Text("編集").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 140)
+                .frame(width: 160)
                 .accessibilityLabel("表示モード")
-                .accessibilityHint("再生モードと編集モードを切り替えます")
+                .accessibilityHint(
+                    NSLocalizedString(
+                        "セグメント再生モードと編集モードを切り替えます",
+                        comment: "Segment playback and edit mode picker hint"
+                    )
+                )
             }
             if isEditing {
                 copyButton

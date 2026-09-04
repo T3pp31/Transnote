@@ -231,6 +231,22 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(viewModel.modelDownloadSuccessToastMessage().contains("音声ファイルを選択"))
     }
 
+    func testHasPlayableSegmentsReturnsFalseForEmptySegments() {
+        let transcript = Transcript(sourceFileName: "test.wav", fullText: "hello", segments: [])
+
+        XCTAssertFalse(MainWindowViewModel.hasPlayableSegments(in: transcript))
+    }
+
+    func testHasPlayableSegmentsReturnsTrueWhenSegmentTextExists() {
+        let transcript = Transcript(
+            sourceFileName: "test.wav",
+            fullText: "hello",
+            segments: [TranscriptSegment(startTime: 0, endTime: 1, text: "hello")]
+        )
+
+        XCTAssertTrue(MainWindowViewModel.hasPlayableSegments(in: transcript))
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
