@@ -353,8 +353,10 @@ final class MainWindowViewModel: ObservableObject {
     func showToast(_ text: String, icon: String = "checkmark.circle.fill", action: (label: String, handler: @Sendable () -> Void)? = nil) {
         toastDismissTask?.cancel()
         toast = ToastMessage(text: text, icon: icon, action: action)
+        // Action buttons need a longer window so users can click before auto-dismiss.
+        let dismissNanoseconds: UInt64 = action == nil ? 2_500_000_000 : 7_000_000_000
         toastDismissTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_500_000_000)
+            try? await Task.sleep(nanoseconds: dismissNanoseconds)
             if !Task.isCancelled {
                 toast = nil
             }
