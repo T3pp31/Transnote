@@ -54,7 +54,8 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         // Then
         XCTAssertEqual(display.style, .indeterminate)
         XCTAssertNil(display.fraction)
-        XCTAssertEqual(display.detailLabel, "Small")
+        XCTAssertTrue(display.detailLabel?.contains("Small") == true)
+        XCTAssertTrue(display.detailLabel?.contains("時間がかかる") == true)
     }
 
     func testTranscribingUsesDeterminateStyle() {
@@ -71,6 +72,33 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         // Then
         XCTAssertEqual(display.style, .determinate)
         XCTAssertEqual(display.detailLabel, "32%")
+    }
+
+    func testLoadingModelIncludesGuidanceDetail() {
+        let update = TranscriptionProgressUpdate.make(
+            phase: .loadingModel,
+            fraction: 0,
+            modelDisplayName: "Base"
+        )
+
+        let display = TranscriptionProgressDisplay.from(update: update)
+
+        XCTAssertEqual(display.style, .indeterminate)
+        XCTAssertTrue(display.detailLabel?.contains("Base") == true)
+        XCTAssertTrue(display.detailLabel?.contains("時間がかかる") == true)
+    }
+
+    func testTranscribingWithPartialTextIncludesPartialGuidance() {
+        let update = TranscriptionProgressUpdate.make(
+            phase: .transcribing,
+            fraction: 0.5,
+            partialText: "Hello"
+        )
+
+        let display = TranscriptionProgressDisplay.from(update: update)
+
+        XCTAssertTrue(display.detailLabel?.contains("途中結果") == true)
+        XCTAssertTrue(display.detailLabel?.contains("50%") == true)
     }
 
     func testAccessibilityLabelsForDownloadProgress() {
