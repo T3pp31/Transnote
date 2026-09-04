@@ -414,10 +414,10 @@
         }
       }
     },
-    "ファイルを選択…" : {
+    "ファイルを開く…" : {
       "localizations" : {
         "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Choose File…" }
+          "stringUnit" : { "state" : "translated", "value" : "Open File…" }
         }
       }
     },
