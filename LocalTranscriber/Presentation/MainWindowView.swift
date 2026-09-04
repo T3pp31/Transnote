@@ -161,6 +161,24 @@ struct MainWindowView: View {
             .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
             .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)
             .frame(minHeight: 44)
+
+            Text(
+                NSLocalizedString(
+                    "音声は端末内で処理されます。通信はモデルダウンロード時のみです。",
+                    comment: "On-device processing privacy notice"
+                )
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
+            .padding(.bottom, DesignTokens.Spacing.footerVerticalPadding)
+            .accessibilityLabel(
+                NSLocalizedString(
+                    "音声は端末内で処理されます。通信はモデルダウンロード時のみです。",
+                    comment: "On-device processing privacy notice"
+                )
+            )
         }
     }
 

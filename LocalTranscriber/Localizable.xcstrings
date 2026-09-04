@@ -518,6 +518,13 @@
           "stringUnit" : { "state" : "translated", "value" : "In progress" }
         }
       }
+    },
+    "音声は端末内で処理されます。通信はモデルダウンロード時のみです。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Audio is processed on your device. Network is used only when downloading models." }
+        }
+      }
     }
   },
   "version" : "1.0"
