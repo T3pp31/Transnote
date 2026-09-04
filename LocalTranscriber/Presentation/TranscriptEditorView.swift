@@ -9,6 +9,7 @@ struct TranscriptEditorView: View {
     @Binding var isEditing: Bool
     let onSegmentTap: (TranscriptSegment) -> Void
     let onCopy: () -> Void
+    var needsModelDownload: Bool = false
 
     @FocusState private var isEditorFocused: Bool
 
@@ -145,9 +146,16 @@ struct TranscriptEditorView: View {
     }
 
     private var emptyStateMessage: String {
-        isBusy
-            ? "処理が完了するまでお待ちください"
-            : "音声ファイルをドロップまたは選択して、文字起こしを開始してください"
+        if isBusy {
+            return NSLocalizedString("処理が完了するまでお待ちください", comment: "Wait for processing empty state")
+        }
+        if needsModelDownload {
+            return NSLocalizedString(
+                "初回はモデルのダウンロードが必要です。音声ファイルを選択・ドロップ後、「文字起こしを開始」してください。",
+                comment: "Empty state prompting model download"
+            )
+        }
+        return NSLocalizedString("音声ファイルをドロップまたは選択して、文字起こしを開始してください", comment: "Empty state prompting file selection")
     }
 
     private func segmentPlaybackView(segments: [TranscriptSegment]) -> some View {

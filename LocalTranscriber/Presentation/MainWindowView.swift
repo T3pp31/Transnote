@@ -98,6 +98,12 @@ struct MainWindowView: View {
                 selectedFile: viewModel.selectedFile,
                 onFileSelected: viewModel.selectFile(url:preferredFileName:)
             )
+            if let guidance = viewModel.modelDownloadGuidance {
+                ModelDownloadGuidanceBanner(
+                    message: guidance,
+                    onDownload: viewModel.downloadSelectedModel
+                )
+            }
         }
         .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
         .padding(.top, DesignTokens.Spacing.topPadding)
@@ -113,7 +119,8 @@ struct MainWindowView: View {
             playingSegmentID: viewModel.playingSegmentID,
             isEditing: $viewModel.isEditingTranscript,
             onSegmentTap: viewModel.playSegment,
-            onCopy: viewModel.copyTranscript
+            onCopy: viewModel.copyTranscript,
+            needsModelDownload: viewModel.shouldShowModelDownloadButton
         )
         .frame(maxHeight: .infinity)
         .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
@@ -291,6 +298,36 @@ private struct InlineErrorBanner: View {
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
                 .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ModelDownloadGuidanceBanner: View {
+    let message: String
+    let onDownload: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "arrow.down.circle")
+                .foregroundStyle(Color.accentColor)
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button(
+                NSLocalizedString("モデルをダウンロード", comment: "Download model button"),
+                action: onDownload
+            )
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
     }
