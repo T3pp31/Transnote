@@ -210,6 +210,27 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(viewModel.canStartTranscription)
     }
 
+    func testModelDownloadSuccessToastMessageWhenFileIsSelected() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.selectedFile = AudioFileInfo(
+            url: audioURL,
+            fileName: audioURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 64,
+            formattedFileSize: "64 bytes"
+        )
+
+        XCTAssertTrue(viewModel.modelDownloadSuccessToastMessage().contains("文字起こしを開始"))
+    }
+
+    func testModelDownloadSuccessToastMessageWhenNoFileIsSelected() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+
+        XCTAssertTrue(viewModel.modelDownloadSuccessToastMessage().contains("音声ファイルを選択"))
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
