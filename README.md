@@ -58,6 +58,7 @@ bash "/Volumes/Transnote/インストール.command"
 | 項目 | 状態 |
 | --- | --- |
 | バージョン | v0.1.5 |
+| UI/UX 改善 (v0.1.5) | [#114](https://github.com/T3pp31/Transnote/issues/114) で追跡、PR [#115](https://github.com/T3pp31/Transnote/pull/115)–[#132](https://github.com/T3pp31/Transnote/pull/132) 作成済み |
 | 実装 | SwiftUI アプリ、テスト、CI 稼働中 |
 | 配布 | 未署名 DMG（GitHub Actions → GitHub Releases / Pages） |
 
