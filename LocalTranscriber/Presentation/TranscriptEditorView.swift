@@ -29,11 +29,11 @@ struct TranscriptEditorView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-                .padding(.bottom, 12)
+                .padding(.bottom, DesignTokens.Spacing.controlSpacing)
 
             Divider()
                 .overlay(DesignTokens.Colors.border(colorScheme))
-                .padding(.bottom, 12)
+                .padding(.bottom, DesignTokens.Spacing.controlSpacing)
 
             editorContent
         }
@@ -57,7 +57,7 @@ struct TranscriptEditorView: View {
                     TextEditor(text: $text)
                         .font(.body)
                         .scrollContentBackground(.hidden)
-                        .padding(8)
+                        .padding(DesignTokens.Spacing.compactSpacing)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .background(
                             RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
@@ -71,7 +71,7 @@ struct TranscriptEditorView: View {
                 } else if hasPlayableSegments, let segments {
                     segmentPlaybackView(segments: segments)
                 } else {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.compactSpacing) {
                         readOnlyTextView
                         if !text.isEmpty {
                             Text("タイムスタンプ情報がないため、クリック再生は利用できません。編集モードでテキストを修正できます。")
@@ -154,7 +154,7 @@ struct TranscriptEditorView: View {
             Text(text.isEmpty ? emptyStateMessage : text)
                 .foregroundStyle(text.isEmpty ? .secondary : .primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
+                .padding(DesignTokens.Spacing.compactSpacing)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
@@ -191,7 +191,7 @@ struct TranscriptEditorView: View {
                     )
                 }
             }
-            .padding(8)
+            .padding(DesignTokens.Spacing.compactSpacing)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
@@ -219,7 +219,7 @@ private struct SegmentPlaybackRow: View {
                 Image(systemName: isPlaying ? "speaker.wave.2.fill" : "play.fill")
                     .font(.caption)
                     .foregroundStyle(isPlaying ? Color.accentColor : .secondary)
-                    .frame(width: 14)
+                    .frame(width: DesignTokens.Icon.compact)
                     .symbolEffect(.variableColor, isActive: isPlaying && !reduceMotion)
 
                 Text(segment.formattedStartTime)

@@ -10,9 +10,9 @@ struct StatusBarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: DesignTokens.Spacing.controlSpacing) {
             statusContent
-            Spacer(minLength: 8)
+            Spacer(minLength: DesignTokens.Spacing.compactSpacing)
             if canCancel {
                 cancelButton
             }
@@ -24,7 +24,7 @@ struct StatusBarView: View {
     private var statusContent: some View {
         if let inlineErrorTitle {
             Label(inlineErrorTitle, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
+                .foregroundStyle(DesignTokens.Colors.warning)
                 .lineLimit(1)
         } else {
             switch uiState {
@@ -35,10 +35,10 @@ struct StatusBarView: View {
                 activeProgressRow
             case .done:
                 Label("完了", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(DesignTokens.Colors.success)
             case .error(let message):
                 Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(DesignTokens.Colors.error)
                     .lineLimit(2)
             }
         }
@@ -106,7 +106,7 @@ struct PhaseIconView: View {
             .font(.body)
             .foregroundStyle(foregroundColor)
             .symbolEffect(.variableColor.iterative, isActive: isAnimating && !reduceMotion)
-            .frame(width: 20)
+            .frame(width: DesignTokens.Icon.status)
     }
 
     private var symbolName: String {
@@ -131,7 +131,7 @@ struct PhaseIconView: View {
         case .downloadingModel, .transcribing:
             return .accentColor
         case .finished:
-            return .green
+            return DesignTokens.Colors.success
         default:
             return .secondary
         }

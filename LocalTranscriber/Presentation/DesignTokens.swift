@@ -7,6 +7,8 @@ enum DesignTokens {
         static let bottomPadding: CGFloat = 16
         static let sectionSpacing: CGFloat = 16
         static let footerVerticalPadding: CGFloat = 10
+        static let controlSpacing: CGFloat = 12
+        static let compactSpacing: CGFloat = 8
     }
 
     enum Corner {
@@ -47,5 +49,15 @@ enum DesignTokens {
                 ? Color.black.opacity(0.55)
                 : Color.black.opacity(0.14)
         }
+
+        static let warning = Color.orange
+        static let success = Color.green
+        static let error = Color.red
+    }
+
+    enum Icon {
+        static let hero: CGFloat = 44
+        static let status: CGFloat = 20
+        static let compact: CGFloat = 14
     }
 }

@@ -13,8 +13,8 @@ struct SettingsView: View {
             Text("設定")
                 .font(.title2.bold())
 
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionSpacing) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.compactSpacing) {
                     Text("文字起こしモデル")
                         .font(.headline)
                     Picker("モデル", selection: $settings.selectedModelID) {
@@ -62,7 +62,7 @@ struct SettingsView: View {
                     }
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.compactSpacing) {
                     Text("文字起こし言語")
                         .font(.headline)
                     Picker("言語", selection: $settings.selectedLanguageID) {
