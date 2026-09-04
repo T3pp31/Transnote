@@ -99,6 +99,7 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
 
         XCTAssertTrue(display.detailLabel?.contains("途中結果") == true)
         XCTAssertTrue(display.detailLabel?.contains("50%") == true)
+    }
 
     func testIdleDisplayUsesWaitingLabel() {
         let display = TranscriptionProgressDisplay.idle()
