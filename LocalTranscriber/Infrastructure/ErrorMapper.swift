@@ -55,7 +55,7 @@ enum ErrorMapper {
             case .modelNotDownloaded(let modelName):
                 return String(
                     format: NSLocalizedString(
-                        "モデル「%@」がダウンロードされていません。ツールバーの「ダウンロード」ボタンからダウンロードしてください。",
+                        "モデル「%@」がダウンロードされていません。ツールバーの「モデルをダウンロード」ボタンからダウンロードしてください。",
                         comment: "Model not downloaded"
                     ),
                     modelName

@@ -309,6 +309,13 @@
         }
       }
     },
+    "モデル「%@」がダウンロードされていません。ツールバーの「モデルをダウンロード」ボタンからダウンロードしてください。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Model “%@” has not been downloaded. Download it using the Download Model button in the toolbar." }
+        }
+      }
+    },
     "モデルがダウンロードされていません。" : {
       "localizations" : {
         "en" : {

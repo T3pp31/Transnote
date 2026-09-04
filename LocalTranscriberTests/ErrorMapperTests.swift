@@ -18,4 +18,11 @@ final class ErrorMapperTests: XCTestCase {
         )
         XCTAssertFalse(message.contains("Internal secret error details"))
     }
+
+    func testModelNotDownloadedErrorMentionsToolbarButtonLabel() {
+        let message = ErrorMapper.userMessage(for: AppError.modelNotDownloaded("Base"))
+
+        XCTAssertTrue(message.contains("モデルをダウンロード"))
+        XCTAssertFalse(message.contains("「ダウンロード」ボタン"))
+    }
 }
