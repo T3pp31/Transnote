@@ -167,6 +167,26 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(viewModel.canCopyTranscript)
     }
 
+    func testRecoverableModelNotDownloadedErrorUsesInlineBannerOnly() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.selectedFile = AudioFileInfo(
+            url: audioURL,
+            fileName: audioURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 64,
+            formattedFileSize: "64 bytes"
+        )
+        viewModel.downloadedModelIDs = []
+
+        viewModel.startTranscription()
+
+        XCTAssertEqual(viewModel.inlineErrorTitle, "モデル未ダウンロード")
+        XCTAssertNotNil(viewModel.inlineErrorMessage)
+        XCTAssertNil(viewModel.criticalErrorMessage)
+        XCTAssertEqual(viewModel.uiState, .idle)
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(

@@ -3,7 +3,6 @@ import SwiftUI
 struct StatusBarView: View {
     let uiState: TranscriptionUIState
     let progress: TranscriptionProgressDisplay
-    let inlineErrorTitle: String?
     let canCancel: Bool
     let cancelAccessibilityLabel: String
     let cancelHelp: String
@@ -24,28 +23,22 @@ struct StatusBarView: View {
 
     @ViewBuilder
     private var statusContent: some View {
-        if let inlineErrorTitle {
-            Label(inlineErrorTitle, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(DesignTokens.Colors.warning)
-                .lineLimit(1)
-        } else {
-            switch uiState {
-            case .idle:
-                Label(
-                    NSLocalizedString("待機中", comment: "Idle state label"),
-                    systemImage: "circle.dashed"
-                )
-                .foregroundStyle(.secondary)
-            case .preparing, .transcribing:
-                activeProgressRow
-            case .done:
-                Label("完了", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(DesignTokens.Colors.success)
-            case .error(let message):
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(DesignTokens.Colors.error)
-                    .lineLimit(2)
-            }
+        switch uiState {
+        case .idle:
+            Label(
+                NSLocalizedString("待機中", comment: "Idle state label"),
+                systemImage: "circle.dashed"
+            )
+            .foregroundStyle(.secondary)
+        case .preparing, .transcribing:
+            activeProgressRow
+        case .done:
+            Label("完了", systemImage: "checkmark.circle.fill")
+                .foregroundStyle(DesignTokens.Colors.success)
+        case .error(let message):
+            Label(message, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(DesignTokens.Colors.error)
+                .lineLimit(2)
         }
     }
 

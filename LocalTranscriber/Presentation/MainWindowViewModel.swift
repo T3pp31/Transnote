@@ -601,7 +601,9 @@ final class MainWindowViewModel: ObservableObject {
         inlineErrorMessage = nil
         canRetryError = false
         lastRecoverableAction = nil
-        uiState = .error(message)
+        if uiState != .preparing && uiState != .transcribing {
+            uiState = .idle
+        }
     }
 
     private func handleError(_ error: Error, context: ErrorContext) {
