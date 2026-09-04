@@ -8,6 +8,7 @@ struct FileDropView: View {
     @State private var isTargeted = false
     @State private var isHovered = false
     @State private var dropErrorMessage: String?
+    @Environment(\.colorScheme) private var colorScheme
 
     private let cornerRadius: CGFloat = DesignTokens.Corner.card
 
@@ -118,7 +119,7 @@ struct FileDropView: View {
             return Color.accentColor.opacity(0.08)
         }
         if isHovered {
-            return Color.primary.opacity(0.02)
+            return DesignTokens.Colors.hoverFill(colorScheme)
         }
         return Color(NSColor.controlBackgroundColor).opacity(0.5)
     }
@@ -127,14 +128,14 @@ struct FileDropView: View {
         if isTargeted {
             return Color.accentColor.opacity(0.45)
         }
-        return Color.primary.opacity(0.08)
+        return DesignTokens.Colors.border(colorScheme)
     }
 
     private var dropShadowColor: Color {
         if isTargeted {
             return Color.accentColor.opacity(0.18)
         }
-        return Color.black.opacity(isHovered ? 0.08 : 0.04)
+        return DesignTokens.Colors.dropShadow(colorScheme, isHovered: isHovered)
     }
 
     private func openFilePanel() {

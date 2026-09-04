@@ -25,4 +25,27 @@ enum DesignTokens {
         static let dropZoneMinHeight: CGFloat = 120
         static let dropZoneMaxHeight: CGFloat = 220
     }
+
+    enum Colors {
+        static func border(_ colorScheme: ColorScheme) -> Color {
+            Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.12)
+        }
+
+        static func hoverFill(_ colorScheme: ColorScheme) -> Color {
+            Color.primary.opacity(colorScheme == .dark ? 0.08 : 0.05)
+        }
+
+        static func dropShadow(_ colorScheme: ColorScheme, isHovered: Bool) -> Color {
+            if colorScheme == .dark {
+                return Color.black.opacity(isHovered ? 0.55 : 0.4)
+            }
+            return Color.black.opacity(isHovered ? 0.12 : 0.08)
+        }
+
+        static func toastShadow(_ colorScheme: ColorScheme) -> Color {
+            colorScheme == .dark
+                ? Color.black.opacity(0.55)
+                : Color.black.opacity(0.14)
+        }
+    }
 }

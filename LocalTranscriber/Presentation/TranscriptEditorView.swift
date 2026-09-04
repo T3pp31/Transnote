@@ -12,6 +12,7 @@ struct TranscriptEditorView: View {
     var needsModelDownload: Bool = false
 
     @FocusState private var isEditorFocused: Bool
+    @Environment(\.colorScheme) private var colorScheme
 
     private var hasPlayableSegments: Bool {
         guard let segments else { return false }
@@ -31,7 +32,7 @@ struct TranscriptEditorView: View {
                 .padding(.bottom, 12)
 
             Divider()
-                .overlay(Color.primary.opacity(0.08))
+                .overlay(DesignTokens.Colors.border(colorScheme))
                 .padding(.bottom, 12)
 
             editorContent
@@ -64,7 +65,7 @@ struct TranscriptEditorView: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                                .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)
                         )
                         .focused($isEditorFocused)
                 } else if hasPlayableSegments, let segments {
@@ -91,7 +92,7 @@ struct TranscriptEditorView: View {
             .fill(Color(NSColor.controlBackgroundColor))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
+                    .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)
             }
     }
 
@@ -162,7 +163,7 @@ struct TranscriptEditorView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)
         )
     }
 
@@ -199,7 +200,7 @@ struct TranscriptEditorView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+                .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)
         )
     }
 }

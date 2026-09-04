@@ -6,6 +6,7 @@ struct MainWindowView: View {
     @StateObject private var updateChecker = UpdateCheckViewModel()
     @ObservedObject private var settings = AppSettings.shared
     @State private var showingSettings = false
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         VStack(spacing: 0) {
@@ -151,7 +152,7 @@ struct MainWindowView: View {
     private var footerSection: some View {
         VStack(spacing: 0) {
             Divider()
-                .overlay(Color.primary.opacity(0.08))
+                .overlay(DesignTokens.Colors.border(colorScheme))
 
             StatusBarView(
                 uiState: viewModel.uiState,
