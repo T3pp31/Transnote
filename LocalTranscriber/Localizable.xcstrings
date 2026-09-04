@@ -477,6 +477,13 @@
         }
       }
     },
+    "待機中" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : { "state" : "translated", "value" : "Waiting" }
+        }
+      }
+    },
     "モデルをダウンロード" : {
       "localizations" : {
         "en" : {

@@ -101,6 +101,15 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         XCTAssertTrue(display.detailLabel?.contains("50%") == true)
     }
 
+    func testIdleDisplayUsesWaitingLabel() {
+        let display = TranscriptionProgressDisplay.idle()
+
+        XCTAssertEqual(
+            display.primaryLabel,
+            NSLocalizedString("待機中", comment: "Idle state label")
+        )
+    }
+
     func testAccessibilityLabelsForDownloadProgress() {
         // Given
         let update = TranscriptionProgressUpdate.make(
