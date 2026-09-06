@@ -11,7 +11,7 @@ final class ErrorMapperTests: XCTestCase {
 
         XCTAssertEqual(
             message,
-            NSLocalizedString(
+            L(
                 "予期しないエラーが発生しました。もう一度お試しください。",
                 comment: "Unexpected error"
             )
@@ -22,7 +22,7 @@ final class ErrorMapperTests: XCTestCase {
     func testModelNotDownloadedErrorMentionsToolbarButtonLabel() {
         let message = ErrorMapper.userMessage(for: AppError.modelNotDownloaded("Base"))
 
-        XCTAssertTrue(message.contains(NSLocalizedString("モデルをダウンロード", comment: "Download model button")))
+        XCTAssertTrue(message.contains(L("モデルをダウンロード", comment: "Download model button")))
         XCTAssertFalse(message.contains("「ダウンロード」ボタン"))
     }
 }

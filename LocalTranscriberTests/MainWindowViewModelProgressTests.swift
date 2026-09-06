@@ -144,12 +144,12 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.cancelActionAccessibilityLabel,
-            NSLocalizedString("ダウンロードをキャンセル", comment: "Cancel model download accessibility label")
+            L("ダウンロードをキャンセル", comment: "Cancel model download accessibility label")
         )
         XCTAssertEqual(viewModel.cancelMenuTitle, viewModel.cancelActionAccessibilityLabel)
         XCTAssertEqual(
             viewModel.cancelActionHelp,
-            NSLocalizedString("ダウンロードをキャンセル（Esc）", comment: "Cancel model download shortcut help")
+            L("ダウンロードをキャンセル（Esc）", comment: "Cancel model download shortcut help")
         )
     }
 
@@ -161,12 +161,12 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.cancelActionAccessibilityLabel,
-            NSLocalizedString("文字起こしをキャンセル", comment: "Cancel transcription accessibility label")
+            L("文字起こしをキャンセル", comment: "Cancel transcription accessibility label")
         )
         XCTAssertEqual(viewModel.cancelMenuTitle, viewModel.cancelActionAccessibilityLabel)
         XCTAssertEqual(
             viewModel.cancelActionHelp,
-            NSLocalizedString("文字起こしをキャンセル（Esc）", comment: "Cancel transcription shortcut help")
+            L("文字起こしをキャンセル（Esc）", comment: "Cancel transcription shortcut help")
         )
     }
 
@@ -195,7 +195,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         XCTAssertEqual(
             viewModel.inlineErrorTitle,
-            NSLocalizedString("モデル未ダウンロード", comment: "Model not downloaded title")
+            L("モデル未ダウンロード", comment: "Model not downloaded title")
         )
         XCTAssertNotNil(viewModel.inlineErrorMessage)
         XCTAssertNil(viewModel.criticalErrorMessage)
@@ -210,7 +210,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         // No file selected: reason points at the missing file
         XCTAssertEqual(
             viewModel.startTranscriptionDisabledReason,
-            NSLocalizedString("音声ファイルを選択してください", comment: "Select an audio file")
+            L("音声ファイルを選択してください", comment: "Select an audio file")
         )
 
         // File selected: no blocking condition remains, start is available
