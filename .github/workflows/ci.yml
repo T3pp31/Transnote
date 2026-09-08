@@ -5,6 +5,10 @@ on:
   pull_request:
 
 jobs:
+  # No setup-xcode here: in ci mode, generate-sbom.sh only reads Config/sbom.plist
+  # with PlistBuddy and scans Package.resolved with Syft + jq, so it needs no
+  # Xcode toolchain. Kept on macos-15 because PlistBuddy is macOS-only and to
+  # stay consistent with the release workflow.
   sbom:
     runs-on: macos-15
     steps:
@@ -43,6 +47,16 @@ jobs:
     runs-on: macos-15
     env:
       XCODE_VERSION: '16.4'
+      # Whitelist of DerivedData subdirectories needed for incremental builds.
+      # Measured sizes on the runner (uncompressed): ModuleCache.noindex ~215MB,
+      # SourcePackages ~189MB, Build ~154MB, Index.noindex ~45MB. Excluded:
+      # Logs, TestResults, CompilationCache, SDKStatCaches (rebuildable, low value).
+      # Caches are also evicted after 10GB per repository, so keep this list tight.
+      DERIVED_DATA_CACHE_PATHS: |
+        DerivedData/Build
+        DerivedData/SourcePackages
+        DerivedData/ModuleCache.noindex
+        DerivedData/Index.noindex
     steps:
       - uses: actions/checkout@v4
 
@@ -56,13 +70,18 @@ jobs:
           path: ~/Library/Caches/org.swift.swiftpm
           key: spm-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}
 
+      # restore/save are split (instead of a single actions/cache@v4) because the
+      # cache must be saved even when "Run tests" fails: partially compiled
+      # intermediates still speed up the next run, which retry-fix pushes depend on.
+      # actions/cache@v4 without `save-always` does not save in that case.
+      # The primary key embeds github.run_id because actions/cache cannot overwrite
+      # an existing key; each run saves a new snapshot, and restore-keys (prefix
+      # without run_id) restores the latest snapshot from any previous run.
       - name: Restore DerivedData cache
         id: derived_data_cache
         uses: actions/cache/restore@v4
         with:
-          path: |
-            DerivedData/
-            !DerivedData/Logs
+          path: ${{ env.DERIVED_DATA_CACHE_PATHS }}
           key: dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}-${{ github.run_id }}
           restore-keys: |
             dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}-
@@ -98,11 +117,11 @@ jobs:
             -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
             -skip-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
 
+      # Save with the run_id-scoped primary key only when this run did not restore
+      # that exact key (a cache-hit on the primary key means the entry already exists).
       - name: Save DerivedData cache
         if: always() && steps.derived_data_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: |
-            DerivedData/
-            !DerivedData/Logs
+          path: ${{ env.DERIVED_DATA_CACHE_PATHS }}
           key: ${{ steps.derived_data_cache.outputs.cache-primary-key }}
