@@ -9,8 +9,11 @@ on:
       - main
   pull_request:
 
+# PRs share a group so newer pushes cancel stale runs. main uses run_id so
+# concurrent merges are not skipped: GitHub keeps only one pending run per
+# group even when cancel-in-progress is false.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
