@@ -94,6 +94,7 @@ jobs:
       - name: Read Syft version
         id: syft_config
         run: |
+          chmod +x ./scripts/generate-sbom.sh
           echo "version=$(./scripts/generate-sbom.sh --print SyftVersion)" >> "$GITHUB_OUTPUT"
 
       - name: Install Syft
