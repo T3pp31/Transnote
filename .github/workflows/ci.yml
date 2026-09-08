@@ -5,34 +5,10 @@ on:
   pull_request:
 
 jobs:
-  test:
+  sbom:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
-
-      - uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: '16.4'
-
-      - name: Resolve Swift Package dependencies
-        run: |
-          xcodebuild -resolvePackageDependencies \
-            -project LocalTranscriber.xcodeproj \
-            -scheme LocalTranscriber \
-            -derivedDataPath DerivedData
-
-      - name: Verify Package.resolved is committed
-        run: |
-          RESOLVED="LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
-          if [ ! -f "$RESOLVED" ]; then
-            echo "Package.resolved not found at $RESOLVED"
-            exit 1
-          fi
-          if ! git diff --quiet -- "$RESOLVED"; then
-            echo "Package.resolved is out of date. Run xcodebuild -resolvePackageDependencies and commit the result."
-            git diff -- "$RESOLVED"
-            exit 1
-          fi
 
       - name: Read Syft version
         id: syft_config
@@ -63,6 +39,54 @@ jobs:
           path: build/sbom/
           retention-days: ${{ steps.sbom.outputs.retention_days }}
 
+  test:
+    runs-on: macos-15
+    env:
+      XCODE_VERSION: '16.4'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: ${{ env.XCODE_VERSION }}
+
+      - name: Cache SPM repositories
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: spm-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}
+
+      - name: Restore DerivedData cache
+        id: derived_data_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            DerivedData/
+            !DerivedData/Logs
+          key: dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}-${{ github.run_id }}
+          restore-keys: |
+            dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}-
+
+      - name: Resolve Swift Package dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project LocalTranscriber.xcodeproj \
+            -scheme LocalTranscriber \
+            -derivedDataPath DerivedData
+
+      - name: Verify Package.resolved is committed
+        run: |
+          RESOLVED="LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -f "$RESOLVED" ]; then
+            echo "Package.resolved not found at $RESOLVED"
+            exit 1
+          fi
+          if ! git diff --quiet -- "$RESOLVED"; then
+            echo "Package.resolved is out of date. Run xcodebuild -resolvePackageDependencies and commit the result."
+            git diff -- "$RESOLVED"
+            exit 1
+          fi
+
       - name: Run tests
         run: |
           xcodebuild test \
@@ -73,3 +97,12 @@ jobs:
             -derivedDataPath DerivedData \
             -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
             -skip-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
+
+      - name: Save DerivedData cache
+        if: always() && steps.derived_data_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            DerivedData/
+            !DerivedData/Logs
+          key: ${{ steps.derived_data_cache.outputs.cache-primary-key }}
