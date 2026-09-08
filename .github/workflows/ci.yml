@@ -47,16 +47,6 @@ jobs:
     runs-on: macos-15
     env:
       XCODE_VERSION: '16.4'
-      # Whitelist of DerivedData subdirectories needed for incremental builds.
-      # Measured sizes on the runner (uncompressed): ModuleCache.noindex ~215MB,
-      # SourcePackages ~189MB, Build ~154MB, Index.noindex ~45MB. Excluded:
-      # Logs, TestResults, CompilationCache, SDKStatCaches (rebuildable, low value).
-      # Caches are also evicted after 10GB per repository, so keep this list tight.
-      DERIVED_DATA_CACHE_PATHS: |
-        DerivedData/Build
-        DerivedData/SourcePackages
-        DerivedData/ModuleCache.noindex
-        DerivedData/Index.noindex
     steps:
       - uses: actions/checkout@v4
 
@@ -68,8 +58,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}
+          key: spm-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
+      # The cache whitelists DerivedData subdirectories needed for incremental
+      # builds (paths kept literal; actions/cache inputs are safest without
+      # expression expansion). Measured on the runner (uncompressed):
+      # ModuleCache.noindex ~215MB, SourcePackages ~189MB, Build ~154MB,
+      # Index.noindex ~45MB; the zstd-compressed entry is ~253MB, far below the
+      # 10GB per-repository cache quota. GitHub evicts least-recently-used
+      # entries automatically, so per-run snapshots cannot accumulate without
+      # bound. Excluded from the cache: Logs, TestResults, CompilationCache,
+      # SDKStatCaches (rebuildable, low value).
+      #
       # restore/save are split (instead of a single actions/cache@v4) because the
       # cache must be saved even when "Run tests" fails: partially compiled
       # intermediates still speed up the next run, which retry-fix pushes depend on.
@@ -81,10 +81,14 @@ jobs:
         id: derived_data_cache
         uses: actions/cache/restore@v4
         with:
-          path: ${{ env.DERIVED_DATA_CACHE_PATHS }}
-          key: dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}-${{ github.run_id }}
+          path: |
+            DerivedData/Build
+            DerivedData/SourcePackages
+            DerivedData/ModuleCache.noindex
+            DerivedData/Index.noindex
+          key: dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ github.run_id }}
           restore-keys: |
-            dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('**/Package.resolved') }}-
+            dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
 
       - name: Resolve Swift Package dependencies
         run: |
@@ -123,5 +127,9 @@ jobs:
         if: always() && steps.derived_data_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ env.DERIVED_DATA_CACHE_PATHS }}
+          path: |
+            DerivedData/Build
+            DerivedData/SourcePackages
+            DerivedData/ModuleCache.noindex
+            DerivedData/Index.noindex
           key: ${{ steps.derived_data_cache.outputs.cache-primary-key }}
