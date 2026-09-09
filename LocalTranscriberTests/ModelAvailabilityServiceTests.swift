@@ -137,7 +137,8 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         for coreMLName in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             let fileURL = folder.appendingPathComponent("\(coreMLName).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+            // 0バイトは #138 の「不完全ダウンロード」判定で除外されるため、非ゼロデータで作成する
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
         }
         if let modificationDate {
             try FileManager.default.setAttributes(
