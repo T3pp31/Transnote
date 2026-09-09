@@ -6,7 +6,9 @@ enum AppError: LocalizedError, Equatable {
     case fileAccessDenied
     case transcriptionCancelled
     case transcriptionFailed(String)
+    case transcriptionFailedWithReason(Error)
     case exportFailed(String)
+    case exportFailedWithReason(Error)
     case invalidConfiguration
     case bookmarkResolutionFailed
     case modelNotDownloaded(String)
@@ -14,6 +16,34 @@ enum AppError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         ErrorMapper.userMessage(for: self)
+    }
+
+    // Error は Equatable に適合しないため、手動で同値比較を実装する。
+    // 元エラー保持ケース（*WithReason）は NSError にブリッジして同値比較する。
+    static func == (lhs: AppError, rhs: AppError) -> Bool {
+        switch (lhs, rhs) {
+        case (.unsupportedFileExtension(let l), .unsupportedFileExtension(let r)):
+            return l == r
+        case (.fileNotFound, .fileNotFound), (.fileAccessDenied, .fileAccessDenied),
+             (.transcriptionCancelled, .transcriptionCancelled):
+            return true
+        case (.transcriptionFailed(let l), .transcriptionFailed(let r)):
+            return l == r
+        case (.transcriptionFailedWithReason(let l), .transcriptionFailedWithReason(let r)):
+            return (l as NSError).isEqual(r as NSError)
+        case (.exportFailed(let l), .exportFailed(let r)):
+            return l == r
+        case (.exportFailedWithReason(let l), .exportFailedWithReason(let r)):
+            return (l as NSError).isEqual(r as NSError)
+        case (.invalidConfiguration, .invalidConfiguration),
+             (.bookmarkResolutionFailed, .bookmarkResolutionFailed),
+             (.fileTooLarge, .fileTooLarge):
+            return true
+        case (.modelNotDownloaded(let l), .modelNotDownloaded(let r)):
+            return l == r
+        default:
+            return false
+        }
     }
 }
 
@@ -40,10 +70,17 @@ enum ErrorMapper {
                 return NSLocalizedString("文字起こしをキャンセルしました。", comment: "Transcription cancelled")
             case .transcriptionFailed(let message):
                 return message
+            case .transcriptionFailedWithReason(let error):
+                return ErrorMapper.userMessage(for: error)
             case .exportFailed(let message):
                 return String(
                     format: NSLocalizedString("エクスポートに失敗しました: %@", comment: "Export failed"),
                     message
+                )
+            case .exportFailedWithReason(let error):
+                return String(
+                    format: NSLocalizedString("エクスポートに失敗しました: %@", comment: "Export failed"),
+                    ErrorMapper.userMessage(for: error)
                 )
             case .invalidConfiguration:
                 return NSLocalizedString("アプリ設定が不正です。", comment: "Invalid configuration")
@@ -72,6 +109,21 @@ enum ErrorMapper {
             return NSLocalizedString("処理がキャンセルされました。", comment: "Operation cancelled")
         }
 
+        // URLError は型ベースで分類する（部分文字列一致による誤分類を防ぐ）
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cancelled, .notConnectedToInternet, .networkConnectionLost,
+                 .timedOut, .cannotFindHost, .cannotConnectToHost,
+                 .dnsLookupFailed, .resourceUnavailable:
+                return NSLocalizedString(
+                    "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。",
+                    comment: "Model download network failure"
+                )
+            default:
+                break
+            }
+        }
+
         let description = error.localizedDescription
         if description.localizedCaseInsensitiveContains("Model file not found")
             || description.localizedCaseInsensitiveContains("Models are unavailable")
@@ -82,16 +134,18 @@ enum ErrorMapper {
             )
         }
 
-        if description.localizedCaseInsensitiveContains("network")
-            || description.localizedCaseInsensitiveContains("Internet")
-            || description.localizedCaseInsensitiveContains("offline") {
+        // WhisperKit 由来のエラーは型不明のことが多いため、
+        // 部分文字列一致による誤分類を避けるべく、
+        // より具体的・長いフレーズに限定して判定する
+        let lowercasedDescription = description.lowercased()
+        if lowercasedDescription.contains("network connection")
+            || lowercasedDescription.contains("network error") {
             return NSLocalizedString(
                 "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。",
                 comment: "Model download network failure"
             )
         }
 
-        AppLogger.error("Unknown error: \(error)")
         return NSLocalizedString(
             "予期しないエラーが発生しました。もう一度お試しください。",
             comment: "Unexpected error"

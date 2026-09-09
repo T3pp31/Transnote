@@ -128,7 +128,7 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         } catch let error as AppError {
             throw error
         } catch {
-            throw AppError.transcriptionFailed(ErrorMapper.userMessage(for: error))
+            throw AppError.transcriptionFailedWithReason(error)
         }
     }
 

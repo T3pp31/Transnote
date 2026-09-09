@@ -629,6 +629,22 @@ final class MainWindowViewModel: ObservableObject {
     private func handleError(_ error: Error, context: ErrorContext) {
         let message = ErrorMapper.userMessage(for: error)
 
+        // ログには元エラー（技術詳細）を記録し、ユーザー向けメッセージとは分離する。
+        // 元エラーが AppError.transcriptionFailedWithReason / AppError.exportFailedWithReason の
+        // 場合は元の reason を、それ以外は error 自体を記録する。
+        let logError: Error
+        if let appError = error as? AppError {
+            switch appError {
+            case .transcriptionFailedWithReason(let reason), .exportFailedWithReason(let reason):
+                logError = reason
+            default:
+                logError = error
+            }
+        } else {
+            logError = error
+        }
+        AppLogger.error("\(logError)", logger: AppLogger.general)
+
         if isCriticalError(error) {
             presentCriticalError(title: criticalTitle(for: error), message: message)
         } else {
@@ -640,8 +656,6 @@ final class MainWindowViewModel: ObservableObject {
                 action: info.action
             )
         }
-
-        AppLogger.error(message, logger: AppLogger.general)
     }
 
     private func isCriticalError(_ error: Error) -> Bool {
