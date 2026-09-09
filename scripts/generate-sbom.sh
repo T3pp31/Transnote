@@ -10,13 +10,16 @@ MODE=""
 INPUT_PATH=""
 VERSION=""
 OUTPUT_DIR=""
+PRINT_KEY=""
 
 usage() {
   cat <<EOF
 Usage: $(basename "$0") --mode <release|ci> [options]
+       $(basename "$0") --print KEY [options]
 
 Options:
-  --mode release|ci       Required. release scans the app bundle; ci scans Package.resolved
+  --mode release|ci       Required unless --print. release scans the app bundle; ci scans Package.resolved
+  --print KEY             Print one Config/sbom.plist value and exit (PlistBuddy or python3)
   --input PATH            Scan target (defaults depend on mode)
   --version VERSION       Required for release mode (e.g. 0.1.0)
   --output-dir PATH       Output directory (default: Config/sbom.plist OutputDirectory)
@@ -25,18 +28,45 @@ Options:
 EOF
 }
 
+# macOS CI historically used PlistBuddy. Linux (ubuntu-latest) has no
+# PlistBuddy, so fall back to python3 + plistlib for the same XML plist.
+plist_print() {
+  local key="$1"
+  local config="${2:-$SBOM_CONFIG}"
+  if [[ -x /usr/libexec/PlistBuddy ]]; then
+    /usr/libexec/PlistBuddy -c "Print :${key}" "$config"
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c '
+import plistlib, sys
+with open(sys.argv[1], "rb") as f:
+    data = plistlib.load(f)
+key = sys.argv[2]
+if key not in data:
+    raise SystemExit(f"Missing plist key: {key}")
+value = data[key]
+if isinstance(value, bool):
+    print("true" if value else "false")
+else:
+    print(value)
+' "$config" "$key"
+  else
+    echo "Neither PlistBuddy nor python3 is available to read $config" >&2
+    exit 1
+  fi
+}
+
 read_sbom_config() {
   if [[ ! -f "$SBOM_CONFIG" ]]; then
     echo "SBOM config not found: $SBOM_CONFIG" >&2
     exit 1
   fi
 
-  OUTPUT_FORMAT="$(/usr/libexec/PlistBuddy -c "Print :OutputFormat" "$SBOM_CONFIG")"
-  APP_NAME="$(/usr/libexec/PlistBuddy -c "Print :AppName" "$SBOM_CONFIG")"
-  RELEASE_FILENAME_PATTERN="$(/usr/libexec/PlistBuddy -c "Print :ReleaseOutputFilenamePattern" "$SBOM_CONFIG")"
-  CI_FILENAME_PATTERN="$(/usr/libexec/PlistBuddy -c "Print :CIOutputFilename" "$SBOM_CONFIG")"
-  DEFAULT_OUTPUT_DIR="$(/usr/libexec/PlistBuddy -c "Print :OutputDirectory" "$SBOM_CONFIG")"
-  PACKAGE_RESOLVED_PATH="$(/usr/libexec/PlistBuddy -c "Print :PackageResolvedPath" "$SBOM_CONFIG")"
+  OUTPUT_FORMAT="$(plist_print OutputFormat)"
+  APP_NAME="$(plist_print AppName)"
+  RELEASE_FILENAME_PATTERN="$(plist_print ReleaseOutputFilenamePattern)"
+  CI_FILENAME_PATTERN="$(plist_print CIOutputFilename)"
+  DEFAULT_OUTPUT_DIR="$(plist_print OutputDirectory)"
+  PACKAGE_RESOLVED_PATH="$(plist_print PackageResolvedPath)"
 }
 
 apply_filename_pattern() {
@@ -104,6 +134,15 @@ while [[ $# -gt 0 ]]; do
       SBOM_CONFIG="$2"
       shift 2
       ;;
+    --print)
+      if [[ $# -lt 2 || -z "${2}" || "$2" == -* ]]; then
+        echo "--print requires a plist key" >&2
+        usage >&2
+        exit 1
+      fi
+      PRINT_KEY="$2"
+      shift 2
+      ;;
     -h|--help)
       usage
       exit 0
@@ -115,6 +154,15 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ -n "$PRINT_KEY" ]]; then
+  if [[ ! -f "$SBOM_CONFIG" ]]; then
+    echo "SBOM config not found: $SBOM_CONFIG" >&2
+    exit 1
+  fi
+  plist_print "$PRINT_KEY"
+  exit 0
+fi
 
 if [[ -z "$MODE" ]]; then
   echo "--mode is required." >&2

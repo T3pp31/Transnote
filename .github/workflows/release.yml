@@ -94,7 +94,8 @@ jobs:
       - name: Read Syft version
         id: syft_config
         run: |
-          echo "version=$(/usr/libexec/PlistBuddy -c 'Print :SyftVersion' Config/sbom.plist)" >> "$GITHUB_OUTPUT"
+          chmod +x ./scripts/generate-sbom.sh
+          echo "version=$(./scripts/generate-sbom.sh --print SyftVersion)" >> "$GITHUB_OUTPUT"
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0

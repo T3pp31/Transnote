@@ -79,7 +79,7 @@ xcodebuild archive \
 
 ### SBOM の例
 
-CI では `Package.resolved`（宣言依存のロックファイル）を、Release では配布用 `Transnote.app` をスキャンします。Whisper モデルなどランタイムで取得するコンポーネントは SBOM 対象外です。
+CI では `Package.resolved`（宣言依存のロックファイル）を Ubuntu 上で、Release では配布用 `Transnote.app` を macOS 上でスキャンします。Whisper モデルなどランタイムで取得するコンポーネントは SBOM 対象外です。`generate-sbom.sh` は macOS では PlistBuddy、Linux では python3 + plistlib で `Config/sbom.plist` を読みます。
 
 ```bash
 # CI 相当（依存ロックのみ）

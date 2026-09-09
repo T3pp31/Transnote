@@ -1,23 +1,36 @@
 name: CI
 
+# push + pull_request both fire for same-repo PRs, which doubled macOS jobs
+# and queued runners for ~30 minutes when many PRs landed together.
+# Keep pull_request for branches; run push CI only on main.
 on:
   push:
+    branches:
+      - main
   pull_request:
 
+# PRs share a group so newer pushes cancel stale runs. main uses run_id so
+# concurrent merges are not skipped: GitHub keeps only one pending run per
+# group even when cancel-in-progress is false.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  # No setup-xcode here: in ci mode, generate-sbom.sh only reads Config/sbom.plist
-  # with PlistBuddy and scans Package.resolved with Syft + jq, so it needs no
-  # Xcode toolchain. Kept on macos-15 because PlistBuddy is macOS-only and to
-  # stay consistent with the release workflow.
+  # CI-mode SBOM only reads Config/sbom.plist and scans Package.resolved
+  # (no Xcode). Run on ubuntu-latest so it does not consume scarce macOS
+  # runners; generate-sbom.sh falls back to python3+plistlib without PlistBuddy.
   sbom:
-    runs-on: macos-15
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
       - name: Read Syft version
         id: syft_config
         run: |
-          echo "version=$(/usr/libexec/PlistBuddy -c 'Print :SyftVersion' Config/sbom.plist)" >> "$GITHUB_OUTPUT"
+          chmod +x ./scripts/generate-sbom.sh
+          echo "version=$(./scripts/generate-sbom.sh --print SyftVersion)" >> "$GITHUB_OUTPUT"
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -28,10 +41,9 @@ jobs:
         id: sbom
         run: |
           set -euo pipefail
-          chmod +x ./scripts/generate-sbom.sh
           sbom_path="$(./scripts/generate-sbom.sh --mode ci)"
-          artifact_name="$(/usr/libexec/PlistBuddy -c 'Print :CIArtifactName' Config/sbom.plist)"
-          retention_days="$(/usr/libexec/PlistBuddy -c 'Print :CIArtifactRetentionDays' Config/sbom.plist)"
+          artifact_name="$(./scripts/generate-sbom.sh --print CIArtifactName)"
+          retention_days="$(./scripts/generate-sbom.sh --print CIArtifactRetentionDays)"
           echo "sbom_path=${sbom_path}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
           echo "retention_days=${retention_days}" >> "$GITHUB_OUTPUT"
@@ -45,6 +57,7 @@ jobs:
 
   test:
     runs-on: macos-15
+    timeout-minutes: 20
     env:
       XCODE_VERSION: '16.4'
     steps:
