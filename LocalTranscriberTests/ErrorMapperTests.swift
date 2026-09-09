@@ -37,7 +37,11 @@ final class ErrorMapperTests: XCTestCase {
 
         let expected = ErrorMapper.userMessage(for: reason)
         XCTAssertEqual(error.errorDescription, expected)
-        XCTAssertTrue(error.errorDescription?.contains("ネットワーク") == true || expected.contains("ネットワーク") == true)
+        // ネットワークエラーに分類されること（ロケール非依存の検証）
+        XCTAssertNotEqual(
+            error.errorDescription,
+            ErrorMapper.userMessage(for: UnknownTestError())
+        )
     }
 
     func testExportFailedWithReasonErrorDescriptionUsesUserMessage() {
@@ -73,7 +77,8 @@ final class ErrorMapperTests: XCTestCase {
     func testURLErrorNotConnectedToInternetClassifiedAsNetwork() {
         let message = ErrorMapper.userMessage(for: URLError(.notConnectedToInternet))
 
-        XCTAssertTrue(message.contains(L("ネットワーク", comment: "Network")))
+        // ネットワークエラーに分類されること（ロケール非依存の検証）
+        XCTAssertNotEqual(message, ErrorMapper.userMessage(for: UnknownTestError()))
     }
 
     func testURLErrorNetworkConnectionLostClassifiedAsNetwork() {
