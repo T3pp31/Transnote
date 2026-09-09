@@ -21,22 +21,11 @@ struct ModelAvailabilityService: Sendable {
     func modelFolder(for whisperKitModelName: String) -> URL? {
         guard fileManager.fileExists(atPath: modelsRoot.path) else { return nil }
 
-        guard let enumerator = fileManager.enumerator(
-            at: modelsRoot,
-            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey]
-        ) else {
-            return nil
-        }
-
         var bestMatch: URL?
         var bestScore = -1
         var candidateCount = 0
 
-        for case let url as URL in enumerator {
-            guard isDirectory(url) else { continue }
-            // .cache 等の隠しフォルダ（HuggingFace のステージング領域）はモデルフォルダの候補にしない
-            guard !hasHiddenPathComponent(url) else { continue }
-            guard matchesVariant(url: url, whisperKitModelName: whisperKitModelName) else { continue }
+        for url in variantDirectories(named: whisperKitModelName) {
             guard hasRequiredModelFilesDirectly(in: url) else { continue }
 
             let score = matchScore(for: url, whisperKitModelName: whisperKitModelName)
@@ -60,6 +49,28 @@ struct ModelAvailabilityService: Sendable {
         }
 
         return bestMatch
+    }
+
+    /// variant 名に一致するディレクトリを再帰的に列挙する（ファイルの存在・サイズ検証は行わない）。
+    /// ダウンロード失敗時のクリーンアップで、ダウンロード前に存在したフォルダを特定するために使う。
+    /// HuggingFace のステージング領域（.cache 等の隠しフォルダ）は候補に含めない。
+    func variantDirectories(named whisperKitModelName: String) -> [URL] {
+        guard fileManager.fileExists(atPath: modelsRoot.path) else { return [] }
+
+        guard let enumerator = fileManager.enumerator(
+            at: modelsRoot,
+            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey]
+        ) else {
+            return []
+        }
+
+        return enumerator.compactMap { object in
+            guard let url = object as? URL else { return nil }
+            guard isDirectory(url) else { return nil }
+            guard !hasHiddenPathComponent(url) else { return nil }
+            guard matchesVariant(url: url, whisperKitModelName: whisperKitModelName) else { return nil }
+            return url
+        }
     }
 
     func validateModelFolder(_ folder: URL) -> Bool {
@@ -127,12 +138,23 @@ struct ModelAvailabilityService: Sendable {
     }
 
     /// WhisperKit は modelFolder 直下の .mlmodelc を参照するため、再帰検索は使わない。
+    /// 途中失敗で 0バイトのまま残ったファイルは「不完全」としてダウンロード済みとみなさない。
     private func hasRequiredModelFilesDirectly(in folder: URL) -> Bool {
         Self.requiredModelNames.allSatisfy { name in
             let compiled = folder.appendingPathComponent("\(name).mlmodelc")
             let package = folder.appendingPathComponent("\(name).mlpackage")
-            return fileManager.fileExists(atPath: compiled.path)
-                || fileManager.fileExists(atPath: package.path)
+            return isValidModelFile(at: compiled)
+                || isValidModelFile(at: package)
         }
+    }
+
+    /// モデルファイルが存在し、かつ 0バイトでない（＝正常にダウンロードされた）かどうかを返す。
+    /// - `.mlmodelc` / `.mlpackage` はファイルの場合もディレクトリ（バンドル）の場合もあるため、
+    ///   サイズ検証はどちらの場合でも共通して行う。0バイトの場合は不完全ダウンロードとして `false`。
+    private func isValidModelFile(at url: URL) -> Bool {
+        guard fileManager.fileExists(atPath: url.path) else { return false }
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
+        let size = attributes[.size] as? NSNumber
+        return (size?.intValue ?? -1) > 0
     }
 }

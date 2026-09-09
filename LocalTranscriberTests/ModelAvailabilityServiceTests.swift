@@ -45,7 +45,7 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: variantFolder, withIntermediateDirectories: true)
         for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             let fileURL = variantFolder.appendingPathComponent("\(name).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
         }
 
         // When
@@ -56,6 +56,23 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         XCTAssertNotNil(service.modelFolder(for: "base"))
     }
 
+    func testIsDownloadedReturnsFalseWhenRequiredModelFileIsZeroBytes() throws {
+        // Given: 必須ファイルが0バイト（ダウンロード途中失敗）の variant フォルダ
+        let variantFolder = temporaryRoot.appendingPathComponent("models/openai_whisper-base", isDirectory: true)
+        try FileManager.default.createDirectory(at: variantFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let fileURL = variantFolder.appendingPathComponent("\(name).mlmodelc")
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+        }
+
+        // When
+        let result = service.isDownloaded(whisperKitModelName: "base")
+
+        // Then: 0バイトは不完全扱いのため未ダウンロード
+        XCTAssertFalse(result)
+        XCTAssertNil(service.modelFolder(for: "base"))
+    }
+
     func testModelFolderIgnoresParentWhenModelsAreOnlyInChildDirectory() throws {
         // Given: 親フォルダにはモデルがなく、子フォルダのみに配置
         let parentFolder = temporaryRoot.appendingPathComponent("models/argmaxinc/whisperkit-coreml", isDirectory: true)
@@ -63,7 +80,7 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: childFolder, withIntermediateDirectories: true)
         for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             let fileURL = childFolder.appendingPathComponent("\(name).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
         }
 
         // When
@@ -79,7 +96,7 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: decoyFolder, withIntermediateDirectories: true)
         for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             let fileURL = decoyFolder.appendingPathComponent("\(name).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
         }
 
         // When
@@ -96,7 +113,7 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: decoyFolder, withIntermediateDirectories: true)
         for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             let fileURL = decoyFolder.appendingPathComponent("\(name).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
         }
 
         // When

@@ -128,4 +128,96 @@ final class AudioImportServiceTests: XCTestCase {
         XCTAssertEqual(info.fileExtension, "m4a")
         XCTAssertEqual(info.fileName, "PasteboardTemp")
     }
+
+    // MARK: - partial import file cleanup (#140)
+
+    func testRemoveFileIfExistsIfFailedDeletesZeroByteFile() {
+        let zeroByteURL = importsRoot.appendingPathComponent("partial-zero-byte.m4a")
+        FileManager.default.createFile(atPath: zeroByteURL.path, contents: nil)
+
+        service.removeFileIfExistsIfFailed(zeroByteURL)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: zeroByteURL.path))
+    }
+
+    func testRemoveFileIfExistsIfFailedIsNoOpForMissingFile() {
+        let missingURL = importsRoot.appendingPathComponent("missing.m4a")
+
+        // 存在しないパスでも throw せず何もしない
+        service.removeFileIfExistsIfFailed(missingURL)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missingURL.path))
+    }
+
+    func testImportFileRemovesPartialFileWhenCopyItemFailsAndStreamingIsSkipped() throws {
+        // copyItem が「部分コピーを作成した後」に失敗する状況を模倣する
+        let failingManager = PartialCopyThenFailFileManager()
+        let serviceWithFailingManager = AudioImportService(
+            importsRoot: importsRoot,
+            fileManager: failingManager
+        )
+
+        let sourceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceRoot) }
+
+        let sourceURL = sourceRoot.appendingPathComponent("unreadable.wav")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
+        // 読み取り不可にすることで、copyFileStreaming へのフォールバックも失敗させる
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: sourceURL.path)
+
+        let destinationURL = importsRoot.appendingPathComponent("unreadable.wav")
+
+        XCTAssertThrowsError(try serviceWithFailingManager.importFile(from: sourceURL)) { error in
+            guard case AppError.fileAccessDenied = error else {
+                XCTFail("Expected fileAccessDenied, got \(error)")
+                return
+            }
+        }
+
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: destinationURL.path),
+            "copyItem が部分コピー後に失敗した場合、Imports/ に部分ファイルが残ってはならない"
+        )
+    }
+
+    func testImportFileFallsBackToStreamingWhenCopyItemFails() throws {
+        // copyItem が失敗しても copyFileStreaming で正常にコピーできることを検証する
+        let failingManager = PartialCopyThenFailFileManager()
+        let serviceWithFailingManager = AudioImportService(
+            importsRoot: importsRoot,
+            fileManager: failingManager
+        )
+
+        let sourceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceRoot) }
+
+        let sourceURL = sourceRoot.appendingPathComponent("readable.wav")
+        let content = Data("streaming fallback content".utf8)
+        FileManager.default.createFile(atPath: sourceURL.path, contents: content)
+
+        let importedURL = try serviceWithFailingManager.importFile(from: sourceURL)
+
+        let importedData = try Data(contentsOf: importedURL)
+        XCTAssertEqual(importedData, content)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path))
+    }
+}
+
+/// copyItem が常に失敗し、その際に destination へ部分的なファイルを残す FileManager。
+/// 実際の copyItem が途中失敗する状況を再現するためのテスト用サブクラス。
+private final class PartialCopyThenFailFileManager: FileManager {
+    override func copyItem(at srcURL: URL, to dstURL: URL) throws {
+        // 部分コピーを模倣: destination に 0 バイトの partial ファイルを作成してから失敗する
+        try? createDirectory(at: dstURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        createFile(atPath: dstURL.path, contents: nil)
+        throw NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileWriteUnknownError,
+            userInfo: [NSFilePathErrorKey: dstURL.path]
+        )
+    }
 }
