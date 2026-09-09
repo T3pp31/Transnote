@@ -247,11 +247,10 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         let folder = service.modelFolder(for: "base")
 
         // Then: 列挙順ではなく正規化パスの昇順で決定的に選択される
-        let expected = [repoA, repoB]
+        let expectedPath: String? = [repoA, repoB]
             .compactMap { standardize($0)?.path }
-            .sorted()
-            .first
-        XCTAssertEqual(standardize(folder)?.path, expected)
+            .min()
+        XCTAssertEqual(standardize(folder)?.path, expectedPath)
     }
 
     func testIsDownloadedReturnsFalseWhenRequiredModelBundleDirectoryIsEmpty() throws {
