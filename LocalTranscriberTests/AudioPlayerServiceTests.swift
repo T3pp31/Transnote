@@ -79,6 +79,57 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertFalse(service.hasActiveTimeObserver)
     }
 
+    // セグメントを素早く2回連続でタップしても、後者のセグメントの再生が開始されること
+    // （状態遷移 isPlaying / hasActiveTimeObserver で検証）
+    func testConsecutivePlaySegmentStartsLatestSegment() async throws {
+        service.load(url: tempAudioURL)
+        service.playSegment(start: 0.0, end: 0.1)
+        service.playSegment(start: 0.0, end: 0.8)
+
+        let startedPlaying = await waitUntil(timeout: 2.0) {
+            self.service.isPlaying && self.service.hasActiveTimeObserver
+        }
+        XCTAssertTrue(startedPlaying, "連続タップ後、後者のセグメントの再生が開始されること")
+
+        service.stop()
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+    }
+
+    // 連続で playSegment を呼んでも、finish コールバックが誤って早期に発火せず、
+    // 後から呼んだセグメントの終了時にだけ発火すること
+    func testConsecutivePlaySegmentFiresFinishCallbackOnlyForLatestSegment() async throws {
+        var firstFinished = false
+        var secondFinished = false
+
+        service.load(url: tempAudioURL)
+        service.playSegment(start: 0.0, end: 0.1) {
+            firstFinished = true
+        }
+        service.playSegment(start: 0.0, end: 0.8) {
+            secondFinished = true
+        }
+
+        // 後者のセグメントの再生が開始される（状態遷移で確認）
+        _ = await waitUntil(timeout: 2.0) {
+            self.service.isPlaying && self.service.hasActiveTimeObserver
+        }
+
+        // 後者のセグメント終端を迎える前に、完了コールバックが誤って発火していないこと
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertFalse(firstFinished, "古いセグメントの完了コールバックは発火してはならない")
+        XCTAssertFalse(secondFinished, "後者のセグメント終端前に完了コールバックが発火してはならない")
+
+        // 後者のセグメントの終了時にだけ完了コールバックが発火し、再生状態がリセットされること
+        let secondCompleted = await waitUntil(timeout: 3.0) {
+            secondFinished
+        }
+        XCTAssertTrue(secondCompleted, "後者のセグメント終了時に完了コールバックが発火すること")
+        XCTAssertFalse(firstFinished)
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+    }
+
     private func waitUntil(timeout: TimeInterval, condition: @escaping () -> Bool) async -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
