@@ -53,7 +53,10 @@ struct ModelDownloadService: Sendable {
         // 「ダウンロード前に存在したフォルダ」を控えておき、失敗時は「今回新規に生成されたフォルダ」だけを
         // 削除する（既存モデルを誤って消さないためのセーフガード）。
         let directoriesBeforeDownload = Set(
-            modelAvailability.variantDirectories(named: whisperKitModelName).map { $0.path }
+            modelAvailability.variantDirectories(
+                named: whisperKitModelName,
+                includingHidden: true
+            ).map { $0.path }
         )
 
         do {
@@ -96,7 +99,10 @@ struct ModelDownloadService: Sendable {
         whisperKitModelName: String,
         directoriesBeforeDownload: Set<String>
     ) {
-        for url in modelAvailability.variantDirectories(named: whisperKitModelName) {
+        for url in modelAvailability.variantDirectories(
+            named: whisperKitModelName,
+            includingHidden: true
+        ) {
             guard !directoriesBeforeDownload.contains(url.path) else { continue }
             AppLogger.info(
                 "Removing incomplete model folder after failed download: \(url.lastPathComponent)",

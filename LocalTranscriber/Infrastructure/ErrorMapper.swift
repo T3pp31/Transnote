@@ -111,8 +111,11 @@ enum ErrorMapper {
 
         // URLError は型ベースで分類する（部分文字列一致による誤分類を防ぐ）
         if let urlError = error as? URLError {
+            if urlError.code == .cancelled {
+                return NSLocalizedString("処理がキャンセルされました。", comment: "Operation cancelled")
+            }
             switch urlError.code {
-            case .cancelled, .notConnectedToInternet, .networkConnectionLost,
+            case .notConnectedToInternet, .networkConnectionLost,
                  .timedOut, .cannotFindHost, .cannotConnectToHost,
                  .dnsLookupFailed, .resourceUnavailable:
                 return NSLocalizedString(

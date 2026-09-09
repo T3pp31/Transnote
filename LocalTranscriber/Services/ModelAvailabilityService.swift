@@ -35,7 +35,7 @@ struct ModelAvailabilityService: Sendable {
                 candidateCount = 1
             } else if score == bestScore, let current = bestMatch {
                 candidateCount += 1
-                // 同スコア時は更新日時が新しい方を優先し、同一日時は名前の昇順で決定的に決める
+                // 同スコア時は更新日時が新しい方を優先し、同一日時は名前→パスの昇順で決定的に決める
                 if isPreferredOver(url, current: current) {
                     bestMatch = url
                 }
@@ -53,8 +53,9 @@ struct ModelAvailabilityService: Sendable {
 
     /// variant 名に一致するディレクトリを再帰的に列挙する（ファイルの存在・サイズ検証は行わない）。
     /// ダウンロード失敗時のクリーンアップで、ダウンロード前に存在したフォルダを特定するために使う。
-    /// HuggingFace のステージング領域（.cache 等の隠しフォルダ）は候補に含めない。
-    func variantDirectories(named whisperKitModelName: String) -> [URL] {
+    /// - Parameter includingHidden: `true` のとき HuggingFace の `.cache` 等も列挙する。
+    ///   モデル選択では不完全なステージング領域を除外し、失敗時クリーンアップでは残渣を消せるよう含める。
+    func variantDirectories(named whisperKitModelName: String, includingHidden: Bool = false) -> [URL] {
         guard fileManager.fileExists(atPath: modelsRoot.path) else { return [] }
 
         guard let enumerator = fileManager.enumerator(
@@ -67,7 +68,7 @@ struct ModelAvailabilityService: Sendable {
         return enumerator.compactMap { object in
             guard let url = object as? URL else { return nil }
             guard isDirectory(url) else { return nil }
-            guard !hasHiddenPathComponent(url) else { return nil }
+            if !includingHidden, hasHiddenPathComponent(url) { return nil }
             guard matchesVariant(url: url, whisperKitModelName: whisperKitModelName) else { return nil }
             return url
         }
@@ -120,17 +121,24 @@ struct ModelAvailabilityService: Sendable {
         return 0
     }
 
-    /// 同スコアの候補同士の比較。更新日時が新しい方を優先し、同一日時は名前の昇順で決定的に決める。
-    /// 更新日時を取得できない場合は false を返し、列挙順（現状維持）を優先する。
+    /// 同スコアの候補同士の比較。更新日時が新しい方を優先し、同一日時は名前、
+    /// さらに同一名なら正規化パスの昇順で決定的に決める。
+    /// 更新日時を取得できない場合も名前→パスで比較し、列挙順に依存しない。
     private func isPreferredOver(_ newCandidate: URL, current: URL) -> Bool {
         let newDate = modificationDate(of: newCandidate)
         let currentDate = modificationDate(of: current)
 
-        guard let newDate, let currentDate else { return false }
-        if newDate != currentDate {
+        if let newDate, let currentDate, newDate != currentDate {
             return newDate > currentDate
         }
-        return newCandidate.lastPathComponent < current.lastPathComponent
+
+        let newName = newCandidate.lastPathComponent
+        let currentName = current.lastPathComponent
+        if newName != currentName {
+            return newName < currentName
+        }
+
+        return newCandidate.standardizedFileURL.path < current.standardizedFileURL.path
     }
 
     private func modificationDate(of url: URL) -> Date? {
@@ -148,11 +156,23 @@ struct ModelAvailabilityService: Sendable {
         }
     }
 
-    /// モデルファイルが存在し、かつ 0バイトでない（＝正常にダウンロードされた）かどうかを返す。
-    /// - `.mlmodelc` / `.mlpackage` はファイルの場合もディレクトリ（バンドル）の場合もあるため、
-    ///   サイズ検証はどちらの場合でも共通して行う。0バイトの場合は不完全ダウンロードとして `false`。
+    /// モデルファイルが存在し、かつ中身がある（＝正常にダウンロードされた）かどうかを返す。
+    /// - `.mlmodelc` / `.mlpackage` はファイルの場合もディレクトリ（バンドル）の場合もある。
+    /// - ファイルは 0 バイトなら不完全。ディレクトリは inode サイズが常に 0 超のため、
+    ///   子エントリが 1 つ以上あることまで確認する。
     private func isValidModelFile(at url: URL) -> Bool {
-        guard fileManager.fileExists(atPath: url.path) else { return false }
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
+            return false
+        }
+
+        if isDirectory.boolValue {
+            guard let contents = try? fileManager.contentsOfDirectory(atPath: url.path) else {
+                return false
+            }
+            return !contents.isEmpty
+        }
+
         guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
         let size = attributes[.size] as? NSNumber
         return (size?.intValue ?? -1) > 0

@@ -112,10 +112,9 @@ struct AudioImportService: Sendable {
                 throw AppError.fileAccessDenied
             }
             if bytesRead == 0 {
-                // read が 0 を返すのはストリームのバッファリング状況による一時的な状態。
-                // EOF 直前のループでは hasBytesAvailable が false になるため、
-                // ここでは break せずループを続け、次のイテレーションで終了を判定する
-                continue
+                // InputStream.read が 0 を返すのは EOF。hasBytesAvailable が
+                // 真のまま残ってもループし続けない。
+                break
             }
 
             let bytesWritten = outputStream.write(buffer, maxLength: bytesRead)
