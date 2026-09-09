@@ -34,5 +34,50 @@ final class AppVersionTests: XCTestCase {
         XCTAssertTrue(AppVersion.isNewer("0.2.0", than: "0.1.0"))
         XCTAssertFalse(AppVersion.isNewer("0.1.0", than: "0.1.0"))
         XCTAssertFalse(AppVersion.isNewer("0.1.0", than: "0.2.0"))
+        XCTAssertTrue(AppVersion.isNewer("0.1.0", than: "0.1.0-rc1"))
+    }
+
+    // Given: 安定版とプレリリース版
+    // When: compare を実行
+    // Then: プレリリース版の方が小さい
+    func testCompareOrdersStableVersionsAfterPrereleases() {
+        XCTAssertEqual(AppVersion.compare("0.1.0-alpha", to: "0.1.0"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("0.1.0-beta", to: "0.1.0"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("1.0.0-rc1", to: "1.0.0"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("0.1.0", to: "0.1.0-rc1"), .orderedDescending)
+    }
+
+    // Given: 同じメジャー系内のプレリリース同士
+    // When: compare を実行
+    // Then: SemVer 規約どおり辞書順・数値で判定する
+    func testCompareOrdersPrereleases() {
+        XCTAssertEqual(AppVersion.compare("1.0.0-alpha", to: "1.0.0-beta"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("1.0.0-alpha.1", to: "1.0.0-alpha.2"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("1.0.0-1", to: "1.0.0-alpha"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("1.0.0-alpha.10", to: "1.0.0-alpha.9"), .orderedDescending)
+    }
+
+    // Given: v プレフィックス付きのプレリリースタグ
+    // When: normalize して compare を実行
+    // Then: プレフィックスなしと同じ結果になる
+    func testCompareAfterNormalizingPrefixedPrerelease() {
+        XCTAssertEqual(AppVersion.compare("v0.2.0-rc1", to: "0.2.0"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("v0.1.0-rc1", to: "0.1.0"), .orderedAscending)
+    }
+
+    // Given: ビルドメタデータ付きのバージョン
+    // When: compare を実行
+    // Then: ビルドメタデータは比較に影響しない
+    func testCompareIgnoresBuildMetadata() {
+        XCTAssertEqual(AppVersion.compare("0.1.0+build5", to: "0.1.0+build9"), .orderedSame)
+        XCTAssertEqual(AppVersion.compare("0.1.0", to: "0.1.0+build2"), .orderedSame)
+    }
+
+    // Given: プレリリースとビルドメタデータの両方を持つバージョン
+    // When: compare を実行
+    // Then: プレリリースに基づいて比較され、ビルドメタデータは無視される
+    func testCompareWithBothPrereleaseAndBuildMetadata() {
+        XCTAssertEqual(AppVersion.compare("0.1.0-rc1+build5", to: "0.1.0-rc1+build9"), .orderedSame)
+        XCTAssertEqual(AppVersion.compare("0.1.0-rc1+build5", to: "0.1.0"), .orderedAscending)
     }
 }
