@@ -23,6 +23,7 @@ struct ModelAvailabilityService: Sendable {
 
         var bestMatch: URL?
         var bestScore = -1
+        var candidateCount = 0
 
         for url in variantDirectories(named: whisperKitModelName) {
             guard hasRequiredModelFilesDirectly(in: url) else { continue }
@@ -31,7 +32,20 @@ struct ModelAvailabilityService: Sendable {
             if score > bestScore {
                 bestScore = score
                 bestMatch = url
+                candidateCount = 1
+            } else if score == bestScore, let current = bestMatch {
+                candidateCount += 1
+                // 同スコア時は更新日時が新しい方を優先し、同一日時は名前の昇順で決定的に決める
+                if isPreferredOver(url, current: current) {
+                    bestMatch = url
+                }
             }
+        }
+
+        if let bestMatch, candidateCount > 1 {
+            AppLogger.info(
+                "複数のモデルフォルダを検出したため候補 \(candidateCount) 件のうち '\(bestMatch.lastPathComponent)' を選択しました（スコア: \(bestScore)）"
+            )
         }
 
         return bestMatch
@@ -39,12 +53,13 @@ struct ModelAvailabilityService: Sendable {
 
     /// variant 名に一致するディレクトリを再帰的に列挙する（ファイルの存在・サイズ検証は行わない）。
     /// ダウンロード失敗時のクリーンアップで、ダウンロード前に存在したフォルダを特定するために使う。
+    /// HuggingFace のステージング領域（.cache 等の隠しフォルダ）は候補に含めない。
     func variantDirectories(named whisperKitModelName: String) -> [URL] {
         guard fileManager.fileExists(atPath: modelsRoot.path) else { return [] }
 
         guard let enumerator = fileManager.enumerator(
             at: modelsRoot,
-            includingPropertiesForKeys: [.isDirectoryKey]
+            includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey]
         ) else {
             return []
         }
@@ -52,6 +67,7 @@ struct ModelAvailabilityService: Sendable {
         return enumerator.compactMap { object in
             guard let url = object as? URL else { return nil }
             guard isDirectory(url) else { return nil }
+            guard !hasHiddenPathComponent(url) else { return nil }
             guard matchesVariant(url: url, whisperKitModelName: whisperKitModelName) else { return nil }
             return url
         }
@@ -69,6 +85,11 @@ struct ModelAvailabilityService: Sendable {
         return isDirectory.boolValue
     }
 
+    /// HuggingFace のダウンロードステージング領域（.cache 等）に当たる隠しパスかどうかを判定する。
+    private func hasHiddenPathComponent(_ url: URL) -> Bool {
+        url.pathComponents.contains { $0.hasPrefix(".") }
+    }
+
     private func matchesVariant(url: URL, whisperKitModelName: String) -> Bool {
         let folderName = url.lastPathComponent.lowercased()
         let variant = whisperKitModelName.lowercased()
@@ -84,8 +105,12 @@ struct ModelAvailabilityService: Sendable {
         let folderName = url.lastPathComponent.lowercased()
         let variant = whisperKitModelName.lowercased()
 
-        if folderName == variant || folderName == "openai_whisper-\(variant)" {
+        if folderName == variant {
             return 100
+        }
+
+        if folderName == "openai_whisper-\(variant)" {
+            return 90
         }
 
         if folderName.hasSuffix("-\(variant)") {
@@ -93,6 +118,23 @@ struct ModelAvailabilityService: Sendable {
         }
 
         return 0
+    }
+
+    /// 同スコアの候補同士の比較。更新日時が新しい方を優先し、同一日時は名前の昇順で決定的に決める。
+    /// 更新日時を取得できない場合は false を返し、列挙順（現状維持）を優先する。
+    private func isPreferredOver(_ newCandidate: URL, current: URL) -> Bool {
+        let newDate = modificationDate(of: newCandidate)
+        let currentDate = modificationDate(of: current)
+
+        guard let newDate, let currentDate else { return false }
+        if newDate != currentDate {
+            return newDate > currentDate
+        }
+        return newCandidate.lastPathComponent < current.lastPathComponent
+    }
+
+    private func modificationDate(of url: URL) -> Date? {
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
     }
 
     /// WhisperKit は modelFolder 直下の .mlmodelc を参照するため、再帰検索は使わない。
