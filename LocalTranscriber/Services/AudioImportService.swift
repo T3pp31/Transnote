@@ -37,6 +37,15 @@ struct AudioImportService: Sendable {
             for: resolvedFileName(preferredFileName: preferredFileName, sourceURL: sourceURL)
         )
 
+        // インポート失敗時に、destinationURL に残った部分的なコピー（0バイトのファイルを含む）が
+        // Imports/ 配下に残らないよう、成功が確定するまで defer でクリーンアップを保証する
+        var importSucceeded = false
+        defer {
+            if !importSucceeded {
+                removeFileIfExistsIfFailed(destinationURL)
+            }
+        }
+
         let didAccessSource = sourceURL.startAccessingSecurityScopedResource()
         defer {
             if didAccessSource {
@@ -47,8 +56,11 @@ struct AudioImportService: Sendable {
         do {
             try fileManager.copyItem(at: sourceURL, to: destinationURL)
         } catch {
-            let isReadable = fileManager.isReadableFile(atPath: sourceURL.path)
-            if isReadable {
+            // copyItem が部分コピーの途中で失敗した場合に destinationURL へ残骸が残るため、
+            // 事前に削除してから copyFileStreaming へフォールバックする
+            removeFileIfExistsIfFailed(destinationURL)
+
+            if fileManager.isReadableFile(atPath: sourceURL.path) {
                 try copyFileStreaming(from: sourceURL, to: destinationURL)
             } else {
                 throw AppError.fileAccessDenied
@@ -59,6 +71,7 @@ struct AudioImportService: Sendable {
             "Imported audio to sandbox: \(destinationURL.lastPathComponent)",
             logger: AppLogger.fileAccess
         )
+        importSucceeded = true
         return destinationURL
     }
 
@@ -95,18 +108,30 @@ struct AudioImportService: Sendable {
         while inputStream.hasBytesAvailable {
             let bytesRead = inputStream.read(&buffer, maxLength: buffer.count)
             if bytesRead < 0 {
-                try? fileManager.removeItem(at: destinationURL)
+                removeFileIfExistsIfFailed(destinationURL)
                 throw AppError.fileAccessDenied
             }
             if bytesRead == 0 {
-                break
+                // read が 0 を返すのはストリームのバッファリング状況による一時的な状態。
+                // EOF 直前のループでは hasBytesAvailable が false になるため、
+                // ここでは break せずループを続け、次のイテレーションで終了を判定する
+                continue
             }
 
             let bytesWritten = outputStream.write(buffer, maxLength: bytesRead)
             if bytesWritten != bytesRead {
-                try? fileManager.removeItem(at: destinationURL)
+                removeFileIfExistsIfFailed(destinationURL)
                 throw AppError.fileAccessDenied
             }
+        }
+    }
+
+    /// ファイルが存在する場合のみ削除する。importFile の失敗時に destinationURL の残骸
+    /// （copyItem の部分コピーや copyFileStreaming の途中で作成されたファイル）を
+    /// 取り除くためのヘルパー。失敗しても無視する。
+    func removeFileIfExistsIfFailed(_ url: URL) {
+        if fileManager.fileExists(atPath: url.path) {
+            try? fileManager.removeItem(at: url)
         }
     }
 
