@@ -21,7 +21,7 @@ struct ExportService {
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
-            throw AppError.exportFailed(ErrorMapper.userMessage(for: error))
+            throw AppError.exportFailedWithReason(error)
         }
     }
 
