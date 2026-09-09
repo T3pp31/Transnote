@@ -15,7 +15,7 @@ final class ModelAvailabilityPathTests: XCTestCase {
 
         for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             let fileURL = hubRoot.appendingPathComponent("\(name).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
         }
 
         let service = ModelAvailabilityService(modelsRoot: modelsRoot)
