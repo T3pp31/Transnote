@@ -27,7 +27,7 @@ final class ModelDownloadServiceTests: XCTestCase {
         try FileManager.default.createDirectory(at: variantFolder, withIntermediateDirectories: true)
         for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
             let fileURL = variantFolder.appendingPathComponent("\(name).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
         }
 
         let path = try await service.downloadIfNeeded(
@@ -39,6 +39,48 @@ final class ModelDownloadServiceTests: XCTestCase {
             path.resolvingSymlinksInPath().path,
             variantFolder.resolvingSymlinksInPath().path
         )
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+    }
+
+    func testCleanUpFailedDownloadRemovesNewlyCreatedVariantFolderOnly() throws {
+        // Given: ダウンロード開始前に存在していた既存の完全なモデルフォルダ（削除してはならない）
+        let existingFolder = temporaryRoot
+            .appendingPathComponent("models/openai_whisper-base", isDirectory: true)
+        try FileManager.default.createDirectory(at: existingFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let fileURL = existingFolder.appendingPathComponent("\(name).mlmodelc")
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
+        }
+
+        // Given: ダウンロード開始時点のスナップショット（既存モデルフォルダのみ）
+        let directoriesBeforeDownload = Set(
+            availability.variantDirectories(named: "base").map { $0.path }
+        )
+        XCTAssertEqual(directoriesBeforeDownload.count, 1)
+        XCTAssertTrue(
+            directoriesBeforeDownload.contains { $0.hasSuffix("models/openai_whisper-base") }
+        )
+
+        // Given: ダウンロード失敗で新規生成された部分フォルダ（削除対象）
+        let partialFolder = temporaryRoot
+            .appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-base", isDirectory: true)
+        try FileManager.default.createDirectory(at: partialFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let fileURL = partialFolder.appendingPathComponent("\(name).mlmodelc")
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+        }
+
+        // When: ダウンロード失敗時のクリーンアップを実行
+        service.cleanUpFailedDownload(
+            whisperKitModelName: "base",
+            directoriesBeforeDownload: directoriesBeforeDownload
+        )
+
+        // Then: 新規生成された部分フォルダだけが削除される
+        XCTAssertFalse(FileManager.default.fileExists(atPath: partialFolder.path))
+
+        // Then: 既存の完全なモデルフォルダは保持される
+        XCTAssertTrue(FileManager.default.fileExists(atPath: existingFolder.path))
         XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
     }
 }
