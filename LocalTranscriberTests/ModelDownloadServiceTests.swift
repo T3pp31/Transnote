@@ -83,4 +83,55 @@ final class ModelDownloadServiceTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: existingFolder.path))
         XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
     }
+
+    func testCleanUpFailedDownloadRemovesNewlyCreatedHiddenStagingFolder() throws {
+        // Given: ダウンロード開始前に隠しステージングは存在しない
+        let directoriesBeforeDownload = Set(
+            availability.variantDirectories(named: "base", includingHidden: true).map { $0.path }
+        )
+        XCTAssertTrue(directoriesBeforeDownload.isEmpty)
+
+        // Given: 失敗した WhisperKit ダウンロードが .cache 配下に残した部分フォルダ
+        let stagingFolder = temporaryRoot.appendingPathComponent(
+            ".cache/huggingface/download/openai_whisper-base",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: stagingFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let fileURL = stagingFolder.appendingPathComponent("\(name).mlmodelc")
+            FileManager.default.createFile(atPath: fileURL.path, contents: Data())
+        }
+
+        // When
+        service.cleanUpFailedDownload(
+            whisperKitModelName: "base",
+            directoriesBeforeDownload: directoriesBeforeDownload
+        )
+
+        // Then: 選択候補からは除外しつつ、クリーンアップでは削除できる
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stagingFolder.path))
+    }
+
+    func testCleanUpFailedDownloadPreservesHiddenStagingFolderThatExistedBeforeDownload() throws {
+        // Given: ダウンロード開始前から存在する隠しステージングフォルダ（削除してはならない）
+        let existingStaging = temporaryRoot.appendingPathComponent(
+            ".cache/huggingface/download/openai_whisper-base",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: existingStaging, withIntermediateDirectories: true)
+
+        let directoriesBeforeDownload = Set(
+            availability.variantDirectories(named: "base", includingHidden: true).map { $0.path }
+        )
+        XCTAssertTrue(directoriesBeforeDownload.contains { $0.hasSuffix("openai_whisper-base") })
+
+        // When: 失敗クリーンアップ
+        service.cleanUpFailedDownload(
+            whisperKitModelName: "base",
+            directoriesBeforeDownload: directoriesBeforeDownload
+        )
+
+        // Then: 事前存在していた隠しフォルダは残る
+        XCTAssertTrue(FileManager.default.fileExists(atPath: existingStaging.path))
+    }
 }

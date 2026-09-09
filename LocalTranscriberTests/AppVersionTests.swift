@@ -80,4 +80,30 @@ final class AppVersionTests: XCTestCase {
         XCTAssertEqual(AppVersion.compare("0.1.0-rc1+build5", to: "0.1.0-rc1+build9"), .orderedSame)
         XCTAssertEqual(AppVersion.compare("0.1.0-rc1+build5", to: "0.1.0"), .orderedAscending)
     }
+
+    // Given: Int に収まらないコア番号
+    // When: compare を実行
+    // Then: 桁あふれして 0 扱いにならず、大きい方が新しい
+    func testCompareDoesNotOverflowLargeCoreNumbers() {
+        XCTAssertEqual(
+            AppVersion.compare("9223372036854775808.0.0", to: "2.0.0"),
+            .orderedDescending
+        )
+        XCTAssertEqual(
+            AppVersion.compare("2.0.0", to: "9223372036854775808.0.0"),
+            .orderedAscending
+        )
+        XCTAssertEqual(
+            AppVersion.compare("9223372036854775808.0.0", to: "9223372036854775808.0.0"),
+            .orderedSame
+        )
+    }
+
+    // Given: 符号付きに見えるプレリリース識別子
+    // When: compare を実行
+    // Then: ASCII 数字のみを数値識別子とみなし、"-1" は非数値として 0 より大きい
+    func testCompareTreatsSignedPrereleaseIdentifierAsNonNumeric() {
+        XCTAssertEqual(AppVersion.compare("1.0.0--1", to: "1.0.0-0"), .orderedDescending)
+        XCTAssertEqual(AppVersion.compare("1.0.0-0", to: "1.0.0--1"), .orderedAscending)
+    }
 }

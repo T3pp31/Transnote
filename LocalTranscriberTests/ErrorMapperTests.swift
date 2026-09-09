@@ -88,10 +88,11 @@ final class ErrorMapperTests: XCTestCase {
         XCTAssertNotEqual(message, ErrorMapper.userMessage(for: UnknownTestError()))
     }
 
-    func testURLErrorCancelledClassifiedAsNetwork() {
+    func testURLErrorCancelledClassifiedAsCancelled() {
         let message = ErrorMapper.userMessage(for: URLError(.cancelled))
 
-        XCTAssertNotEqual(message, ErrorMapper.userMessage(for: UnknownTestError()))
+        XCTAssertEqual(message, ErrorMapper.userMessage(for: CancellationError()))
+        XCTAssertNotEqual(message, ErrorMapper.userMessage(for: URLError(.notConnectedToInternet)))
     }
 
     func testErrorContainingNetworkKeywordIsNotClassifiedAsNetwork() {
