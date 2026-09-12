@@ -1,6 +1,9 @@
 import XCTest
 @testable import LocalTranscriber
 
+/// 調査用プローブ（回帰テストではない）。
+/// ローカルに既にあるモデルフォルダの解決結果をログ出力するだけで、
+/// ネットワーク／ダウンロードには触れず、失敗もしない（常に pass）。
 final class ModelResolveProbeTests: XCTestCase {
     func testProbeModelFolders() {
         let service = ModelAvailabilityService(modelsRoot: AppDirectories.modelsDirectory)
@@ -17,6 +20,7 @@ final class ModelResolveProbeTests: XCTestCase {
         for d in allDirs {
             print("=== PROBE dir: \(d.path)")
         }
+        // 調査用のため断言は置かない（環境にモデルが無くても CI を落とさない）
         XCTAssertTrue(true)
     }
 }

@@ -2,8 +2,10 @@ import XCTest
 import WhisperKit
 @testable import LocalTranscriber
 
-/// 文字起こし速度のベースライン計測用（一時的）テスト。
-/// 本テストは調査目的であり、通常のCIでは実行されない前提。
+/// 調査用の速度計測プローブ（回帰テスト／閾値アサーションではない）。
+/// - 結果は print するだけで、環境差に依存する閾値は設けない
+/// - テスト用 wav が無い環境（CI 含む）では XCTSkip する
+/// - ローカル絶対パスは開発マシン上の DerivedData 探索用のフォールバック
 final class PerformanceBaselineTests: XCTestCase {
 
     private let modelsRoot = AppDirectories.modelsDirectory
@@ -12,7 +14,7 @@ final class PerformanceBaselineTests: XCTestCase {
     private var longAudioURL: URL?
 
     override func setUpWithError() throws {
-        // WhisperKit リポジトリ内のテスト用 wav を探す
+        // WhisperKit リポジトリ内のテスト用 wav を探す（相対パス優先）
         let candidates = [
             URL(fileURLWithPath: "DerivedData/SourcePackages/checkouts/argmax-oss-swift/Tests/WhisperKitTests/Resources/ja_test_clip.wav"),
             URL(fileURLWithPath: "/Users/fukutomiteppei/Documents/GitHub/Transnote/DerivedData/SourcePackages/checkouts/argmax-oss-swift/Tests/WhisperKitTests/Resources/ja_test_clip.wav"),
