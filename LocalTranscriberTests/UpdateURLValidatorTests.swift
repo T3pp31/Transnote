@@ -147,4 +147,22 @@ final class UpdateURLValidatorTests: XCTestCase {
             )
         )
     }
+
+    // Given: タグ名に `/` を含むリリースページ URL
+    // When: matchesReleaseHTMLURL を実行
+    // Then: owner/repo が一致すれば true
+    func testMatchesReleaseHTMLURLAcceptsTagContainingSlash() {
+        XCTAssertTrue(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases/tag/v1.0/rc1")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+        XCTAssertTrue(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases/tag/v1.0%2Frc1")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+    }
 }
