@@ -25,7 +25,8 @@ enum UpdateURLValidator {
 }
 
 enum UpdateRepositoryValidator {
-    /// GitHub Releases API の `html_url` が、期待リポジトリのリリースページかを判定する。
+    /// GitHub Releases API の `html_url` が、期待リポジトリのリリースタグページかを判定する。
+    /// 許容するのは `https://github.com/{owner}/{repo}/releases/tag/{tag}` のみ。
     /// クエリへリポジトリパスを埋め込む部分文字列一致は使わない。
     static func matchesReleaseHTMLURL(_ url: URL, expectedRepository: String) -> Bool {
         guard url.scheme?.lowercased() == "https",
@@ -35,12 +36,11 @@ enum UpdateRepositoryValidator {
             return false
         }
 
-        var components = url.pathComponents
-        if components.first == "/" {
-            components.removeFirst()
-        }
-
-        guard components.count >= 3, components[2] == "releases" else {
+        let components = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+        guard components.count == 5,
+              components[2] == "releases",
+              components[3] == "tag",
+              !components[4].isEmpty else {
             return false
         }
 

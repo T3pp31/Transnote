@@ -123,4 +123,28 @@ final class UpdateURLValidatorTests: XCTestCase {
             )
         )
     }
+
+    // Given: タグを含まない /releases または /releases/latest
+    // When: matchesReleaseHTMLURL を実行
+    // Then: false を返す
+    func testMatchesReleaseHTMLURLRejectsReleasesPathWithoutTag() {
+        XCTAssertFalse(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+        XCTAssertFalse(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases/latest")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+        XCTAssertFalse(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases/anything")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+    }
 }

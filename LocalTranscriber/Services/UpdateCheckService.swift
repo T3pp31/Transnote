@@ -82,6 +82,7 @@ struct UpdateCheckService: UpdateChecking {
         return release
     }
 
+    /// `repository.full_name` がある場合は期待値と一致すること。欠落・一致いずれでも `html_url` は必ず検証する。
     private func isValidRepository(_ release: GitHubRelease) -> Bool {
         if let fullName = release.repository?.fullName,
            fullName != config.expectedGitHubRepository {
