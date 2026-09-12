@@ -369,6 +369,126 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertNil(offer)
     }
 
+    // Given: GitHub REST API 相当（repository フィールドなし）の新しいリリース
+    // When: checkForUpdate を実行
+    // Then: html_url からリポジトリを検証し UpdateOffer を返す
+    func testCheckForUpdateReturnsOfferWhenRepositoryFieldIsAbsent() async {
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": "Bug fixes",
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+              "assets": [
+                {
+                  "name": "Transnote.dmg",
+                  "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+
+        XCTAssertEqual(offer?.latestVersion, "0.2.0")
+        XCTAssertEqual(offer?.currentVersion, "0.1.0")
+        XCTAssertEqual(
+            offer?.downloadURL,
+            URL(string: "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg")
+        )
+    }
+
+    // Given: repository フィールドなし、html_url に期待リポジトリ文字列のみ埋め込み
+    // When: checkForUpdate を実行
+    // Then: nil を返す
+    func testCheckForUpdateReturnsNilWhenRepositoryFieldIsAbsentAndHTMLURLIsUnrelated() async {
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": null,
+              "html_url": "https://evil.example/redirect?x=github.com/T3pp31/Transnote",
+              "assets": [
+                {
+                  "name": "Transnote.dmg",
+                  "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertNil(offer)
+    }
+
+    // Given: repository.full_name が不一致、html_url は期待リポジトリ
+    // When: checkForUpdate を実行
+    // Then: nil を返す
+    func testCheckForUpdateReturnsNilWhenRepositoryFullNameConflictsWithHTMLURL() async {
+        MockURLProtocol.requestHandler = { _ in
+            let json = """
+            {
+              "tag_name": "v0.2.0",
+              "body": null,
+              "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+              "repository": {
+                "full_name": "evil/OtherApp"
+              },
+              "assets": [
+                {
+                  "name": "Transnote.dmg",
+                  "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg"
+                }
+              ]
+            }
+            """
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(json.utf8))
+        }
+
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" }
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertNil(offer)
+    }
+
     // Given: API がエラーを返す
     // When: checkForUpdate を実行
     // Then: nil を返す
