@@ -56,7 +56,7 @@ struct UpdateCheckService: UpdateChecking {
                 releaseNotes: release.body
             )
         } catch {
-            AppLogger.error("Update check failed: \(error.localizedDescription)", logger: AppLogger.general)
+            AppLogger.error("Update check failed: \(error)", logger: AppLogger.general)
             return nil
         }
     }
@@ -82,8 +82,16 @@ struct UpdateCheckService: UpdateChecking {
         return release
     }
 
+    /// `repository.full_name` がある場合は期待値と一致すること。欠落・一致いずれでも `html_url` は必ず検証する。
     private func isValidRepository(_ release: GitHubRelease) -> Bool {
-        release.repository.fullName == config.expectedGitHubRepository
+        if let fullName = release.repository?.fullName,
+           fullName != config.expectedGitHubRepository {
+            return false
+        }
+        return UpdateRepositoryValidator.matchesReleaseHTMLURL(
+            release.htmlURL,
+            expectedRepository: config.expectedGitHubRepository
+        )
     }
 
     private func resolveDownloadURL(from assets: [GitHubReleaseAsset]) -> URL? {
@@ -116,7 +124,7 @@ private struct GitHubRelease: Decodable {
     let body: String?
     let assets: [GitHubReleaseAsset]
     let htmlURL: URL
-    let repository: GitHubReleaseRepository
+    let repository: GitHubReleaseRepository?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
