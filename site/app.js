@@ -174,6 +174,9 @@
 
   fetch('https://api.github.com/repos/T3pp31/Transnote/releases/latest')
     .then(function (response) {
+      if (!response.ok) {
+        throw new Error('GitHub API request failed: ' + response.status);
+      }
       return response.json();
     })
     .then(function (release) {
@@ -214,6 +217,9 @@
 
   fetch('https://api.github.com/repos/T3pp31/Transnote/releases?per_page=30')
     .then(function (response) {
+      if (!response.ok) {
+        throw new Error('GitHub API request failed: ' + response.status);
+      }
       return response.json();
     })
     .then(function (releases) {
