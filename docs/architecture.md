@@ -2,47 +2,58 @@
 
 Transnote（内部アプリ名: LocalTranscriber）は **SwiftUI + WhisperKit** のネイティブ macOS アプリとして設計する。Python や Rust は v1 では採用しない。
 
-MVP では **SwiftUI + WhisperKit + AVFoundation + SwiftData または SQLite** で十分。Rust を入れるとビルドと配布の複雑さが増えるため、v1 では避ける。
-
-## 推奨アプリ構成
+## 推奨アプリ構成（実装済み）
 
 ```text
 LocalTranscriber/
 ├─ LocalTranscriberApp.swift
 ├─ Presentation/
 │  ├─ MainWindowView.swift
+│  ├─ MainWindowViewModel.swift
 │  ├─ FileDropView.swift
 │  ├─ TranscriptEditorView.swift
 │  ├─ SettingsView.swift
-│  └─ HistoryView.swift
+│  ├─ StatusBarView.swift
+│  ├─ ToastView.swift
+│  ├─ UpdateCheckViewModel.swift
+│  └─ TranscriptionCommands.swift
 │
 ├─ Domain/
 │  ├─ TranscriptionJob.swift
 │  ├─ Transcript.swift
 │  ├─ TranscriptSegment.swift
 │  ├─ AppSettings.swift
-│  └─ ExportFormat.swift
+│  ├─ ExportFormat.swift
+│  └─ TranscriptionProgress*.swift
 │
 ├─ Services/
 │  ├─ WhisperKitTranscriber.swift
 │  ├─ AudioFileService.swift
-│  ├─ ModelManager.swift
+│  ├─ AudioImportService.swift
 │  ├─ ExportService.swift
-│  ├─ HistoryStore.swift
+│  ├─ ModelAvailabilityService.swift
+│  ├─ ModelDownloadService.swift
+│  ├─ AudioPlayerService.swift
+│  ├─ DropImportService.swift
+│  ├─ DropURLParser.swift
+│  ├─ DropFileNameResolver.swift
+│  ├─ AudioFileNameResolver.swift
 │  └─ SecurityScopedFileAccess.swift
 │
 ├─ Infrastructure/
 │  ├─ AppDirectories.swift
 │  ├─ Logger.swift
-│  └─ ErrorMapper.swift
+│  ├─ ErrorMapper.swift
+│  └─ AppVersion.swift
 │
 └─ Tests/
    ├─ ExportServiceTests.swift
    ├─ TranscriptModelTests.swift
-   └─ TranscriptionSmokeTests.swift
+   ├─ TranscriptionSmokeTests.swift
+   └─ ...（単体テスト群）
 ```
 
-## 主要モジュール設計
+## 主要モジュール設計（実装済み）
 
 ### WhisperKitTranscriber
 
@@ -60,26 +71,34 @@ WhisperKit を直接触る部分はここに閉じ込める。
 - エラー整形
 ```
 
-想定インターフェース:
+実装インターフェース:
 
 ```swift
 protocol Transcriber {
-    func transcribe(_ job: TranscriptionJob) async throws -> Transcript
+    func transcribe(_ job: TranscriptionJob, progressHandler: @Sendable (TranscriptionProgressUpdate) -> Void?) async throws -> Transcript
     func cancel(jobID: UUID)
 }
 ```
 
 WhisperKit では、モデルを指定しない場合にデバイス向けの推奨モデルを自動選択・ダウンロードでき、明示的に `WhisperKitConfig(model:)` でモデル指定する例も示されている。([GitHub][1])
 
-### ModelManager
+### ModelAvailabilityService / ModelDownloadService
 
 モデル管理は UX 上かなり重要。
 
-機能:
+実装済み機能:
 
 ```text
 - 利用可能モデル一覧
 - 未ダウンロード / ダウンロード済み状態
+- モデルダウンロード
+- モデルフォルダ選択（同スコア時は決定的）
+- モデルファイル整合性検証
+```
+
+構想（未実装）:
+
+```text
 - モデル容量表示
 - 推奨モデル表示
 - モデル削除
@@ -98,13 +117,11 @@ WhisperKit では、モデルを指定しない場合にデバイス向けの推
 
 公式 README では、`large-v3-v20240930_626MB` が多言語精度重視の推奨、`tiny` がデバッグ用の最速ワークフローとして案内されている。([GitHub][1])
 
-### AudioFileService
+### AudioFileService / AudioImportService
 
 音声・動画ファイルの扱いを担当する。
 
-MVP ではまず音声ファイル中心にして、動画ファイル対応は少し後ろに置くのが安全。WhisperKit が案内している入力例は WAV / MP3 / M4A / FLAC なので、まずはこの 4 形式を正式対応にする。([Mintlify][2])
-
-MVP 対応:
+現状の実装:
 
 ```text
 - wav
@@ -113,7 +130,7 @@ MVP 対応:
 - flac
 ```
 
-v0.2 以降:
+構想（未実装）:
 
 ```text
 - mp4
@@ -121,6 +138,8 @@ v0.2 以降:
 - 音声抽出
 - 音声波形プレビュー
 ```
+
+WhisperKit が案内している入力例は WAV / MP3 / M4A / FLAC なので、まずはこの 4 形式を正式対応にする。([Mintlify][2])
 
 ### ExportService
 
@@ -160,15 +179,15 @@ struct TranscriptSegment: Codable, Identifiable {
 
 ## 画面設計
 
-### MainWindow
+### MainWindow（実装済み）
 
 ```text
 ┌──────────────────────────────────────────────┐
 │ Toolbar: モデル / 言語 / 開始 / 保存          │
-├───────────────┬──────────────────────────────┤
-│ 履歴・ファイル │ 文字起こし結果エディタ        │
-│               │                              │
-├───────────────┴──────────────────────────────┤
+├──────────────────────────────────────────────┤
+│ 文字起こし結果エディタ（セグメント再生可）       │
+│（履歴・ファイルリストは未実装）               │
+├──────────────────────────────────────────────┤
 │ 進捗バー / 状態 / キャンセル                  │
 └──────────────────────────────────────────────┘
 ```
@@ -183,7 +202,7 @@ struct TranscriptSegment: Codable, Identifiable {
 | 結果表示   | 編集可能なテキストビュー                 |
 | 進捗表示   | 初期化中、モデルDL中、文字起こし中、完了        |
 | 保存     | TXT / SRT / VTT / JSON       |
-| 履歴     | 過去の文字起こし結果                   |
+| 履歴     | 過去の文字起こし結果（未実装）              |
 
 macOS App Sandbox ではアプリのファイルアクセスが制限されるため、ユーザーが選択したファイルやフォルダを扱う設計にする。永続的にアクセスしたい出力先を保存する場合は、Security-scoped bookmark を使う前提で設計する。([Apple Developer][3])
 
