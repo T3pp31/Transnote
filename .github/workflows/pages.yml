@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'site/**'
+      - 'Config/github-config.json'
+      - 'scripts/generate-site-config.py'
       - 'Transnote.png'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
@@ -27,6 +29,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify site config is up to date
+        run: |
+          python3 scripts/generate-site-config.py --check
 
       - name: Prepare site assets
         run: cp Transnote.png site/Transnote.png
