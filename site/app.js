@@ -25,6 +25,22 @@
     }
   }
 
+  function isExpectedRepositoryReleaseURL(urlString) {
+    if (typeof urlString !== 'string' || urlString.length === 0) {
+      return false;
+    }
+    try {
+      var url = new URL(urlString);
+      if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'github.com') {
+        return false;
+      }
+      var pathPrefix = '/' + expectedRepository + '/releases/';
+      return url.pathname.indexOf(pathPrefix) === 0;
+    } catch (error) {
+      return false;
+    }
+  }
+
   function formatDate(isoString) {
     if (!isoString) {
       return '';
@@ -66,6 +82,9 @@
     var rendered = 0;
     releases.forEach(function (release) {
       if (typeof release.tag_name !== 'string') {
+        return;
+      }
+      if (!isExpectedRepositoryReleaseURL(release.html_url)) {
         return;
       }
       var dmg = findDmgAsset(release.assets);
@@ -180,13 +199,7 @@
       return response.json();
     })
     .then(function (release) {
-      var expectedReleasePagePrefix =
-        'https://github.com/' + expectedRepository + '/releases/';
-      if (
-        !release ||
-        typeof release.html_url !== 'string' ||
-        !release.html_url.startsWith(expectedReleasePagePrefix)
-      ) {
+      if (!release || !isExpectedRepositoryReleaseURL(release.html_url)) {
         return;
       }
 
