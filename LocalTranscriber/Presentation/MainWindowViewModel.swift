@@ -48,6 +48,7 @@ final class MainWindowViewModel: ObservableObject {
     private let audioImportService: AudioImportService
     private let exportService: ExportService
     private let fileAccess: SecurityScopedFileAccess
+    private let savePanelPresenter: any SavePanelPresenting
     private let settings: AppSettings
     private let modelAvailability: ModelAvailabilityService
     private let modelDownloadService: ModelDownloadService
@@ -59,6 +60,7 @@ final class MainWindowViewModel: ObservableObject {
         audioImportService: AudioImportService = AudioImportService(),
         exportService: ExportService = ExportService(),
         fileAccess: SecurityScopedFileAccess = .shared,
+        savePanelPresenter: any SavePanelPresenting = NSSavePanelPresenter(),
         settings: AppSettings = .shared,
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
         modelDownloadService: ModelDownloadService = ModelDownloadService(),
@@ -69,6 +71,7 @@ final class MainWindowViewModel: ObservableObject {
         self.audioImportService = audioImportService
         self.exportService = exportService
         self.fileAccess = fileAccess
+        self.savePanelPresenter = savePanelPresenter
         self.settings = settings
         self.modelAvailability = modelAvailability
         self.modelDownloadService = modelDownloadService
@@ -480,12 +483,11 @@ final class MainWindowViewModel: ObservableObject {
         guard var transcript = currentTranscript else { return }
         transcript.fullText = transcriptText
 
-        let panel = NSSavePanel()
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = defaultExportFilename(for: transcript, format: format)
-        panel.allowedContentTypes = [UTType(filenameExtension: format.fileExtension) ?? .plainText]
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let url = savePanelPresenter.presentSavePanel(
+            defaultFileName: defaultExportFilename(for: transcript, format: format),
+            allowedContentTypes: [UTType(filenameExtension: format.fileExtension) ?? .plainText]
+        )
+        guard let url else { return }
 
         do {
             try exportService.write(transcript: transcript, format: format, to: url)
@@ -745,3 +747,21 @@ final class MainWindowViewModel: ObservableObject {
 }
 
 import UniformTypeIdentifiers
+
+// MARK: - Save panel abstraction
+
+/// NSSavePanel の生成・表示を抽象化する。テストで差し替え可能にする。
+protocol SavePanelPresenting {
+    func presentSavePanel(defaultFileName: String, allowedContentTypes: [UTType]) -> URL?
+}
+
+struct NSSavePanelPresenter: SavePanelPresenting {
+    func presentSavePanel(defaultFileName: String, allowedContentTypes: [UTType]) -> URL? {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = defaultFileName
+        panel.allowedContentTypes = allowedContentTypes
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return url
+    }
+}
