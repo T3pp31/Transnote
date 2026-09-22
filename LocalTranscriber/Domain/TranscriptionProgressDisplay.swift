@@ -90,21 +90,26 @@ struct TranscriptionProgressDisplay: Equatable {
     private static func makeDetailLabel(for update: TranscriptionProgressUpdate) -> String? {
         switch update.phase {
         case .downloadingModel:
+            var detail = ""
             if let modelName = update.modelDisplayName {
-                if let completed = update.completedUnitCount,
-                   let total = update.totalUnitCount,
-                   total > 0 {
-                    let formatter = ByteCountFormatter()
-                    formatter.countStyle = .file
-                    let completedText = formatter.string(fromByteCount: completed)
-                    let totalText = formatter.string(fromByteCount: total)
-                    return "\(modelName) · \(completedText) / \(totalText)"
-                }
-                let percent = Int(update.fraction * 100)
-                return "\(modelName) · \(percent)%"
+                detail = modelName
+            }
+            if let resume = update.resumeState {
+                detail = detail.isEmpty ? resume : "\(detail) · \(resume)"
+            }
+            if let completed = update.completedUnitCount,
+               let total = update.totalUnitCount,
+               total > 0 {
+                let formatter = ByteCountFormatter()
+                formatter.countStyle = .file
+                let completedText = formatter.string(fromByteCount: completed)
+                let totalText = formatter.string(fromByteCount: total)
+                return detail.isEmpty
+                    ? "\(completedText) / \(totalText)"
+                    : "\(detail) · \(completedText) / \(totalText)"
             }
             let percent = Int(update.fraction * 100)
-            return "\(percent)%"
+            return detail.isEmpty ? "\(percent)%" : "\(detail) · \(percent)%"
 
         case .loadingModel:
             let guidance = NSLocalizedString(
