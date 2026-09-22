@@ -77,6 +77,26 @@ struct AppConfig {
     let allowedUpdateDownloadHosts: [String]
     let maxImportFileSizeBytes: Int64
 
+    /// 設定不整合を起動時に明示的に検出するための検証結果。
+    /// 空でない場合は LocalTranscriberApp の起動時にログへ出力する。
+    var validationErrors: [String] {
+        var errors: [String] = []
+        if defaultModelID.isEmpty {
+            errors.append("defaultModelID is empty")
+        } else if !models.contains(where: { $0.id == defaultModelID }) {
+            errors.append("defaultModelID '\(defaultModelID)' is not present in Models")
+        }
+        if defaultLanguageID.isEmpty {
+            errors.append("defaultLanguageID is empty")
+        } else if !languages.contains(where: { $0.id == defaultLanguageID }) {
+            errors.append("defaultLanguageID '\(defaultLanguageID)' is not present in Languages")
+        }
+        if supportedExtensions.isEmpty {
+            errors.append("supportedExtensions is empty")
+        }
+        return errors
+    }
+
     init(bundle: Bundle = .main) {
         let data: [String: Any]
         if let bundledURL = bundle.url(forResource: "Defaults", withExtension: "plist"),
