@@ -40,7 +40,7 @@
 
   function findDmgAsset(assets) {
     return (assets || []).find(function (asset) {
-      return /^Transnote-d[d.]*.dmg$/.test(asset.name);
+      return /^Transnote-[\d.]+\.dmg$/.test(asset.name);
     });
   }
 
@@ -227,4 +227,14 @@
     .catch(function () {
       showReleaseListError();
     });
+
+  // Node.js からの自動テスト用（ブラウザ実行では module が無いため無視される）
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+      isAllowedDownloadURL: isAllowedDownloadURL,
+      formatDate: formatDate,
+      findDmgAsset: findDmgAsset,
+      findSha256Asset: findSha256Asset
+    };
+  }
 })();

@@ -55,6 +55,25 @@ jobs:
           path: build/sbom/
           retention-days: ${{ steps.sbom.outputs.retention_days }}
 
+  site-js-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Site JavaScript tests
+        run: |
+          cd site
+          node app.test.js
+
+      - name: Release script tests
+        run: |
+          bash scripts/test-release-scripts.sh
+
   test:
     runs-on: macos-15
     timeout-minutes: 20
