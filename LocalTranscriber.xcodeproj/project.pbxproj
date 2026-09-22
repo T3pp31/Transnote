@@ -650,7 +650,6 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = LocalTranscriber;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/Contents/MacOS/Transnote";
 			};
 			name = Debug;
 		};
@@ -668,7 +667,6 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = LocalTranscriber;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/Contents/MacOS/Transnote";
 			};
 			name = Release;
 		};
