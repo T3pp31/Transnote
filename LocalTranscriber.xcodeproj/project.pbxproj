@@ -72,8 +72,10 @@
 		8F3B3951F2564EABA8D4178B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 558F41849BB04A75BA3E7CED /* Assets.xcassets */; };
 		DEADBEEF0324456089ABCDEF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = DEADBEEF0424456089ABCDEF /* Localizable.xcstrings */; };
 		EF7A511BF2804835884EE3BA /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = B47B44A97F03403F9FD0E152 /* WhisperKit */; };
+		F1F2F3F4F5F60718293E4F01 /* LocalTranscriberUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1F2F3F4F5F60718293E4F02 /* LocalTranscriberUITests.swift */; };
 		76AFE6AE13D7431EAE2718F1 /* Transnote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Transnote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E09411B9C8D2408FA63CDCAE /* LocalTranscriberTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LocalTranscriberTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1F2F3F4F5F60718293E4F03 /* LocalTranscriberUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LocalTranscriberUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		437307A109894F5488460299 /* LocalTranscriberApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriberApp.swift; sourceTree = "<group>"; };
 		D6CB8C460B9A448385B002F9 /* TranscriptionJob.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionJob.swift; sourceTree = "<group>"; };
 		BDD8963B208A4562B1B0056C /* Transcript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Transcript.swift; sourceTree = "<group>"; };
@@ -135,6 +137,7 @@
 		F1A2B3C4D5E64356A7890ABF /* UpdateURLValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateURLValidatorTests.swift; sourceTree = "<group>"; };
 		D5E6F7A8B9C04123DEF24012 /* ErrorMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorMapperTests.swift; sourceTree = "<group>"; };
 		F4B02D58C9E3507B0D1F2C66 /* LocalizedStringTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStringTestSupport.swift; sourceTree = "<group>"; };
+		F1F2F3F4F5F60718293E4F02 /* LocalTranscriberUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalTranscriberUITests.swift; sourceTree = "<group>"; };
 		AA01B001F101A2B3C4D5E602 /* PerformanceBaselineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceBaselineTests.swift; sourceTree = "<group>"; };
 		AA01B002F101A2B3C4D5E602 /* ModelResolveProbeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelResolveProbeTests.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A74889ABCDEF012 /* AudioFileNameResolverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioFileNameResolverTests.swift; sourceTree = "<group>"; };
@@ -149,6 +152,12 @@
 			files = (
 				EF7A511BF2804835884EE3BA /* WhisperKit in Frameworks */,
 			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1F2F3F4F5F60718293E4F06 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		B96466D6AF9543009AF761B9 /* Frameworks */ = {
@@ -240,6 +249,14 @@
 			path = LocalTranscriber;
 			sourceTree = "<group>";
 		};
+		F1F2F3F4F5F60718293E4F0C /* LocalTranscriberUITests */ = {
+			isa = PBXGroup;
+			children = (
+				F1F2F3F4F5F60718293E4F02 /* LocalTranscriberUITests.swift */,
+			);
+			path = LocalTranscriberUITests;
+			sourceTree = "<group>";
+		};
 		590967070A444DE5A1AEF073 /* LocalTranscriberTests */ = {
 			isa = PBXGroup;
 			children = (
@@ -284,6 +301,7 @@
 			children = (
 				76AFE6AE13D7431EAE2718F1 /* Transnote.app */,
 				E09411B9C8D2408FA63CDCAE /* LocalTranscriberTests.xctest */,
+				F1F2F3F4F5F60718293E4F03 /* LocalTranscriberUITests.xctest */,
 			);
 			sourceTree = "<group>";
 		};
@@ -292,10 +310,18 @@
 			children = (
 				E31142D82D754BACB1ACC1D6 /* LocalTranscriber */,
 				590967070A444DE5A1AEF073 /* LocalTranscriberTests */,
+				F1F2F3F4F5F60718293E4F0C /* LocalTranscriberUITests */,
 				DC81F67730FA406595A1E0C8 /* Config */,
 				00707E4F7AEC4EF8B375B4C5 /* Products */,
 			);
 			sourceTree = "<group>";
+		};
+		F1F2F3F4F5F60718293E4F08 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 36F69D50A8174F35A1508C92 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C03E9C1AA4674E7DAF75E1B4;
+			remoteInfo = LocalTranscriber;
 		};
 		A015FEF9CDEC4F6CA31172DC /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -303,6 +329,11 @@
 			proxyType = 1;
 			remoteGlobalIDString = C03E9C1AA4674E7DAF75E1B4;
 			remoteInfo = LocalTranscriber;
+		};
+		F1F2F3F4F5F60718293E4F07 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C03E9C1AA4674E7DAF75E1B4 /* LocalTranscriber */;
+			targetProxy = F1F2F3F4F5F60718293E4F08 /* PBXContainerItemProxy */;
 		};
 		1F56F05C5DEC458F89C539B7 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -343,6 +374,22 @@
 			productReference = E09411B9C8D2408FA63CDCAE /* LocalTranscriberTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		F1F2F3F4F5F60718293E4F04 /* LocalTranscriberUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F1F2F3F4F5F60718293E4F09 /* Build configuration list for PBXNativeTarget "LocalTranscriberUITests" */;
+			buildPhases = (
+				F1F2F3F4F5F60718293E4F05 /* Sources */,
+				F1F2F3F4F5F60718293E4F06 /* Frameworks */,
+			);
+			buildRules = ();
+			dependencies = (
+				F1F2F3F4F5F60718293E4F07 /* PBXTargetDependency */,
+			);
+			name = LocalTranscriberUITests;
+			productName = LocalTranscriberUITests;
+			productReference = F1F2F3F4F5F60718293E4F03 /* LocalTranscriberUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		36F69D50A8174F35A1508C92 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
@@ -354,6 +401,10 @@
 						CreatedOnToolsVersion = 16.0;
 					};
 					35EC6452BF5049B4B1D6AD5F = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = C03E9C1AA4674E7DAF75E1B4;
+					};
+					F1F2F3F4F5F60718293E4F04 = {
 						CreatedOnToolsVersion = 16.0;
 						TestTargetID = C03E9C1AA4674E7DAF75E1B4;
 					};
@@ -374,6 +425,7 @@
 			targets = (
 				C03E9C1AA4674E7DAF75E1B4 /* LocalTranscriber */,
 				35EC6452BF5049B4B1D6AD5F /* LocalTranscriberTests */,
+				F1F2F3F4F5F60718293E4F04 /* LocalTranscriberUITests */,
 			);
 		};
 		6B91BF9C51B949F8AA3BFE2B /* Sources */ = {
@@ -420,6 +472,14 @@
 				A0B1C2D3E4F547A8B9C0D1E2 /* ToastView.swift in Sources */,
 				473F114077794C58A30F647A /* DesignTokens.swift in Sources */,
 				DEADBEEF0124456089ABCDEF /* TranscriptionCommands.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1F2F3F4F5F60718293E4F05 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1F2F3F4F5F60718293E4F01 /* LocalTranscriberUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -477,6 +537,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				GCC_DYNAMIC_NO_PIC = NO;
@@ -498,6 +559,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = NO;
 				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -574,6 +636,45 @@
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Transnote";
 			};
+		F1F2F3F4F5F60718293E4F0A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriberUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = LocalTranscriberUITests;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = LocalTranscriber;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/Contents/MacOS/Transnote";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+			};
+			name = Debug;
+		};
+		F1F2F3F4F5F60718293E4F0B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.1.5;
+				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriberUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_MODULE_NAME = LocalTranscriberUITests;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = LocalTranscriber;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/Contents/MacOS/Transnote";
+				BUNDLE_LOADER = "$(TEST_HOST)";
+			};
+			name = Release;
+		};
+
 			name = Debug;
 		};
 		1A4ECE5F738A4589874A2CFE /* Release */ = {
@@ -608,6 +709,15 @@
 			buildConfigurations = (
 				0C3A196307F74678A0820E32 /* Debug */,
 				0C82D856DF3D45DEAD097D29 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F1F2F3F4F5F60718293E4F09 /* Build configuration list for PBXNativeTarget "LocalTranscriberUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1F2F3F4F5F60718293E4F0A /* Debug */,
+				F1F2F3F4F5F60718293E4F0B /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -132,6 +132,7 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             -derivedDataPath DerivedData \
             -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
+            -skip-testing:LocalTranscriberUITests \
             -skip-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
 
       # Save with the run_id-scoped primary key only when this run did not restore
