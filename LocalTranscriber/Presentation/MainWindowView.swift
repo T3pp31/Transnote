@@ -45,6 +45,12 @@ struct MainWindowView: View {
                         offer.currentVersion
                     )
                 )
+                if let notes = offer.releaseNotes, !notes.isEmpty {
+                    Text(notes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 4)
+                }
             }
         }
         .alert(
