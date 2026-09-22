@@ -187,6 +187,13 @@ final class MainWindowViewModel: ObservableObject {
         downloadedModelIDs.contains(model.id)
     }
 
+    /// モデルの使用ディスク容量を表示用テキストで返す。未ダウンロードの場合は nil。
+    func modelDiskUsageText(_ model: ModelOption) -> String? {
+        guard isModelDownloaded(model) else { return nil }
+        let bytes = modelAvailability.diskUsage(whisperKitModelName: model.whisperKitModelName)
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
     func modelDownloadSuccessToastMessage() -> String {
         if selectedFile != nil {
             return NSLocalizedString(
