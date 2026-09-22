@@ -18,6 +18,12 @@ final class AudioPlayerService {
 
     private(set) var isPlaying = false
     private(set) var loadedURL: URL?
+    /// 現在の再生位置（秒）。再生していない場合は最後の値を保持する。
+    private(set) var currentPlaybackTime: TimeInterval = 0
+    /// 現在読み込み中の音声の長さ（秒）。
+    private(set) var duration: TimeInterval = 0
+    /// 再生位置更新時のコールバック（現在秒, セグメント長秒）。
+    var onPlaybackTimeUpdate: ((TimeInterval, TimeInterval) -> Void)?
 
     var hasActiveTimeObserver: Bool {
         timeObserver != nil
@@ -28,6 +34,8 @@ final class AudioPlayerService {
         let item = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: item)
         loadedURL = url
+        currentPlaybackTime = 0
+        duration = 0
     }
 
     func playSegment(
@@ -136,6 +144,12 @@ final class AudioPlayerService {
         let interval = CMTime(seconds: 0.05, preferredTimescale: 600)
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
             guard let self else { return }
+            self.currentPlaybackTime = time.seconds
+            let itemDuration = self.player?.currentItem?.duration.seconds ?? 0
+            if itemDuration.isFinite && itemDuration > 0 {
+                self.duration = itemDuration
+            }
+            self.onPlaybackTimeUpdate?(time.seconds, self.segmentEndTime)
             if time.seconds >= self.segmentEndTime {
                 self.finishSegmentPlayback()
             }
