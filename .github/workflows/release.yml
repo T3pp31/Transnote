@@ -91,6 +91,40 @@ jobs:
             --archive "${{ env.ARCHIVE_PATH }}" \
             --output "${{ env.RELEASE_APP_DIR }}"
 
+      - name: Sign app with Developer ID
+        if: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_CERTIFICATE_PWD != '' && secrets.MACOS_CERTIFICATE_IDENTITY != '' }}
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychain -d user -s "$KEYCHAIN"
+          APP_PATH="${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app"
+          /usr/bin/codesign --force --deep --options runtime --sign "$CERTIFICATE_IDENTITY" "$APP_PATH"
+          echo "SIGNED=1" >> "$GITHUB_ENV"
+
+      - name: Notarize app
+        if: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && env.SIGNED == '1' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          APP_PATH="${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app"
+          ZIP_PATH="$RUNNER_TEMP/Transnote-signed.zip"
+          ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
+          xcrun notarytool submit "$ZIP_PATH"             --apple-id "$APPLE_ID"             --password "$APPLE_ID_PASSWORD"             --team-id "$APPLE_TEAM_ID"             --wait
+          xcrun stapler staple "$APP_PATH"
+          echo "NOTARIZED=1" >> "$GITHUB_ENV"
+
       - name: Read Syft version
         id: syft_config
         run: |
