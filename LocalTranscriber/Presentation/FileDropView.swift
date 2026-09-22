@@ -193,6 +193,17 @@ struct FileDropView: View {
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
         dropErrorMessage = nil
+
+        // 複数ファイルのドロップは正式対応しない（現状は1ファイルのみ）。
+        // 明示的に拒否して、ユーザーが期待する挙動を明確にする。
+        if providers.count > 1 {
+            dropErrorMessage = NSLocalizedString(
+                "複数ファイルのドロップには対応していません。1つの音声ファイルをドロップしてください。",
+                comment: "Multiple file drop unsupported"
+            )
+            return false
+        }
+
         guard let provider = providers.first else { return false }
 
         let suggestedName = provider.suggestedName
