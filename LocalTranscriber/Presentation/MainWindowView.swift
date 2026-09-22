@@ -6,6 +6,7 @@ struct MainWindowView: View {
     @StateObject private var updateChecker = UpdateCheckViewModel()
     @ObservedObject private var settings = AppSettings.shared
     @State private var showingSettings = false
+    @State private var showingHistory = false
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -203,6 +204,15 @@ struct MainWindowView: View {
     private var settingsToolbarRow: some View {
         HStack(spacing: DesignTokens.Spacing.controlSpacing) {
             Button {
+                showingHistory = true
+            } label: {
+                Label("履歴", systemImage: "clock")
+            }
+            .buttonStyle(.bordered)
+            .disabled(viewModel.isBusy)
+            .accessibilityLabel("履歴")
+
+            Button {
                 showingSettings = true
             } label: {
                 Label("設定", systemImage: "gearshape")
@@ -383,5 +393,57 @@ private struct ModelDownloadGuidanceBanner: View {
                 .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct HistorySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var items: [Transcript] = []
+    private let store = HistoryStore()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("文字起こし履歴")
+                    .font(.title2.bold())
+                Spacer()
+                Button("閉じる") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+
+            if items.isEmpty {
+                Text("履歴はまだありません。")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 40)
+            } else {
+                List(items) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.sourceFileName)
+                            .font(.headline)
+                        HStack(spacing: 8) {
+                            Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let language = item.language {
+                                Text(language)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text(item.fullText)
+                            .font(.callout)
+                            .lineLimit(3)
+                    }
+                }
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 480, minHeight: 360)
+        .onAppear {
+            items = store.recent()
+        }
     }
 }
