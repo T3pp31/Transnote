@@ -89,4 +89,29 @@ final class ExportServiceTests: XCTestCase {
         let srt = try exportService.content(for: transcript, format: .srt)
         XCTAssertTrue(srt.contains("00:00:01,234 --> 00:00:05,678"))
     }
+
+    func testExportWithEmptySegmentsDoesNotUseZeroDuration() throws {
+        let transcript = Transcript(
+            sourceFileName: "empty-segments.wav",
+            fullText: "Only full text",
+            segments: []
+        )
+        let srt = try exportService.content(for: transcript, format: .srt)
+        let vtt = try exportService.content(for: transcript, format: .vtt)
+        XCTAssertFalse(srt.contains("00:00:00,000 --> 00:00:00,000"))
+        XCTAssertFalse(vtt.contains("00:00:00.000 --> 00:00:00.000"))
+    }
+
+    func testExportWithEmptySegmentsUsesMinimalDuration() throws {
+        let transcript = Transcript(
+            sourceFileName: "empty-segments.wav",
+            fullText: "Only full text",
+            segments: []
+        )
+        let srt = try exportService.content(for: transcript, format: .srt)
+        let vtt = try exportService.content(for: transcript, format: .vtt)
+        XCTAssertTrue(srt.contains("00:00:00,000 --> 00:00:01,000"))
+        XCTAssertTrue(vtt.contains("00:00:00.000 --> 00:00:01.000"))
+    }
+
 }
