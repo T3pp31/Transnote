@@ -53,4 +53,40 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(ExportFormat.srt.fileExtension, "srt")
         XCTAssertEqual(ExportFormat.vtt.fileExtension, "vtt")
     }
+    // MARK: - History store (#213)
+
+    func testHistoryStoreSaveAndRecent() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+
+        let transcript = Transcript(
+            sourceFileName: "meeting.wav",
+            language: "ja",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            fullText: "こんにちは",
+            segments: [TranscriptSegment(startTime: 0, endTime: 1, text: "こんにちは")]
+        )
+
+        try store.save(transcript)
+        let recent = store.recent()
+
+        XCTAssertEqual(recent.count, 1)
+        XCTAssertEqual(recent.first?.sourceFileName, "meeting.wav")
+        XCTAssertEqual(recent.first?.fullText, "こんにちは")
+    }
+
+    func testHistoryStoreDelete() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+
+        let transcript = Transcript(sourceFileName: "a.wav", fullText: "hello")
+        try store.save(transcript)
+        store.delete(transcript)
+
+        XCTAssertTrue(store.recent().isEmpty)
+    }
 }
