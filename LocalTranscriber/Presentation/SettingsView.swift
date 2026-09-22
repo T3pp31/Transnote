@@ -20,7 +20,7 @@ struct SettingsView: View {
                     Picker("モデル", selection: $settings.selectedModelID) {
                         ForEach(settings.models) { model in
                             Label(
-                                model.displayName,
+                                model.localizedDisplayName,
                                 systemImage: isModelDownloaded(model)
                                     ? "checkmark.circle"
                                     : "arrow.down.circle"
@@ -67,7 +67,7 @@ struct SettingsView: View {
                         .font(.headline)
                     Picker("言語", selection: $settings.selectedLanguageID) {
                         ForEach(settings.languages) { language in
-                            Text(language.displayName).tag(language.id)
+                            Text(language.localizedDisplayName).tag(language.id)
                         }
                     }
                     .pickerStyle(.menu)
