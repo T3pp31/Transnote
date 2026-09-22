@@ -82,6 +82,21 @@ struct SettingsView: View {
                 }
             }
 
+            Toggle(
+                isOn: $settings.updateCheckEnabled
+            ) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("アップデートを自動確認")
+                    Text("起動時に最新バージョンを確認します")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(.checkbox)
+            .onChange(of: settings.updateCheckEnabled) { _ in
+                settings.persist()
+            }
+
             Spacer()
 
             HStack {
