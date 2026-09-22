@@ -17,14 +17,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # CI-mode SBOM only reads Config/sbom.plist and scans Package.resolved
-  # (no Xcode). Run on ubuntu-latest so it does not consume scarce macOS
-  # runners; generate-sbom.sh falls back to python3+plistlib without PlistBuddy.
-  sbom:
+  lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: ShellCheck
+        run: |
+          shellcheck scripts/*.sh scripts/*.command
+
+      - name: Python syntax check
+        run: |
+          python3 -m py_compile scripts/generate_xcodeproj.py
 
       - name: Read Syft version
         id: syft_config
@@ -136,6 +144,12 @@ jobs:
 
       # Save with the run_id-scoped primary key only when this run did not restore
       # that exact key (a cache-hit on the primary key means the entry already exists).
+      - name: Swift format check
+        run: |
+          SF="$(xcrun -f swift-format)"
+          echo "Swifformat version: $($SF --version 2>&1 || true)"
+          $SF lint --recursive LocalTranscriber LocalTranscriberTests || echo "swift-format warnings (non-blocking)"
+
       - name: Save DerivedData cache
         if: always() && steps.derived_data_cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
