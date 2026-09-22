@@ -99,4 +99,37 @@ final class AudioFileServiceTests: XCTestCase {
 
         XCTAssertEqual(parsed, original)
     }
+    // MARK: - drop services / supported audio types (#244)
+
+    func testSupportedAudioTypesResolveExtension() {
+        XCTAssertEqual(SupportedAudioTypes.resolveExtension(for: URL(fileURLWithPath: "/a/b.wav")), "wav")
+        XCTAssertEqual(SupportedAudioTypes.resolveExtension(for: URL(fileURLWithPath: "/a/b.MP3")), "mp3")
+        XCTAssertNil(SupportedAudioTypes.resolveExtension(for: URL(fileURLWithPath: "/a/b")))
+    }
+
+    func testSupportedAudioTypesIsSupported() {
+        let supported = ["wav", "mp3", "m4a", "flac"]
+        XCTAssertTrue(SupportedAudioTypes.isSupported(url: URL(fileURLWithPath: "/a/b.wav"), supportedExtensions: supported))
+        XCTAssertFalse(SupportedAudioTypes.isSupported(url: URL(fileURLWithPath: "/a/b.mov"), supportedExtensions: supported))
+    }
+
+    func testSupportedAudioTypesAllowedContentTypes() {
+        let types = SupportedAudioTypes.allowedContentTypes(for: ["wav", "mp3", "m4a"])
+        XCTAssertEqual(types.count, 3)
+    }
+
+    func testDropImportServiceHasSupportedExtension() {
+        XCTAssertTrue(DropImportService.hasSupportedExtension("recording.m4a", supportedExtensions: ["m4a"]))
+        XCTAssertFalse(DropImportService.hasSupportedExtension("recording.mov", supportedExtensions: ["m4a"]))
+    }
+
+    func testDropURLParserReadsStringFileURL() {
+        let parsed = DropURLParser.url(from: "file:///Users/test/Music/recording.m4a" as NSString)
+        XCTAssertEqual(parsed?.path, "/Users/test/Music/recording.m4a")
+    }
+
+    func testDropURLParserReturnsNilForUnknownType() {
+        let parsed = DropURLParser.url(from: 42 as NSNumber)
+        XCTAssertNil(parsed)
+    }
 }
