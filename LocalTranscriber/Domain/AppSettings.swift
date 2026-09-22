@@ -11,8 +11,21 @@ struct LanguageOption: Identifiable, Sendable, Equatable {
     let displayName: String
 }
 
+/// ViewModel などから参照する AppSettings の抽象。テスト・DI のために Protocol 化する。
 @MainActor
-final class AppSettings: ObservableObject {
+protocol AppSettingsProviding: AnyObject, ObservableObject {
+    var selectedModelID: String { get set }
+    var selectedLanguageID: String { get set }
+    var models: [ModelOption] { get }
+    var languages: [LanguageOption] { get }
+    var supportedExtensions: [String] { get }
+    var selectedModel: ModelOption? { get }
+    var selectedLanguage: LanguageOption? { get }
+    func persist()
+}
+
+@MainActor
+final class AppSettings: ObservableObject, AppSettingsProviding {
     static let shared = AppSettings()
 
     @Published var selectedModelID: String
