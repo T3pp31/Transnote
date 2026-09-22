@@ -165,4 +165,65 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedFile, previousFile)
         XCTAssertEqual(viewModel.transcriptText, "existing text")
     }
+
+    // MARK: - file change race regression (#246)
+
+    func testFileSelectionIsIgnoredWhileTranscriptionIsRunning() async throws {
+        let gate = AsyncGate()
+        let transcriber = MockTranscriber(gate: gate)
+        let vm = MainWindowViewModel(
+            transcriber: transcriber,
+            audioImportService: AudioImportService(importsRoot: importsRoot)
+        )
+
+        let sourceURL = sourceRoot.appendingPathComponent("race.wav")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
+        vm.selectFile(url: sourceURL)
+
+        vm.startTranscription()
+        XCTAssertTrue(vm.isBusy)
+
+        let before = vm.selectedFile?.url
+        let replacement = sourceRoot.appendingPathComponent("other.wav")
+        FileManager.default.createFile(atPath: replacement.path, contents: Data("x".utf8))
+        vm.selectFile(url: replacement)
+
+        XCTAssertEqual(vm.selectedFile?.url, before)
+        gate.open()
+    }
 }
+
+// 完了を待機できる非同期ゲート
+final class AsyncGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var opened = false
+
+    func wait() async {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            self.continuation = cont
+            lock.unlock()
+        }
+    }
+
+    func open() {
+        lock.lock()
+        opened = true
+        continuation?.resume()
+        continuation = nil
+        lock.unlock()
+    }
+}
+
+// テスト用の Transcriber モック
+final class MockTranscriber: Transcriber, @unchecked Sendable {
+    private let gate: AsyncGate
+    init(gate: AsyncGate) { self.gate = gate }
+    func transcribe(_ job: TranscriptionJob, progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?) async throws -> Transcript {
+        await gate.wait()
+        return Transcript(sourceFileName: job.sourceFileName, fullText: "done")
+    }
+    func cancel(jobID: UUID) {}
+}
+
