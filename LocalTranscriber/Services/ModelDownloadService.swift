@@ -37,6 +37,16 @@ struct ModelDownloadService: Sendable {
         )
     }
 
+    /// 指定モデルのダウンロード済みフォルダを削除する。
+    /// モデルが未ダウンロードの場合は何もしない。
+    func deleteModel(whisperKitModelName: String) throws {
+        guard let folder = modelAvailability.modelFolder(for: whisperKitModelName) else {
+            return
+        }
+        AppLogger.info("Deleting model folder: \(folder.lastPathComponent)", logger: AppLogger.transcription)
+        try fileManager.removeItem(at: folder)
+    }
+
     private func download(
         whisperKitModelName: String,
         modelDisplayName: String?,

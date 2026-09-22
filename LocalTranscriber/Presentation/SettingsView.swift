@@ -7,6 +7,7 @@ struct SettingsView: View {
     let canDownloadSelectedModel: Bool
     let isModelDownloaded: (ModelOption) -> Bool
     let onDownloadSelectedModel: () -> Void
+    let onDeleteSelectedModel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -59,6 +60,17 @@ struct SettingsView: View {
                                 comment: "Download selected model accessibility hint"
                             )
                         )
+                    }
+
+                    if let selected = settings.selectedModel,
+                       isModelDownloaded(selected) {
+                        Button {
+                            onDeleteSelectedModel()
+                        } label: {
+                            Label("このモデルを削除", systemImage: "trash")
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("選択中のモデルを削除")
                     }
                 }
 

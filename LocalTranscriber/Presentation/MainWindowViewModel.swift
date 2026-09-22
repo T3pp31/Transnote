@@ -187,6 +187,24 @@ final class MainWindowViewModel: ObservableObject {
         downloadedModelIDs.contains(model.id)
     }
 
+    /// 選択中モデルがダウンロード済みの場合に削除する。
+    func deleteSelectedModel() {
+        guard let model = settings.selectedModel,
+              isModelDownloaded(model) else { return }
+        do {
+            try modelDownloadService.deleteModel(whisperKitModelName: model.whisperKitModelName)
+            refreshModelAvailability()
+            showToast(
+                String(
+                    format: NSLocalizedString("モデル「%@」を削除しました", comment: "Model deleted toast"),
+                    model.displayName
+                )
+            )
+        } catch {
+            handleError(error, context: .general)
+        }
+    }
+
     func modelDownloadSuccessToastMessage() -> String {
         if selectedFile != nil {
             return NSLocalizedString(

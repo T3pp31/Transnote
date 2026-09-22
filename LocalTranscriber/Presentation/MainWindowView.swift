@@ -85,7 +85,8 @@ struct MainWindowView: View {
                 isBusy: viewModel.isBusy,
                 canDownloadSelectedModel: viewModel.canDownloadSelectedModel,
                 isModelDownloaded: viewModel.isModelDownloaded,
-                onDownloadSelectedModel: viewModel.downloadSelectedModel
+                onDownloadSelectedModel: viewModel.downloadSelectedModel,
+                onDeleteSelectedModel: viewModel.deleteSelectedModel
             )
         }
         .overlay(alignment: .top) {
