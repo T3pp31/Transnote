@@ -426,6 +426,16 @@ final class MainWindowViewModel: ObservableObject {
         lastAnnouncedPhase = nil
     }
 
+    /// セグメントのテキストを更新し、currentTranscript と全文に同期する。
+    func updateSegmentText(id: UUID, text: String) {
+        guard var transcript = currentTranscript else { return }
+        if let index = transcript.segments.firstIndex(where: { $0.id == id }) {
+            transcript.segments[index].text = text
+            currentTranscript = transcript
+            transcriptText = transcript.fullText
+        }
+    }
+
     func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(transcriptText, forType: .string)

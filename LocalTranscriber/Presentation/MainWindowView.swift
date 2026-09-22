@@ -145,6 +145,7 @@ struct MainWindowView: View {
             playingSegmentID: viewModel.playingSegmentID,
             isEditing: $viewModel.isEditingTranscript,
             onSegmentTap: viewModel.playSegment,
+            onSegmentTextChange: viewModel.updateSegmentText,
             onCopy: viewModel.copyTranscript,
             needsModelDownload: viewModel.shouldShowModelDownloadButton
         )

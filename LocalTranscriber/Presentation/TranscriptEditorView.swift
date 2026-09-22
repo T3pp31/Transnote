@@ -8,6 +8,7 @@ struct TranscriptEditorView: View {
     let playingSegmentID: UUID?
     @Binding var isEditing: Bool
     let onSegmentTap: (TranscriptSegment) -> Void
+    let onSegmentTextChange: (UUID, String) -> Void
     let onCopy: () -> Void
     var needsModelDownload: Bool = false
 
@@ -205,7 +206,8 @@ struct TranscriptEditorView: View {
                     SegmentPlaybackRow(
                         segment: segment,
                         isPlaying: playingSegmentID == segment.id,
-                        onTap: { onSegmentTap(segment) }
+                        onTap: { onSegmentTap(segment) },
+                        onTextChange: { newText in onSegmentTextChange(segment.id, newText) }
                     )
                 }
             }
@@ -227,6 +229,7 @@ private struct SegmentPlaybackRow: View {
     let segment: TranscriptSegment
     let isPlaying: Bool
     let onTap: () -> Void
+    let onTextChange: (String) -> Void
 
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -245,7 +248,11 @@ private struct SegmentPlaybackRow: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 88, alignment: .leading)
 
-                Text(segment.text)
+                TextField("", text: Binding(
+                    get: { segment.text },
+                    set: { onTextChange($0) }
+                ))
+                    .textFieldStyle(.plain)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
             }
