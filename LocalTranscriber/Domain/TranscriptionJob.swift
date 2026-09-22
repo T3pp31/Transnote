@@ -8,6 +8,7 @@ struct TranscriptionJob: Identifiable, Sendable {
     let whisperKitModelName: String
     let modelDisplayName: String
     let languageID: String
+    let vadEnabled: Bool
 
     init(
         id: UUID = UUID(),
@@ -16,7 +17,8 @@ struct TranscriptionJob: Identifiable, Sendable {
         modelID: String,
         whisperKitModelName: String,
         modelDisplayName: String,
-        languageID: String
+        languageID: String,
+        vadEnabled: Bool = false
     ) {
         self.id = id
         self.audioFileURL = audioFileURL
@@ -25,5 +27,6 @@ struct TranscriptionJob: Identifiable, Sendable {
         self.whisperKitModelName = whisperKitModelName
         self.modelDisplayName = modelDisplayName
         self.languageID = languageID
+        self.vadEnabled = vadEnabled
     }
 }

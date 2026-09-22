@@ -72,7 +72,7 @@ actor WhisperKitTranscriber: Transcriber {
                 throw AppError.fileAccessDenied
             }
 
-            let decodeOptions = makeDecodingOptions(languageID: job.languageID)
+            let decodeOptions = makeDecodingOptions(languageID: job.languageID, vadEnabled: job.vadEnabled)
 
             progressHandler?(
                 .make(phase: .convertingAudio, fraction: 0, modelDisplayName: job.modelDisplayName)
@@ -239,8 +239,9 @@ actor WhisperKitTranscriber: Transcriber {
         "ja", "en", "zh", "ko", "fr", "de", "es", "it", "pt", "ru"
     ]
 
-    private func makeDecodingOptions(languageID: String) -> DecodingOptions {
+    private func makeDecodingOptions(languageID: String, vadEnabled: Bool = false) -> DecodingOptions {
         if Self.explicitLanguageIDs.contains(languageID) {
+
             return DecodingOptions(
                 language: languageID,
                 usePrefillPrompt: true,

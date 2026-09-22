@@ -55,6 +55,7 @@ protocol AppSettingsProviding: AnyObject, ObservableObject {
     var supportedExtensions: [String] { get }
     var selectedModel: ModelOption? { get }
     var selectedLanguage: LanguageOption? { get }
+    var vadEnabled: Bool { get set }
     func persist()
 }
 
@@ -66,6 +67,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     @Published var selectedLanguageID: String
     @Published var updateCheckEnabled: Bool
     @Published var defaultExportFormat: ExportFormat
+    @Published var vadEnabled: Bool
 
     let models: [ModelOption]
     let languages: [LanguageOption]
@@ -76,6 +78,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     private let languageKey = "selectedLanguageID"
     private let updateCheckKey = "updateCheckEnabled"
     private let defaultExportFormatKey = "defaultExportFormat"
+    private let vadKey = "vadEnabled"
 
     private init() {
         let config = AppConfig.shared
@@ -95,6 +98,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
         } else {
             defaultExportFormat = .txt
         }
+        vadEnabled = defaults.object(forKey: vadKey) as? Bool ?? false
 
         if !models.contains(where: { $0.id == selectedModelID }) {
             selectedModelID = defaultModel
@@ -137,6 +141,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
         defaults.set(selectedLanguageID, forKey: languageKey)
         defaults.set(updateCheckEnabled, forKey: updateCheckKey)
         defaults.set(defaultExportFormat.rawValue, forKey: defaultExportFormatKey)
+        defaults.set(vadEnabled, forKey: vadKey)
     }
 }
 

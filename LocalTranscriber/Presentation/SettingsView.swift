@@ -154,6 +154,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("アップデートを自動確認")
                     Text("起動時に最新バージョンを確認します")
+
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -180,6 +181,21 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+            Toggle(
+                isOn: $settings.vadEnabled
+            ) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("VAD（音声区間検出）")
+                    Text("無音区間の幻聴を抑制します（WhisperKit 対応モデルのみ）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(.checkbox)
+            .onChange(of: settings.vadEnabled) { _ in
+                settings.persist()
+            }
 
             Spacer()
 
