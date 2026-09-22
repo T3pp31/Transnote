@@ -38,6 +38,22 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    if let recommended = settings.recommendedModel {
+                        Text(
+                            String(
+                                format: NSLocalizedString(
+                                    "おすすめモデル: %@",
+                                    comment: "Recommended model label"
+                                ),
+                                recommended.displayName
+                            )
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(6)
+                        .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                    }
+
                     if let selectedModel = settings.selectedModel,
                        !isModelDownloaded(selectedModel) {
                         Button {
