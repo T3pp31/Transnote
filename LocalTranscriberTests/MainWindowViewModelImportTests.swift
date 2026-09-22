@@ -176,6 +176,8 @@ final class MainWindowViewModelImportTests: XCTestCase {
             audioImportService: AudioImportService(importsRoot: importsRoot)
         )
 
+        AppSettings.shared.selectedModelID = "base"
+        vm.downloadedModelIDs = ["base"]
         let sourceURL = sourceRoot.appendingPathComponent("race.wav")
         FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
         vm.selectFile(url: sourceURL)
