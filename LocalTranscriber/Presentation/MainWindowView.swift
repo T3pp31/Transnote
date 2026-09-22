@@ -7,6 +7,7 @@ struct MainWindowView: View {
     @ObservedObject private var settings = AppSettings.shared
     @State private var showingSettings = false
     @State private var showingHistory = false
+    @State private var recoveryTranscript: Transcript?
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -19,6 +20,28 @@ struct MainWindowView: View {
         .onAppear {
             viewModel.refreshModelAvailability()
             updateChecker.checkOnLaunch()
+            recoveryTranscript = viewModel.temporaryTranscriptForRecovery()
+        }
+        .alert(
+            "クラッシュ復旧",
+            isPresented: Binding(
+                get: { recoveryTranscript != nil },
+                set: { if !$0 { recoveryTranscript = nil } }
+            )
+        ) {
+            Button("復元") {
+                if let transcript = recoveryTranscript {
+                    viewModel.restoreTranscript(transcript)
+                    viewModel.clearTemporaryTranscript()
+                }
+                recoveryTranscript = nil
+            }
+            Button("破棄", role: .destructive) {
+                viewModel.clearTemporaryTranscript()
+                recoveryTranscript = nil
+            }
+        } message: {
+            Text("前回の文字起こし途中データが見つかりました。復元しますか？")
         }
         .alert(
             "アップデートが利用可能です",

@@ -178,6 +178,27 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
+    /// クラッシュ復旧用の一時 Transcript を取得する。
+    func temporaryTranscriptForRecovery() -> Transcript? {
+        historyStore.loadTemporary()
+    }
+
+    /// 復旧用一時 Transcript を削除する。
+    func clearTemporaryTranscript() {
+        historyStore.clearTemporary()
+    }
+
+    /// クラッシュ復旧用の一時 Transcript を現在の状態へ復元する。
+    func restoreTranscript(_ transcript: Transcript) {
+        currentTranscript = transcript
+        transcriptText = transcript.fullText
+        isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
+        uiState = .done
+        progressDisplay = .done()
+        confirmFileImport = false
+        pendingFileImport = nil
+    }
+
     func refreshModelAvailability() {
         downloadedModelIDs = Set(
             settings.models
@@ -390,6 +411,7 @@ final class MainWindowViewModel: ObservableObject {
                 guard activeJobID == job.id else { return }
                 currentTranscript = transcript
                 try? historyStore.save(transcript)
+                try? historyStore.saveTemporary(transcript)
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
                 isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
