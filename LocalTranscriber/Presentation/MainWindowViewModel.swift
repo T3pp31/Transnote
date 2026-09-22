@@ -260,6 +260,12 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func selectFile(url: URL, preferredFileName: String? = nil) {
+        // 文字起こし・モデルダウンロード中のファイル差し替えは禁止する。
+        guard !isBusy else {
+            AppLogger.info("File selection ignored while busy", logger: AppLogger.fileAccess)
+            return
+        }
+
         clearErrors()
 
         if hasExistingResult {

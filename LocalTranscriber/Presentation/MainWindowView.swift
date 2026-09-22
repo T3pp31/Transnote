@@ -122,7 +122,8 @@ struct MainWindowView: View {
             FileDropView(
                 supportedExtensions: settings.supportedExtensions,
                 selectedFile: viewModel.selectedFile,
-                onFileSelected: viewModel.selectFile(url:preferredFileName:)
+                onFileSelected: viewModel.selectFile(url:preferredFileName:),
+                isBusy: viewModel.isBusy
             )
             if let guidance = viewModel.modelDownloadGuidance {
                 ModelDownloadGuidanceBanner(
