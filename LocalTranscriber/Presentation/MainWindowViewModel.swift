@@ -1,6 +1,36 @@
 import AVFoundation
 import SwiftUI
 
+// MARK: - Model download coordination
+
+@MainActor
+final class ModelDownloadCoordinator {
+    struct State {
+        var isDownloading = false
+        var activeID: UUID?
+    }
+
+    private(set) var state = State()
+
+    func begin() -> UUID? {
+        guard !state.isDownloading else { return nil }
+        let id = UUID()
+        state.isDownloading = true
+        state.activeID = id
+        return id
+    }
+
+    func finish(_ id: UUID) {
+        guard state.activeID == id else { return }
+        state.isDownloading = false
+        state.activeID = nil
+    }
+
+    func isActive(_ id: UUID) -> Bool {
+        state.activeID == id && state.isDownloading
+    }
+}
+
 @MainActor
 final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
@@ -42,6 +72,8 @@ final class MainWindowViewModel: ObservableObject {
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
+
+    private let modelDownloadCoordinator = ModelDownloadCoordinator()
 
     private let transcriber: Transcriber
     private let audioFileService: AudioFileService
@@ -209,7 +241,6 @@ final class MainWindowViewModel: ObservableObject {
         let downloadID = UUID()
         activeModelDownloadID = downloadID
         clearErrors()
-        isDownloadingModel = true
         uiState = .preparing
         progressDisplay = TranscriptionProgressDisplay.from(
             update: .make(phase: .downloadingModel, fraction: 0, modelDisplayName: model.displayName)
