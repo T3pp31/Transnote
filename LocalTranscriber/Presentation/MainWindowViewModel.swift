@@ -410,7 +410,7 @@ final class MainWindowViewModel: ObservableObject {
 
     func cancelTranscription() {
         if let jobID = activeJobID {
-            transcriber.cancel(jobID: jobID)
+            Task { await transcriber.cancel(jobID: jobID) }
         }
         transcriptionTask?.cancel()
         transcriptionTask = nil
