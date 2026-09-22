@@ -82,6 +82,21 @@ struct SettingsView: View {
                 }
             }
 
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.compactSpacing) {
+                Text("ストレージ管理")
+                    .font(.headline)
+                StorageRow(
+                    title: "Imports",
+                    directory: AppDirectories.importsDirectory,
+                    icon: "tray"
+                )
+                StorageRow(
+                    title: "Models",
+                    directory: AppDirectories.modelsDirectory,
+                    icon: "internaldrive"
+                )
+            }
+
             Spacer()
 
             HStack {
@@ -94,5 +109,35 @@ struct SettingsView: View {
         }
         .padding(24)
         .frame(width: 480, height: 360)
+    }
+}
+private struct StorageRow: View {
+    let title: String
+    let directory: URL
+    let icon: String
+
+    @State private var sizeText: String = "計算中…"
+
+    var body: some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+            Text(title)
+            Spacer()
+            Text(sizeText)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+            Button("クリア") {
+                AppDirectories.clearDirectory(directory)
+                sizeText = "0 KB"
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(sizeText == "計算中…")
+        }
+        .onAppear {
+            let bytes = AppDirectories.directorySize(of: directory)
+            sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        }
     }
 }
