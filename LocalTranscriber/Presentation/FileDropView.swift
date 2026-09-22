@@ -153,42 +153,12 @@ struct FileDropView: View {
 
     private var acceptedDropTypes: [UTType] {
         var types: [UTType] = [.fileURL, .audio]
-        for ext in supportedExtensions {
-            switch ext.lowercased() {
-            case "m4a":
-                types.append(.mpeg4Audio)
-            case "mp3":
-                types.append(.mp3)
-            case "wav":
-                types.append(.wav)
-            case "flac":
-                if let flac = UTType(filenameExtension: "flac") {
-                    types.append(flac)
-                }
-            default:
-                if let type = UTType(filenameExtension: ext) {
-                    types.append(type)
-                }
-            }
-        }
+        types.append(contentsOf: SupportedAudioTypes.allowedContentTypes(for: supportedExtensions))
         return Array(Set(types))
     }
 
     private func contentTypesForPicker() -> [UTType] {
-        supportedExtensions.compactMap { ext in
-            switch ext.lowercased() {
-            case "m4a":
-                return .mpeg4Audio
-            case "mp3":
-                return .mp3
-            case "wav":
-                return .wav
-            case "flac":
-                return UTType(filenameExtension: "flac") ?? .audio
-            default:
-                return UTType(filenameExtension: ext)
-            }
-        }
+        SupportedAudioTypes.allowedContentTypes(for: supportedExtensions)
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {

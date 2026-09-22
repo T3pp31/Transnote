@@ -294,15 +294,7 @@ struct MainWindowView: View {
     }
 
     private func contentTypesForPicker() -> [UTType] {
-        settings.supportedExtensions.compactMap { ext in
-            switch ext.lowercased() {
-            case "m4a": return .mpeg4Audio
-            case "mp3": return .mp3
-            case "wav": return .wav
-            case "flac": return UTType(filenameExtension: "flac") ?? .audio
-            default: return UTType(filenameExtension: ext)
-            }
-        }
+        SupportedAudioTypes.allowedContentTypes(for: settings.supportedExtensions)
     }
 }
 
