@@ -8,6 +8,7 @@ struct SettingsView: View {
     let isModelDownloaded: (ModelOption) -> Bool
     let onDownloadSelectedModel: () -> Void
     let onDeleteSelectedModel: () -> Void
+    let onDiskUsage: (ModelOption) -> String?
 
     private func modelSizeSuffix(_ model: ModelOption) -> String {
         guard let bytes = model.downloadSizeBytes else { return "" }
@@ -74,6 +75,11 @@ struct SettingsView: View {
                         if let version = selected.modelVersion {
                             Text("モデルバージョン: \(version)")
                                 .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let usage = onDiskUsage(selected) {
+                            Text("使用中ディスク: \(usage)")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
                     }
