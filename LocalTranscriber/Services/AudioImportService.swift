@@ -169,4 +169,37 @@ struct AudioImportService: Sendable {
             counter += 1
         }
     }
+
+    /// Imports/ 配下の古いインポートファイルを削除する。
+    /// 
+    /// 文字起こし完了後に元音声が不要になった場合や、失敗して残った一時ファイルが
+    /// 蓄積しないよう、指定日数より古いファイルだけを対象にする。
+    /// 一時ファイル（\.tmp- プレフィックス）も同様に対象とする。
+    func cleanupExpiredImports(maxAge: TimeInterval = 30 * 24 * 60 * 60, now: Date = Date()) throws {
+        guard fileManager.fileExists(atPath: importsRoot.path) else {
+            return
+        }
+
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey]
+        guard let enumerator = fileManager.enumerator(
+            at: importsRoot,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else {
+            return
+        }
+
+        for case let url as URL in enumerator {
+            let resourceValues = try? url.resourceValues(forKeys: keys)
+            guard resourceValues?.isRegularFile == true else {
+                continue
+            }
+            guard let modificationDate = resourceValues?.contentModificationDate else {
+                continue
+            }
+            if now.timeIntervalSince(modificationDate) > maxAge {
+                try? fileManager.removeItem(at: url)
+            }
+        }
+    }
 }
