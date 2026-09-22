@@ -5,6 +5,21 @@ struct ModelOption: Identifiable, Sendable, Equatable {
     let displayName: String
     let whisperKitModelName: String
 
+    /// ダウンロードサイズ（バイト）。未設定の場合は nil。
+    let downloadSizeBytes: Int64?
+
+    init(
+        id: String,
+        displayName: String,
+        whisperKitModelName: String,
+        downloadSizeBytes: Int64? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.whisperKitModelName = whisperKitModelName
+        self.downloadSizeBytes = downloadSizeBytes
+    }
+
     /// Localizable.xcstrings から取得するローカライズ済み表示名。
     var localizedDisplayName: String {
         NSLocalizedString("model.\(id)", comment: "Model display name")
@@ -250,7 +265,8 @@ struct AppConfig {
                   let whisperKitModelName = item["whisperKitModelName"] as? String else {
                 return nil
             }
-            return ModelOption(id: id, displayName: displayName, whisperKitModelName: whisperKitModelName)
+            let size = (item["downloadSizeBytes"] as? NSNumber)?.int64Value
+            return ModelOption(id: id, displayName: displayName, whisperKitModelName: whisperKitModelName, downloadSizeBytes: size)
         }
     }
 
