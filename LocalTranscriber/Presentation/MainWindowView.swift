@@ -7,6 +7,7 @@ struct MainWindowView: View {
     @ObservedObject private var settings = AppSettings.shared
     @State private var showingSettings = false
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
     var body: some View {
         VStack(spacing: 0) {
@@ -156,7 +157,7 @@ struct MainWindowView: View {
     private var footerSection: some View {
         VStack(spacing: 0) {
             Divider()
-                .overlay(DesignTokens.Colors.border(colorScheme))
+                .overlay(DesignTokens.Colors.border(colorScheme, increasedContrast: colorSchemeContrast == .increased))
 
             StatusBarView(
                 uiState: viewModel.uiState,
