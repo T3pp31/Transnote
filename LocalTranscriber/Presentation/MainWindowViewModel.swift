@@ -212,7 +212,7 @@ final class MainWindowViewModel: ObservableObject {
         isDownloadingModel = true
         uiState = .preparing
         progressDisplay = TranscriptionProgressDisplay.from(
-            update: .make(phase: .downloadingModel, fraction: 0, modelDisplayName: model.displayName)
+            update: .make(phase: .downloadingModel, fraction: 0, modelDisplayName: model.localizedDisplayName)
         )
         lastAnnouncedPhase = nil
 
@@ -220,7 +220,7 @@ final class MainWindowViewModel: ObservableObject {
             do {
                 _ = try await modelDownloadService.downloadIfNeeded(
                     whisperKitModelName: model.whisperKitModelName,
-                    modelDisplayName: model.displayName
+                    modelDisplayName: model.localizedDisplayName
                 ) { update in
                     Task { @MainActor in
                         guard self.activeModelDownloadID == downloadID else { return }
@@ -333,7 +333,7 @@ final class MainWindowViewModel: ObservableObject {
         }
 
         guard isModelDownloaded(model) else {
-            let message = AppError.modelNotDownloaded(model.displayName).errorDescription
+            let message = AppError.modelNotDownloaded(model.localizedDisplayName).errorDescription
                 ?? NSLocalizedString(
                     "モデルがダウンロードされていません。",
                     comment: "Model is not downloaded"
@@ -355,7 +355,7 @@ final class MainWindowViewModel: ObservableObject {
         currentTranscript = nil
         uiState = .preparing
         progressDisplay = TranscriptionProgressDisplay.from(
-            update: .make(phase: .initializing, fraction: 0, modelDisplayName: model.displayName)
+            update: .make(phase: .initializing, fraction: 0, modelDisplayName: model.localizedDisplayName)
         )
         lastAnnouncedPhase = nil
 
@@ -364,7 +364,7 @@ final class MainWindowViewModel: ObservableObject {
             sourceFileName: file.fileName,
             modelID: model.id,
             whisperKitModelName: model.whisperKitModelName,
-            modelDisplayName: model.displayName,
+            modelDisplayName: model.localizedDisplayName,
             languageID: settings.selectedLanguageID
         )
 
