@@ -107,7 +107,8 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                             modelDisplayName: job.modelDisplayName
                         )
                     )
-                    return true
+                    // キャンセル時は false を返し、WhisperKit の内部処理を即時停止させる。
+                    return !Task.isCancelled
                 }
             )
 
