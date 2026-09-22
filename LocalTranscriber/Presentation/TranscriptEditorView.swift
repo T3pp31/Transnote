@@ -137,7 +137,7 @@ struct TranscriptEditorView: View {
                     Text("編集").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 160)
+                .frame(minWidth: 120)
                 .accessibilityLabel("表示モード")
                 .accessibilityHint(
                     NSLocalizedString(
@@ -243,7 +243,7 @@ private struct SegmentPlaybackRow: View {
                 Text(segment.formattedStartTime)
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
-                    .frame(width: 88, alignment: .leading)
+                    .frame(width: 72, alignment: .leading)
 
                 Text(segment.text)
                     .frame(maxWidth: .infinity, alignment: .leading)

@@ -14,7 +14,7 @@ struct MainWindowView: View {
             resultSection
             footerSection
         }
-        .frame(minWidth: 720, minHeight: DesignTokens.Layout.windowMinHeight)
+        .frame(minWidth: 560, minHeight: DesignTokens.Layout.windowMinHeight)
         .onAppear {
             viewModel.refreshModelAvailability()
             updateChecker.checkOnLaunch()
