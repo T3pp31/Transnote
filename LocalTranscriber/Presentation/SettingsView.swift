@@ -82,6 +82,21 @@ struct SettingsView: View {
                 }
             }
 
+            Toggle(
+                isOn: $settings.vadEnabled
+            ) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("VAD（音声区間検出）")
+                    Text("無音区間の幻聴を抑制します（WhisperKit 対応モデルのみ）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .toggleStyle(.checkbox)
+            .onChange(of: settings.vadEnabled) { _ in
+                settings.persist()
+            }
+
             Spacer()
 
             HStack {

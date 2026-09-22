@@ -365,7 +365,8 @@ final class MainWindowViewModel: ObservableObject {
             modelID: model.id,
             whisperKitModelName: model.whisperKitModelName,
             modelDisplayName: model.displayName,
-            languageID: settings.selectedLanguageID
+            languageID: settings.selectedLanguageID,
+            vadEnabled: settings.vadEnabled
         )
 
         activeJobID = job.id
