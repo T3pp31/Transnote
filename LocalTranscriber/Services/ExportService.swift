@@ -2,6 +2,7 @@ import Foundation
 
 struct ExportService {
     func content(for transcript: Transcript, format: ExportFormat) throws -> String {
+        try validateSegments(transcript.segments)
         switch format {
         case .txt:
             return exportTXT(transcript)
@@ -22,6 +23,29 @@ struct ExportService {
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
             throw AppError.exportFailedWithReason(error)
+        }
+    }
+
+    /// 字幕 segment の開始・終了順、重なり、範囲を検証する。
+    /// - 負の値・NaN・start > end は不正
+    /// - 前の segment の end が次の start より大きい（重なり）は不正
+    /// 不正があった場合、エクスポートを中断してユーザーへ通知する。
+    private func validateSegments(_ segments: [TranscriptSegment]) throws {
+        var previousEnd: TimeInterval?
+        for segment in segments {
+            guard segment.startTime.isFinite,
+                  segment.endTime.isFinite,
+                  segment.startTime >= 0,
+                  segment.endTime >= 0 else {
+                throw AppError.exportFailed("字幕の時間情報が不正です（負の値または非数値）。")
+            }
+            guard segment.endTime > segment.startTime else {
+                throw AppError.exportFailed("字幕の開始時刻が終了時刻より後になっています。")
+            }
+            if let previousEnd, segment.startTime < previousEnd {
+                throw AppError.exportFailed("字幕セグメントが重なっています。")
+            }
+            previousEnd = segment.endTime
         }
     }
 
