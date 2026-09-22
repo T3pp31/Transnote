@@ -9,6 +9,8 @@ struct TranscriptionJob: Identifiable, Sendable {
     let modelDisplayName: String
     let languageID: String
     let vadEnabled: Bool
+    /// 長時間音声を分割するチャンク長（秒）。デフォルト 600 秒（10分）。
+    let chunkDuration: TimeInterval
 
     init(
         id: UUID = UUID(),
@@ -18,7 +20,8 @@ struct TranscriptionJob: Identifiable, Sendable {
         whisperKitModelName: String,
         modelDisplayName: String,
         languageID: String,
-        vadEnabled: Bool = false
+        vadEnabled: Bool = false,
+        chunkDuration: TimeInterval = 600
     ) {
         self.id = id
         self.audioFileURL = audioFileURL
@@ -28,5 +31,6 @@ struct TranscriptionJob: Identifiable, Sendable {
         self.modelDisplayName = modelDisplayName
         self.languageID = languageID
         self.vadEnabled = vadEnabled
+        self.chunkDuration = chunkDuration
     }
 }
