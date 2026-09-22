@@ -26,6 +26,12 @@
 			<string>Tiny</string>
 			<key>whisperKitModelName</key>
 			<string>tiny</string>
+			<key>license</key>
+			<string>MIT</string>
+			<key>distributionSource</key>
+			<string>Hugging Face</string>
+			<key>modelVersion</key>
+			<string>openai-whisper</string>
 		</dict>
 		<dict>
 			<key>id</key>
@@ -34,6 +40,12 @@
 			<string>Base</string>
 			<key>whisperKitModelName</key>
 			<string>base</string>
+			<key>license</key>
+			<string>MIT</string>
+			<key>distributionSource</key>
+			<string>Hugging Face</string>
+			<key>modelVersion</key>
+			<string>openai-whisper</string>
 		</dict>
 		<dict>
 			<key>id</key>
@@ -42,6 +54,12 @@
 			<string>Small</string>
 			<key>whisperKitModelName</key>
 			<string>small</string>
+			<key>license</key>
+			<string>MIT</string>
+			<key>distributionSource</key>
+			<string>Hugging Face</string>
+			<key>modelVersion</key>
+			<string>openai-whisper</string>
 		</dict>
 		<dict>
 			<key>id</key>
@@ -50,6 +68,12 @@
 			<string>Large v3 Turbo (compressed)</string>
 			<key>whisperKitModelName</key>
 			<string>large-v3-v20240930_626MB</string>
+			<key>license</key>
+			<string>MIT</string>
+			<key>distributionSource</key>
+			<string>Hugging Face</string>
+			<key>modelVersion</key>
+			<string>openai-whisper</string>
 		</dict>
 		<dict>
 			<key>id</key>
@@ -58,6 +82,12 @@
 			<string>Large v3 Turbo</string>
 			<key>whisperKitModelName</key>
 			<string>large-v3-v20240930_turbo</string>
+			<key>license</key>
+			<string>MIT</string>
+			<key>distributionSource</key>
+			<string>Hugging Face</string>
+			<key>modelVersion</key>
+			<string>openai-whisper</string>
 		</dict>
 	</array>
 	<key>Languages</key>
