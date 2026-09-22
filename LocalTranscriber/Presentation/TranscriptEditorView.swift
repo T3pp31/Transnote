@@ -9,6 +9,7 @@ struct TranscriptEditorView: View {
     @Binding var isEditing: Bool
     let onSegmentTap: (TranscriptSegment) -> Void
     let onCopy: () -> Void
+    let onStopPlayback: () -> Void
     var needsModelDownload: Bool = false
 
     @FocusState private var isEditorFocused: Bool
@@ -205,7 +206,8 @@ struct TranscriptEditorView: View {
                     SegmentPlaybackRow(
                         segment: segment,
                         isPlaying: playingSegmentID == segment.id,
-                        onTap: { onSegmentTap(segment) }
+                        onTap: { onSegmentTap(segment) },
+                        onStop: onStopPlayback
                     )
                 }
             }
@@ -227,6 +229,7 @@ private struct SegmentPlaybackRow: View {
     let segment: TranscriptSegment
     let isPlaying: Bool
     let onTap: () -> Void
+    let onStop: () -> Void
 
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -274,9 +277,20 @@ private struct SegmentPlaybackRow: View {
                 }
             }
         }
-        .accessibilityLabel("\(segment.accessibilityStartTimestamp)、\(segment.text)、タップで再生")
-        .accessibilityValue(isPlaying ? "再生中" : "")
+        .accessibilityLabel("\(segment.accessibilityStartTimestamp)、\(segment.text)")
+        .accessibilityValue(isPlaying ? "再生中" : "停止中")
         .accessibilityAddTraits(.isButton)
+        .accessibilityHint("スワイプアップまたはダウンで再生・停止できます")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                onTap()
+            case .decrement:
+                onStop()
+            @unknown default:
+                break
+            }
+        }
     }
 
     private var backgroundColor: Color {
