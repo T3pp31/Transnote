@@ -146,7 +146,8 @@ struct MainWindowView: View {
             isEditing: $viewModel.isEditingTranscript,
             onSegmentTap: viewModel.playSegment,
             onCopy: viewModel.copyTranscript,
-            needsModelDownload: viewModel.shouldShowModelDownloadButton
+            needsModelDownload: viewModel.shouldShowModelDownloadButton,
+            onTranscriptTextChange: viewModel.updateTranscriptText
         )
         .frame(maxHeight: .infinity)
         .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
