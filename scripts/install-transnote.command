@@ -123,7 +123,20 @@ while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_
 done
 
 ditto "$SOURCE_APP" "$TARGET_APP"
-xattr -cr "$TARGET_APP" 2>/dev/null || true
+# すべての extended attributes を削除せず、Gatekeeper が参照する quarantine 属性のみを対象にする。
+# 他の拡張属性（Finder や署名情報など）は残す。
+remove_quarantine_attribute() {
+  local target="$1"
+  if command -v xattr >/dev/null 2>&1; then
+    find "$target" -type f -print0 2>/dev/null | while IFS= read -r -d '' path; do
+      if xattr -p com.apple.quarantine "$path" >/dev/null 2>&1; then
+        xattr -d com.apple.quarantine "$path" >/dev/null 2>&1 || true
+      fi
+    done
+  fi
+}
+
+remove_quarantine_attribute "$TARGET_APP"
 
 eject_installer_volume
 
