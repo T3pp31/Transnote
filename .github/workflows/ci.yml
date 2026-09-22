@@ -55,6 +55,16 @@ jobs:
           path: build/sbom/
           retention-days: ${{ steps.sbom.outputs.retention_days }}
 
+  readme-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify README version matches MARKETING_VERSION
+        run: |
+          python3 scripts/verify-readme-version.py
+
   test:
     runs-on: macos-15
     timeout-minutes: 20
