@@ -22,6 +22,14 @@ final class UpdateCheckViewModel: ObservableObject {
         }
     }
 
+    /// メニューからの手動確認。起動時フラグに関係なく常にチェックする。
+    func checkNow() {
+        Task {
+            let offer = await updateChecker.checkForUpdate()
+            updateOffer = offer
+        }
+    }
+
     func dismissUpdateOffer() {
         updateOffer = nil
     }
