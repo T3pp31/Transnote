@@ -126,9 +126,17 @@ struct TranscriptionProgressDisplay: Equatable {
             return percent > 0 ? "\(percent)%" : nil
 
         case .convertingAudio:
+            // 実際の処理は WhisperKit が音声ファイルを読み込み、モデルの前処理（MelSpectrogram 等）を
+            // 行う段階。画面上ではその内容が分かる文言にする。
+            if let modelName = update.modelDisplayName {
+                return "\(modelName) · " + NSLocalizedString(
+                    "音声を読み込んでいます（モデルの前処理）",
+                    comment: "Converting audio progress guidance"
+                )
+            }
             return NSLocalizedString(
-                "音声ファイルを変換しています。完了までお待ちください。",
-                comment: "Converting audio indeterminate progress guidance"
+                "音声を読み込んでいます（モデルの前処理）",
+                comment: "Converting audio progress guidance"
             )
 
         case .initializing:
