@@ -48,7 +48,7 @@ final class MainWindowViewModel: ObservableObject {
     private let audioImportService: AudioImportService
     private let exportService: ExportService
     private let fileAccess: SecurityScopedFileAccess
-    private let settings: AppSettings
+    private let settings: any AppSettingsProviding
     private let modelAvailability: ModelAvailabilityService
     private let modelDownloadService: ModelDownloadService
     private let audioPlayer: AudioPlayerService
@@ -59,7 +59,7 @@ final class MainWindowViewModel: ObservableObject {
         audioImportService: AudioImportService = AudioImportService(),
         exportService: ExportService = ExportService(),
         fileAccess: SecurityScopedFileAccess = .shared,
-        settings: AppSettings = .shared,
+        settings: any AppSettingsProviding = AppSettings.shared,
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
         modelDownloadService: ModelDownloadService = ModelDownloadService(),
         audioPlayer: AudioPlayerService? = nil
