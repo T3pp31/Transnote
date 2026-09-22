@@ -8,6 +8,11 @@ struct SettingsView: View {
     let isModelDownloaded: (ModelOption) -> Bool
     let onDownloadSelectedModel: () -> Void
 
+    private func modelSizeSuffix(_ model: ModelOption) -> String {
+        guard let bytes = model.downloadSizeBytes else { return "" }
+        return "（" + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) + "）"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
             Text("設定")
@@ -20,7 +25,7 @@ struct SettingsView: View {
                     Picker("モデル", selection: $settings.selectedModelID) {
                         ForEach(settings.models) { model in
                             Label(
-                                model.displayName,
+                                model.displayName + modelSizeSuffix(model),
                                 systemImage: isModelDownloaded(model)
                                     ? "checkmark.circle"
                                     : "arrow.down.circle"
