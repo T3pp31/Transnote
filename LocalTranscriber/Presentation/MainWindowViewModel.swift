@@ -9,6 +9,7 @@ final class MainWindowViewModel: ObservableObject {
     @Published var transcriptText: String = ""
     @Published var currentTranscript: Transcript?
     @Published var playingSegmentID: UUID?
+    @Published var playbackPositionText: String = ""
     @Published var isEditingTranscript = false
     @Published var errorMessage: String?
     @Published var inlineErrorTitle: String?
@@ -73,6 +74,11 @@ final class MainWindowViewModel: ObservableObject {
         self.modelAvailability = modelAvailability
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
+        self.audioPlayer.onPlaybackTimeUpdate = { [weak self] current, duration in
+            Task { @MainActor in
+                self?.updatePlaybackPosition(current: current, duration: duration)
+            }
+        }
         refreshModelAvailability()
     }
 
@@ -460,6 +466,10 @@ final class MainWindowViewModel: ObservableObject {
 
         playingSegmentID = segment.id
         let segmentID = segment.id
+        playbackPositionText = Self.remainingTimeText(
+            current: 0,
+            duration: segment.endTime - segment.startTime
+        )
         audioPlayer.playSegment(
             start: segment.startTime,
             end: segment.endTime
@@ -467,8 +477,20 @@ final class MainWindowViewModel: ObservableObject {
             guard let self else { return }
             if self.playingSegmentID == segmentID {
                 self.playingSegmentID = nil
+                self.playbackPositionText = ""
             }
         }
+    }
+
+    /// 現在の再生位置とセグメント長から残り時間を表示する。
+    func updatePlaybackPosition(current: TimeInterval, duration: TimeInterval) {
+        playbackPositionText = Self.remainingTimeText(current: current, duration: duration)
+    }
+
+    private static func remainingTimeText(current: TimeInterval, duration: TimeInterval) -> String {
+        let remaining = max(0, duration - current)
+        let totalSeconds = Int(remaining.rounded())
+        return String(format: "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
     func stopPlayback() {
