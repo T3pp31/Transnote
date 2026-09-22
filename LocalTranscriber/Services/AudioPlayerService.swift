@@ -71,6 +71,20 @@ final class AudioPlayerService {
         }
     }
 
+    /// 一時停止する（現在位置を保持）。
+    func pause() {
+        guard isPlaying else { return }
+        player?.pause()
+        isPlaying = false
+    }
+
+    /// 一時停止から再開する。
+    func resume() {
+        guard !isPlaying, let player else { return }
+        player.play()
+        isPlaying = true
+    }
+
     func stop() {
         stop(resetPlayer: true)
     }
