@@ -207,23 +207,27 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         return try await WhisperKit(config)
     }
 
+    /// WhisperKit が言語コードを明示指定できる言語（ISO 639-1）。
+    /// ここに含まれない ID は自動検出（detectLanguage）にフォールバックする。
+    private static let explicitLanguageIDs: Set<String> = [
+        "ja", "en", "zh", "ko", "fr", "de", "es", "it", "pt", "ru"
+    ]
+
     private func makeDecodingOptions(languageID: String) -> DecodingOptions {
-        switch languageID {
-        case "ja", "en":
+        if Self.explicitLanguageIDs.contains(languageID) {
             return DecodingOptions(
                 language: languageID,
                 usePrefillPrompt: true,
                 detectLanguage: false,
                 skipSpecialTokens: true
             )
-        default:
-            return DecodingOptions(
-                language: nil,
-                usePrefillPrompt: false,
-                detectLanguage: true,
-                skipSpecialTokens: true
-            )
         }
+        return DecodingOptions(
+            language: nil,
+            usePrefillPrompt: false,
+            detectLanguage: true,
+            skipSpecialTokens: true
+        )
     }
 
     private static func decodeWordTokens(_ tokens: [Int], using tokenizer: WhisperTokenizer) -> String {
