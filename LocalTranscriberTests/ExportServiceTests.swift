@@ -89,4 +89,29 @@ final class ExportServiceTests: XCTestCase {
         let srt = try exportService.content(for: transcript, format: .srt)
         XCTAssertTrue(srt.contains("00:00:01,234 --> 00:00:05,678"))
     }
+    // MARK: - schemaVersion (#199)
+
+    func testJSONExportIncludesSchemaVersion() throws {
+        let content = try exportService.content(for: sampleTranscript, format: .json)
+        XCTAssertTrue(content.contains("schemaVersion"))
+        XCTAssertTrue(content.contains("1"))
+    }
+
+    func testJSONDecodeWithoutSchemaVersionUsesDefault() throws {
+        let json = """
+        {
+          "id": "\(UUID().uuidString)",
+          "sourceFileName": "test.wav",
+          "language": "ja",
+          "createdAt": "2026-01-01T00:00:00Z",
+          "fullText": "hello",
+          "segments": []
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(Transcript.self, from: data)
+        XCTAssertEqual(decoded.schemaVersion, Transcript.currentSchemaVersion)
+    }
 }
