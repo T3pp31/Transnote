@@ -294,6 +294,7 @@ final class MainWindowViewModel: ObservableObject {
                 url: importedURL,
                 preferredFileName: resolvedPreferredFileName
             )
+            removePreviousSandboxCopyIfNeeded()
             stopPlayback()
             isEditingTranscript = false
             currentTranscript = nil
@@ -303,6 +304,30 @@ final class MainWindowViewModel: ObservableObject {
             progressDisplay = .idle()
         } catch {
             handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
+        }
+    }
+
+    /// ファイル差し替え時に、Imports/ 内に残った旧 sandbox コピーを削除する。
+    /// 削除対象は薄い sandbox コピー（AppDirectories.importsDirectory 配下）のみに限定する。
+    private func removePreviousSandboxCopyIfNeeded() {
+        guard let previousURL = selectedFile?.url else { return }
+        let importsPath = AppDirectories.importsDirectory.standardizedFileURL.path
+        let previousPath = previousURL.standardizedFileURL.path
+        guard previousPath.hasPrefix(importsPath + "/"),
+              FileManager.default.fileExists(atPath: previousPath) else {
+            return
+        }
+        do {
+            try FileManager.default.removeItem(at: previousURL)
+            AppLogger.info(
+                "Removed previous sandbox copy: \(previousURL.lastPathComponent)",
+                logger: AppLogger.fileAccess
+            )
+        } catch {
+            AppLogger.error(
+                "Failed to remove previous sandbox copy: \(previousURL.lastPathComponent)",
+                logger: AppLogger.fileAccess
+            )
         }
     }
 
