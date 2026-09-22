@@ -312,6 +312,7 @@ private struct InlineErrorBanner: View {
     let canRetry: Bool
     let onRetry: () -> Void
     let onDismiss: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.controlSpacing) {
@@ -347,7 +348,10 @@ private struct InlineErrorBanner: View {
             .accessibilityLabel("エラーを閉じる")
         }
         .padding(DesignTokens.Spacing.controlSpacing)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.banner))
+        .background(
+            reduceTransparency ? AnyShapeStyle(DesignTokens.Colors.opaqueSurface) : AnyShapeStyle(.regularMaterial),
+            in: RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
                 .strokeBorder(DesignTokens.Colors.warning.opacity(0.35), lineWidth: 1)
@@ -359,6 +363,7 @@ private struct InlineErrorBanner: View {
 private struct ModelDownloadGuidanceBanner: View {
     let message: String
     let onDownload: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: 8) {
@@ -377,7 +382,10 @@ private struct ModelDownloadGuidanceBanner: View {
             .controlSize(.small)
         }
         .padding(10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous))
+        .background(
+            reduceTransparency ? AnyShapeStyle(DesignTokens.Colors.opaqueSurface) : AnyShapeStyle(.regularMaterial),
+            in: RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
                 .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
