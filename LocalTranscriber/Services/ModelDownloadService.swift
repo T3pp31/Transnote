@@ -59,37 +59,71 @@ struct ModelDownloadService: Sendable {
             ).map { $0.path }
         )
 
-        do {
-            let downloadedPath = try await WhisperKit.download(
-                variant: whisperKitModelName,
-                downloadBase: modelsRoot,
-                progressCallback: { progress in
-                    progressHandler?(
-                        .make(
-                            phase: .downloadingModel,
-                            fraction: progress.fractionCompleted,
-                            progress: progress,
-                            modelDisplayName: modelDisplayName
+        // ネットワーク失敗時に指数バックオフで再試行する（最大3回、待機 1s / 2s / 4s）。
+        let maxAttempts = 3
+        var attempt = 0
+        var lastError: Error?
+        var downloadedPath: URL?
+        while attempt < maxAttempts {
+            attempt += 1
+            do {
+                downloadedPath = try await WhisperKit.download(
+                    variant: whisperKitModelName,
+                    downloadBase: modelsRoot,
+                    progressCallback: { progress in
+                        progressHandler?(
+                            .make(
+                                phase: .downloadingModel,
+                                fraction: progress.fractionCompleted,
+                                progress: progress,
+                                modelDisplayName: modelDisplayName
+                            )
                         )
-                    )
-                }
-            )
-
-            guard modelAvailability.validateModelFolder(downloadedPath) else {
-                throw AppError.transcriptionFailed(
-                    "モデルのダウンロードは完了しましたが、ファイル構成が不正です: \(downloadedPath.path)"
+                    }
                 )
+                break
+            } catch {
+                lastError = error
+                // ネットワーク系エラーのみ再試行する
+                guard isRetryableNetworkError(error), attempt < maxAttempts else {
+                    throw error
+                }
+                let delaySeconds = UInt64(pow(2.0, Double(attempt - 1)))
+                AppLogger.info("Download attempt \(attempt) failed; retrying in \(delaySeconds)s: \(error)", logger: AppLogger.transcription)
+                try await Task.sleep(nanoseconds: delaySeconds * 1_000_000_000)
             }
-
-            AppLogger.info("Downloaded model to \(downloadedPath.lastPathComponent)", logger: AppLogger.transcription)
-            return downloadedPath
-        } catch {
-            cleanUpFailedDownload(
-                whisperKitModelName: whisperKitModelName,
-                directoriesBeforeDownload: directoriesBeforeDownload
-            )
-            throw error
         }
+
+        guard let path = downloadedPath else {
+            throw lastError ?? AppError.transcriptionFailed("モデルのダウンロードに失敗しました。")
+        }
+        guard modelAvailability.validateModelFolder(path) else {
+            throw AppError.transcriptionFailed(
+                "モデルのダウンロードは完了しましたが、ファイル構成が不正です: \(path.path)"
+            )
+        }
+
+        AppLogger.info("Downloaded model to \(path.lastPathComponent)", logger: AppLogger.transcription)
+        return path
+    }
+
+    /// 再試行すべきネットワーク系エラーかどうかを判定する。
+    private func isRetryableNetworkError(_ error: Error) -> Bool {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .timedOut, .cannotConnectToHost, .networkConnectionLost,
+                 .notConnectedToInternet, .dnsLookupFailed, .resourceUnavailable,
+                 .cannotFindHost:
+                return true
+            default:
+                return false
+            }
+        }
+        // WhisperKit が投げる汎用エラーのうち、ネットワーク系の文言のみ再試行する
+        let description = (error as NSError).localizedDescription.lowercased()
+        return description.contains("network")
+            || description.contains("connection")
+            || description.contains("timeout")
     }
 
     /// ダウンロード失敗時に、そのダウンロードが新規に生成した variant フォルダ（部分ダウンロード）を削除する。
