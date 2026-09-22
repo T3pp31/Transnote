@@ -64,12 +64,17 @@ struct ModelDownloadService: Sendable {
                 variant: whisperKitModelName,
                 downloadBase: modelsRoot,
                 progressCallback: { progress in
+                    // 再開状態: 既に一部ダウンロード済みの場合は「キャッシュから再開中」を表示する
+                    let resumeState = (progress.completedUnitCount ?? 0) > 0
+                        ? NSLocalizedString("キャッシュから再開中", comment: "Resuming download")
+                        : nil
                     progressHandler?(
                         .make(
                             phase: .downloadingModel,
                             fraction: progress.fractionCompleted,
                             progress: progress,
-                            modelDisplayName: modelDisplayName
+                            modelDisplayName: modelDisplayName,
+                            resumeState: resumeState
                         )
                     )
                 }
