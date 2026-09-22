@@ -103,7 +103,8 @@ struct MainWindowView: View {
             cancelMenuTitle: viewModel.cancelMenuTitle,
             canCopy: viewModel.canCopyTranscript,
             copyTranscript: viewModel.copyTranscript,
-            openFile: openFilePanel
+            openFile: openFilePanel,
+            checkForUpdate: updateChecker.checkNow
         ))
     }
 

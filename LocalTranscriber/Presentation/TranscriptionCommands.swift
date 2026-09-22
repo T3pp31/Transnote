@@ -13,6 +13,7 @@ struct TranscriptionActionsValue {
     let canCopy: Bool
     let copyTranscript: () -> Void
     let openFile: () -> Void
+    let checkForUpdate: () -> Void
 }
 
 extension FocusedValues {
@@ -50,6 +51,13 @@ struct TranscriptionCommands: Commands {
             }
             .keyboardShortcut(.escape, modifiers: [])
             .disabled(actions?.canCancel != true)
+
+            Divider()
+
+            Button("アップデートを確認…") {
+                actions?.checkForUpdate()
+            }
+            .disabled(actions == nil)
         }
     }
 }
