@@ -64,4 +64,35 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
 
     return url
   }
+
+  // MARK: - Last export directory
+
+  private static let lastExportDirectoryKey = "lastExportDirectoryBookmark"
+
+  /// 最後にエクスポートしたディレクトリの security-scoped bookmark を保存する。
+  func saveLastExportDirectoryBookmark(for url: URL) {
+    do {
+      let data = try url.bookmarkData(
+        options: .withSecurityScope,
+        includingResourceValuesForKeys: nil,
+        relativeTo: nil
+      )
+      UserDefaults.standard.set(data, forKey: Self.lastExportDirectoryKey)
+    } catch {
+      AppLogger.error("Failed to save last export directory bookmark: \(error)", logger: AppLogger.fileAccess)
+    }
+  }
+
+  /// 保存済みの最後のエクスポートディレクトリを解決する。
+  func loadLastExportDirectory() -> URL? {
+    guard let data = UserDefaults.standard.data(forKey: Self.lastExportDirectoryKey) else {
+      return nil
+    }
+    do {
+      return try resolveBookmark(data)
+    } catch {
+      AppLogger.error("Failed to resolve last export directory bookmark: \(error)", logger: AppLogger.fileAccess)
+      return nil
+    }
+  }
 }

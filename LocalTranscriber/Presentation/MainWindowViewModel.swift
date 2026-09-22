@@ -484,8 +484,13 @@ final class MainWindowViewModel: ObservableObject {
         panel.canCreateDirectories = true
         panel.nameFieldStringValue = defaultExportFilename(for: transcript, format: format)
         panel.allowedContentTypes = [UTType(filenameExtension: format.fileExtension) ?? .plainText]
+        // 前回エクスポート先を security-scoped bookmark から復元して初期ディレクトリにする
+        panel.directoryURL = fileAccess.loadLastExportDirectory()
 
         guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        // 成功時に次回の初期ディレクトリとして bookmark を保存する
+        fileAccess.saveLastExportDirectoryBookmark(for: url.deletingLastPathComponent())
 
         do {
             try exportService.write(transcript: transcript, format: format, to: url)
