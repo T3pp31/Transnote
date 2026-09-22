@@ -146,6 +146,9 @@ struct MainWindowView: View {
             isEditing: $viewModel.isEditingTranscript,
             onSegmentTap: viewModel.playSegment,
             onCopy: viewModel.copyTranscript,
+            onSegmentPause: viewModel.pausePlayback,
+            onSegmentResume: viewModel.resumePlayback,
+            isSegmentPaused: viewModel.isSegmentPaused,
             needsModelDownload: viewModel.shouldShowModelDownloadButton
         )
         .frame(maxHeight: .infinity)
