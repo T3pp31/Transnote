@@ -59,8 +59,13 @@ enum AppDirectories {
         applicationSupport.appendingPathComponent("TempTranscripts", isDirectory: true)
     }
 
+    static var checkpointDirectory: URL {
+        applicationSupport.appendingPathComponent("Checkpoints", isDirectory: true)
+    }
+
     static func ensureDirectoriesExist() {
-        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory, historyDirectory, tempTranscriptsDirectory]
+        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory, historyDirectory, tempTranscriptsDirectory, checkpointDirectory]
+
         for directory in directories {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
