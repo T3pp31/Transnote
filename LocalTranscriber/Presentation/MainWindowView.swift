@@ -160,6 +160,7 @@ struct MainWindowView: View {
             onSegmentPause: viewModel.pausePlayback,
             onSegmentResume: viewModel.resumePlayback,
             isSegmentPaused: viewModel.isSegmentPaused,
+            onStopPlayback: viewModel.stopPlayback,
             needsModelDownload: viewModel.shouldShowModelDownloadButton,
             onTranscriptTextChange: viewModel.updateTranscriptText
         )

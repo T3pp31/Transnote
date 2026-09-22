@@ -13,6 +13,7 @@ struct TranscriptEditorView: View {
     let onSegmentPause: () -> Void
     let onSegmentResume: () -> Void
     let isSegmentPaused: Bool
+    let onStopPlayback: () -> Void
     var needsModelDownload: Bool = false
     var onTranscriptTextChange: ((String) -> Void)? = nil
 
@@ -223,7 +224,8 @@ struct TranscriptEditorView: View {
                         isPaused: isSegmentPaused,
                         onTap: { onSegmentTap(segment) },
                         onPause: onSegmentPause,
-                        onResume: onSegmentResume
+                        onResume: onSegmentResume,
+                        onStop: onStopPlayback
                     )
                 }
             }
@@ -268,6 +270,7 @@ private struct SegmentPlaybackRow: View {
     let onTap: () -> Void
     let onPause: () -> Void
     let onResume: () -> Void
+    let onStop: () -> Void
 
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -335,9 +338,20 @@ private struct SegmentPlaybackRow: View {
                 }
             }
         }
-        .accessibilityLabel("\(segment.accessibilityStartTimestamp)、\(segment.text)、タップで再生")
-        .accessibilityValue(isPlaying ? "再生中" : "")
+        .accessibilityLabel("\(segment.accessibilityStartTimestamp)、\(segment.text)")
+        .accessibilityValue(isPlaying ? "再生中" : "停止中")
         .accessibilityAddTraits(.isButton)
+        .accessibilityHint("スワイプアップまたはダウンで再生・停止できます")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                onTap()
+            case .decrement:
+                onStop()
+            @unknown default:
+                break
+            }
+        }
     }
 
     private var backgroundColor: Color {
