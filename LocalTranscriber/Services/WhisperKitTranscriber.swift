@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import WhisperKit
 
@@ -46,6 +47,10 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
     ) async throws -> Transcript {
         do {
             try Task.checkCancellation()
+
+            // RTF（Real-Time Factor）計測: 処理時間 / 音声長。
+            let measurementStart = Date()
+            let audioDuration = try? await AVURLAsset(url: job.audioFileURL).load(.duration).seconds
 
             progressHandler?(
                 .make(phase: .initializing, fraction: 0, modelDisplayName: job.modelDisplayName)
@@ -117,6 +122,21 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
             progressHandler?(
                 .make(phase: .finished, fraction: 1.0, modelDisplayName: job.modelDisplayName)
             )
+
+            // RTF をログ・診断情報として記録する。
+            let elapsed = Date().timeIntervalSince(measurementStart)
+            if let duration = audioDuration, duration > 0 {
+                let rtf = elapsed / duration
+                AppLogger.info(
+                    "Transcription RTF: \(String(format: "%.3f", rtf)) (elapsed \(String(format: "%.1f", elapsed))s / audio \(String(format: "%.1f", duration))s)",
+                    logger: AppLogger.transcription
+                )
+            } else {
+                AppLogger.info(
+                    "Transcription elapsed: \(String(format: "%.1f", elapsed))s (audio duration unknown)",
+                    logger: AppLogger.transcription
+                )
+            }
 
             return mapToTranscript(
                 merged,
