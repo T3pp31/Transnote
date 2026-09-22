@@ -167,14 +167,42 @@ struct ModelAvailabilityService: Sendable {
         }
 
         if isDirectory.boolValue {
-            guard let contents = try? fileManager.contentsOfDirectory(atPath: url.path) else {
+            // コンパイル済みモデル（.mlmodelc）は coremldata.bin または model.mil を、
+            // .mlpackage は Data/com.apple.CoreML/Model.mil を持つ。単なる空ディレクトリでは不十分。
+            let coreMLBinary = url.appendingPathComponent("coremldata.bin")
+            let milFile = url.appendingPathComponent("model.mil")
+            let packageMil = url.appendingPathComponent("Data").appendingPathComponent("com.apple.CoreML").appendingPathComponent("Model.mil")
+            let hasCoreMLPayload = fileManager.fileExists(atPath: coreMLBinary.path)
+                || fileManager.fileExists(atPath: milFile.path)
+                || fileManager.fileExists(atPath: packageMil.path)
+
+            // Web 上の一般モデルは .mlpackage でなく .mlmodelc 中心だが、いずれの場合も
+            // 中身の実体（128KB 以上）を持つことを要求する。
+            guard hasCoreMLPayload || directorySize(in: url) > 128 * 1024 else {
                 return false
             }
-            return !contents.isEmpty
+            return true
         }
 
         guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
         let size = attributes[.size] as? NSNumber
         return (size?.intValue ?? -1) > 0
+    }
+
+    /// ディレクトリ配下の合計サイズをバイトで返す（整合性検証の補助）。
+    private func directorySize(in directory: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
+        guard let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+
+        var total: Int64 = 0
+        for case let url as URL in enumerator {
+            guard (try? url.resourceValues(forKeys: keys))?.isRegularFile == true else { continue }
+            total += Int64((try? url.resourceValues(forKeys: keys))?.fileSize ?? 0)
+        }
+        return total
     }
 }
