@@ -146,7 +146,8 @@ actor WhisperKitTranscriber: Transcriber {
                 merged,
                 sourceFileName: job.sourceFileName,
                 tokenizer: whisperKit.tokenizer,
-                modelID: job.modelID
+                modelID: job.modelID,
+                sourceFileFingerprint: AudioFileService.sha256(of: job.audioFileURL)
             )
         } catch is CancellationError {
             throw AppError.transcriptionCancelled
@@ -286,7 +287,8 @@ actor WhisperKitTranscriber: Transcriber {
         _ result: TranscriptionResult,
         sourceFileName: String,
         tokenizer: WhisperTokenizer?,
-        modelID: String?
+        modelID: String?,
+        sourceFileFingerprint: String?
     ) -> Transcript {
         let segments: [TranscriptSegment]
         if let tokenizer {
@@ -303,7 +305,8 @@ actor WhisperKitTranscriber: Transcriber {
             language: result.language.isEmpty ? nil : result.language,
             fullText: fullText,
             segments: segments,
-            modelID: modelID
+            modelID: modelID,
+            sourceFileFingerprint: sourceFileFingerprint
         )
     }
 }
