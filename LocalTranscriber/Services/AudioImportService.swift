@@ -37,12 +37,13 @@ struct AudioImportService: Sendable {
             for: resolvedFileName(preferredFileName: preferredFileName, sourceURL: sourceURL)
         )
 
-        // インポート失敗時に、destinationURL に残った部分的なコピー（0バイトのファイルを含む）が
-        // Imports/ 配下に残らないよう、成功が確定するまで defer でクリーンアップを保証する
+        // 部分ファイルが Imports/ に残らないよう、一時ファイルへコピーしてから atomic rename する。
+        // 一時ファイルは同一ディレクトリ（同一ボリューム）に置くことで moveItem を atomic にする。
+        let temporaryURL = importsRoot.appendingPathComponent(".\(destinationURL.lastPathComponent).tmp-\(UUID().uuidString)")
         var importSucceeded = false
         defer {
             if !importSucceeded {
-                removeFileIfExistsIfFailed(destinationURL)
+                removeFileIfExistsIfFailed(temporaryURL)
             }
         }
 
@@ -54,18 +55,21 @@ struct AudioImportService: Sendable {
         }
 
         do {
-            try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            try fileManager.copyItem(at: sourceURL, to: temporaryURL)
         } catch {
-            // copyItem が部分コピーの途中で失敗した場合に destinationURL へ残骸が残るため、
+            // copyItem が部分コピーの途中で失敗した場合に temporaryURL へ残骸が残るため、
             // 事前に削除してから copyFileStreaming へフォールバックする
-            removeFileIfExistsIfFailed(destinationURL)
+            removeFileIfExistsIfFailed(temporaryURL)
 
             if fileManager.isReadableFile(atPath: sourceURL.path) {
-                try copyFileStreaming(from: sourceURL, to: destinationURL)
+                try copyFileStreaming(from: sourceURL, to: temporaryURL)
             } else {
                 throw AppError.fileAccessDenied
             }
         }
+
+        // 一時ファイルを最終 URL へ atomic に rename する（同名競合・部分ファイル防止）
+        try fileManager.moveItem(at: temporaryURL, to: destinationURL)
 
         AppLogger.info(
             "Imported audio to sandbox: \(destinationURL.lastPathComponent)",
