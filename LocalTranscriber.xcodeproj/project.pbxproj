@@ -34,6 +34,7 @@
 		F62E112D61D44DB4BB6A37DF /* SecurityScopedFileAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50FA9465E9A1407DAE7FAD25 /* SecurityScopedFileAccess.swift */; };
 		9E9113E29E6B4C40A0C84B94 /* UpdateCheckService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93EF0FA4BA424920A70C9CD9 /* UpdateCheckService.swift */; };
 		F7A8B9C0D1E24356A7890ABD /* UpdateURLValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A8B9C0D1E24356A7890ABC /* UpdateURLValidator.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* HistoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* HistoryStore.swift */; };
 		405AD2BA78CA4B038909AF94 /* MainWindowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 296B018856BD4710AADCE273 /* MainWindowView.swift */; };
 		5B95625773B146D3A0AD0E68 /* MainWindowViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587A564CDC60430885D9ED84 /* MainWindowViewModel.swift */; };
 		EE73867E57054D1880C1B182 /* UpdateCheckViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C20F7E13EC44C749EC9FDBB /* UpdateCheckViewModel.swift */; };
@@ -104,6 +105,7 @@
 		50FA9465E9A1407DAE7FAD25 /* SecurityScopedFileAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedFileAccess.swift; sourceTree = "<group>"; };
 		93EF0FA4BA424920A70C9CD9 /* UpdateCheckService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckService.swift; sourceTree = "<group>"; };
 		F7A8B9C0D1E24356A7890ABC /* UpdateURLValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateURLValidator.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* HistoryStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryStore.swift; sourceTree = "<group>"; };
 		296B018856BD4710AADCE273 /* MainWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowView.swift; sourceTree = "<group>"; };
 		587A564CDC60430885D9ED84 /* MainWindowViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainWindowViewModel.swift; sourceTree = "<group>"; };
 		6C20F7E13EC44C749EC9FDBB /* UpdateCheckViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckViewModel.swift; sourceTree = "<group>"; };
@@ -203,6 +205,7 @@
 				50FA9465E9A1407DAE7FAD25 /* SecurityScopedFileAccess.swift */,
 				93EF0FA4BA424920A70C9CD9 /* UpdateCheckService.swift */,
 				F7A8B9C0D1E24356A7890ABC /* UpdateURLValidator.swift */,
+				A1B2C3D4E5F60718293A4B5D /* HistoryStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -410,6 +413,7 @@
 				F62E112D61D44DB4BB6A37DF /* SecurityScopedFileAccess.swift in Sources */,
 				9E9113E29E6B4C40A0C84B94 /* UpdateCheckService.swift in Sources */,
 				F7A8B9C0D1E24356A7890ABD /* UpdateURLValidator.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* HistoryStore.swift in Sources */,
 				405AD2BA78CA4B038909AF94 /* MainWindowView.swift in Sources */,
 				5B95625773B146D3A0AD0E68 /* MainWindowViewModel.swift in Sources */,
 				EE73867E57054D1880C1B182 /* UpdateCheckViewModel.swift in Sources */,
