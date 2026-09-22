@@ -131,7 +131,7 @@ jobs:
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             -derivedDataPath DerivedData \
-            -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests
+            -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
             -skip-testing:LocalTranscriberUITests \
             -skip-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
 
