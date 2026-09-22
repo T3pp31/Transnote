@@ -479,6 +479,9 @@ final class MainWindowViewModel: ObservableObject {
     func exportTranscript(format: ExportFormat) {
         guard var transcript = currentTranscript else { return }
         transcript.fullText = transcriptText
+        // エクスポート時（最新の編集内容を反映）に updatedAt を更新し、編集済み状態を記録する。
+        transcript.updatedAt = Date()
+        currentTranscript = transcript
 
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
