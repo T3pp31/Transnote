@@ -7,6 +7,9 @@ final class UpdateCheckServiceTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
+        // 確認間隔と ETag の状態がテスト間で残らないようクリアする
+        UserDefaults.standard.removeObject(forKey: "lastUpdateCheckDate")
+        UserDefaults.standard.removeObject(forKey: "updateETag")
         MockURLProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]

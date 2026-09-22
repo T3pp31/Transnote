@@ -15,15 +15,21 @@ struct UpdateCheckService: UpdateChecking {
     private let config: AppConfig
     private let session: URLSession
     private let currentVersionProvider: @Sendable () -> String
+    private let checkInterval: TimeInterval
+    private let defaults: UserDefaults
 
     init(
         config: AppConfig = .shared,
         session: URLSession = .shared,
-        currentVersionProvider: @escaping @Sendable () -> String = { AppVersion.current() }
+        currentVersionProvider: @escaping @Sendable () -> String = { AppVersion.current() },
+        checkInterval: TimeInterval = 6 * 60 * 60,
+        defaults: UserDefaults = .standard
     ) {
         self.config = config
         self.session = session
         self.currentVersionProvider = currentVersionProvider
+        self.checkInterval = checkInterval
+        self.defaults = defaults
     }
 
     /// 確認間隔（秒）。6時間以内は API を呼ばない。
@@ -35,9 +41,8 @@ struct UpdateCheckService: UpdateChecking {
         }
 
         // 前回確認から間隔内ならスキップ（起動ごとの API 呼び出しを防ぐ）
-        let defaults = UserDefaults.standard
         if let lastCheck = defaults.object(forKey: "lastUpdateCheckDate") as? Date,
-           Date().timeIntervalSince(lastCheck) < Self.minimumCheckInterval {
+           Date().timeIntervalSince(lastCheck) < checkInterval {
             return nil
         }
 
@@ -87,7 +92,7 @@ struct UpdateCheckService: UpdateChecking {
         request.setValue("Transnote", forHTTPHeaderField: "User-Agent")
 
         // 前回取得時の ETag があれば If-None-Match で送信し、304 なら更新なしとする
-        if let etag = UserDefaults.standard.string(forKey: "updateETag") {
+        if let etag = defaults.string(forKey: "updateETag") {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
 
