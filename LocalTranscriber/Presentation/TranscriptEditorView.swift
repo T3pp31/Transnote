@@ -169,10 +169,16 @@ struct TranscriptEditorView: View {
 
     private var readOnlyTextView: some View {
         ScrollView {
-            Text(text.isEmpty ? emptyStateMessage : text)
-                .foregroundStyle(text.isEmpty ? .secondary : .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(DesignTokens.Spacing.compactSpacing)
+            if text.isEmpty {
+                EmptyStateView(message: emptyStateMessage, isBusy: isBusy)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DesignTokens.Spacing.compactSpacing)
+            } else {
+                Text(text)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(DesignTokens.Spacing.compactSpacing)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(
@@ -220,6 +226,25 @@ struct TranscriptEditorView: View {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.inner, style: .continuous)
                 .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)
         )
+    }
+}
+
+private struct EmptyStateView: View {
+    let message: String
+    let isBusy: Bool
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.compactSpacing) {
+            Image(systemName: isBusy ? "waveform" : "doc.text.magnifyingglass")
+                .font(.system(size: DesignTokens.Icon.hero))
+                .foregroundStyle(.secondary)
+            Text(message)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(DesignTokens.Spacing.sectionSpacing)
+        .accessibilityElement(children: .combine)
     }
 }
 
