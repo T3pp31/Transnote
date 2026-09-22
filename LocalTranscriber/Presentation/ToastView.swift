@@ -18,6 +18,7 @@ extension ToastMessage: Equatable {
 struct ToastView: View {
     let message: ToastMessage
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.compactSpacing) {
@@ -34,7 +35,10 @@ struct ToastView: View {
         }
         .padding(.horizontal, DesignTokens.Spacing.sectionSpacing)
         .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous))
+        .background(
+            reduceTransparency ? AnyShapeStyle(DesignTokens.Colors.opaqueSurface) : AnyShapeStyle(.regularMaterial),
+            in: RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
+        )
         .overlay {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
                 .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)

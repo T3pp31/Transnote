@@ -53,6 +53,10 @@ enum DesignTokens {
         static let warning = Color.orange
         static let success = Color.green
         static let error = Color.red
+
+        /// Reduce Transparency 時は不透明なウィンドウ背景色を使う。
+        /// 通常時は .regularMaterial を利用するため、この値は背景色の代替として使う。
+        static let opaqueSurface = Color(NSColor.windowBackgroundColor)
     }
 
     enum Icon {

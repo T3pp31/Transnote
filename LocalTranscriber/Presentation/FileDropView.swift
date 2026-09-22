@@ -9,6 +9,7 @@ struct FileDropView: View {
     @State private var isHovered = false
     @State private var dropErrorMessage: String?
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     private let cornerRadius: CGFloat = DesignTokens.Corner.card
 
@@ -98,7 +99,7 @@ struct FileDropView: View {
 
     private var dropZoneSurface: some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.regularMaterial)
+            .fill(reduceTransparency ? AnyShapeStyle(DesignTokens.Colors.opaqueSurface) : AnyShapeStyle(.regularMaterial))
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(dropAccentFill)
