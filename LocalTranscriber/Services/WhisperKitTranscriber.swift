@@ -97,13 +97,12 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                 decodeOptions: decodeOptions,
                 callback: { progress in
                     let fraction = whisperKit.progress.fractionCompleted
-                    let resolvedFraction = fraction > 0
-                        ? fraction
-                        : min(1.0, max(0.0, Double(progress.windowId + 1) / 10.0))
+                    // windowId ベースの擬似進捗は廃止し、実進捗が不明な場合は 0 を渡す
+                    // （TranscriptionProgressDisplay 側で indeterminate として表示する）
                     progressHandler?(
                         .make(
                             phase: .transcribing,
-                            fraction: resolvedFraction,
+                            fraction: fraction > 0 ? fraction : 0,
                             modelDisplayName: job.modelDisplayName
                         )
                     )
