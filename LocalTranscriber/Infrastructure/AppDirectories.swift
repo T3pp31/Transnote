@@ -22,8 +22,16 @@ enum AppDirectories {
         applicationSupport.appendingPathComponent("DropStaging", isDirectory: true)
     }
 
+    static var historyDirectory: URL {
+        applicationSupport.appendingPathComponent("History", isDirectory: true)
+    }
+
+    static var tempTranscriptsDirectory: URL {
+        applicationSupport.appendingPathComponent("TempTranscripts", isDirectory: true)
+    }
+
     static func ensureDirectoriesExist() {
-        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory]
+        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory, historyDirectory, tempTranscriptsDirectory]
         for directory in directories {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }

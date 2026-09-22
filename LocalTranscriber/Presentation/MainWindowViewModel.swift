@@ -52,6 +52,7 @@ final class MainWindowViewModel: ObservableObject {
     private let modelAvailability: ModelAvailabilityService
     private let modelDownloadService: ModelDownloadService
     private let audioPlayer: AudioPlayerService
+    private let historyStore: HistoryStore
 
     init(
         transcriber: Transcriber = WhisperKitTranscriber(),
@@ -62,7 +63,8 @@ final class MainWindowViewModel: ObservableObject {
         settings: AppSettings = .shared,
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
         modelDownloadService: ModelDownloadService = ModelDownloadService(),
-        audioPlayer: AudioPlayerService? = nil
+        audioPlayer: AudioPlayerService? = nil,
+        historyStore: HistoryStore = HistoryStore()
     ) {
         self.transcriber = transcriber
         self.audioFileService = audioFileService
@@ -73,6 +75,7 @@ final class MainWindowViewModel: ObservableObject {
         self.modelAvailability = modelAvailability
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
+        self.historyStore = historyStore
         refreshModelAvailability()
     }
 
@@ -173,6 +176,27 @@ final class MainWindowViewModel: ObservableObject {
         transcript.segments.contains {
             !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
+    }
+
+    /// クラッシュ復旧用の一時 Transcript を取得する。
+    func temporaryTranscriptForRecovery() -> Transcript? {
+        historyStore.loadTemporary()
+    }
+
+    /// 復旧用一時 Transcript を削除する。
+    func clearTemporaryTranscript() {
+        historyStore.clearTemporary()
+    }
+
+    /// クラッシュ復旧用の一時 Transcript を現在の状態へ復元する。
+    func restoreTranscript(_ transcript: Transcript) {
+        currentTranscript = transcript
+        transcriptText = transcript.fullText
+        isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
+        uiState = .done
+        progressDisplay = .done()
+        confirmFileImport = false
+        pendingFileImport = nil
     }
 
     func refreshModelAvailability() {
@@ -386,6 +410,8 @@ final class MainWindowViewModel: ObservableObject {
 
                 guard activeJobID == job.id else { return }
                 currentTranscript = transcript
+                try? historyStore.save(transcript)
+                try? historyStore.saveTemporary(transcript)
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
                 isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
