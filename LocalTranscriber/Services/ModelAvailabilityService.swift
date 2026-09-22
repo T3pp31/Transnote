@@ -1,8 +1,18 @@
 import Foundation
 
-struct ModelAvailabilityService: Sendable {
+final class ModelAvailabilityService: @unchecked Sendable {
     private let modelsRoot: URL
     private let fileManager: FileManager
+
+    // 毎回の再帰走査を避けるためのインメモリインデックス。
+    // モデルフォルダが変わった場合に備え、TTL（30秒）で再構築する。
+    private let cacheLock = NSLock()
+    private var cachedIndex: IndexEntry?
+
+    private struct IndexEntry {
+        let timestamp: Date
+        let directories: [URL]
+    }
 
     private static let requiredModelNames = ["MelSpectrogram", "AudioEncoder", "TextDecoder"]
 
@@ -56,6 +66,31 @@ struct ModelAvailabilityService: Sendable {
     /// - Parameter includingHidden: `true` のとき HuggingFace の `.cache` 等も列挙する。
     ///   モデル選択では不完全なステージング領域を除外し、失敗時クリーンアップでは残渣を消せるよう含める。
     func variantDirectories(named whisperKitModelName: String, includingHidden: Bool = false) -> [URL] {
+        // 初回またはTTL経過時のみ再帰走査し、以後はキャッシュを利用する。
+        // includingHidden はダウンロード失敗時のクリーンアップで必要になるため、
+        // その場合はキャッシュを無視して直接走査する。
+        let allDirectories: [URL]
+        if includingHidden {
+            allDirectories = scanVariantDirectories(includingHidden: true)
+        } else {
+            cacheLock.lock()
+            let cached = cachedIndex
+            cacheLock.unlock()
+            if let cached, Date().timeIntervalSince(cached.timestamp) < 30 {
+                allDirectories = cached.directories
+            } else {
+                allDirectories = scanVariantDirectories(includingHidden: false)
+                cacheLock.lock()
+                cachedIndex = IndexEntry(timestamp: Date(), directories: allDirectories)
+                cacheLock.unlock()
+            }
+        }
+
+        return allDirectories.filter { matchesVariant(url: $0, whisperKitModelName: whisperKitModelName) }
+    }
+
+    /// モデルルート以下を再帰走査してバリアント候補ディレクトリを返す（キャッシュ用）。
+    private func scanVariantDirectories(includingHidden: Bool) -> [URL] {
         guard fileManager.fileExists(atPath: modelsRoot.path) else { return [] }
 
         guard let enumerator = fileManager.enumerator(
@@ -69,7 +104,6 @@ struct ModelAvailabilityService: Sendable {
             guard let url = object as? URL else { return nil }
             guard isDirectory(url) else { return nil }
             if !includingHidden, hasHiddenPathComponent(url) { return nil }
-            guard matchesVariant(url: url, whisperKitModelName: whisperKitModelName) else { return nil }
             return url
         }
     }
