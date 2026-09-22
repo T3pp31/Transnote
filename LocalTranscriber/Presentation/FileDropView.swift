@@ -4,6 +4,7 @@ struct FileDropView: View {
     let supportedExtensions: [String]
     let selectedFile: AudioFileInfo?
     let onFileSelected: (URL, String?) -> Void
+    let audioImportService: AudioImportService
 
     @State private var isTargeted = false
     @State private var isHovered = false
@@ -262,7 +263,7 @@ struct FileDropView: View {
         }
 
         do {
-            let importedURL = try AudioImportService().importFile(
+            let importedURL = try audioImportService.importFile(
                 from: tempURL,
                 preferredFileName: fileName
             )
