@@ -16,6 +16,8 @@ struct UpdateCheckService: UpdateChecking {
     private let session: URLSession
     private let currentVersionProvider: @Sendable () -> String
 
+    private static let maxResponseSize = 8 * 1024 * 1024
+
     init(
         config: AppConfig = .shared,
         session: URLSession = .shared,
@@ -64,10 +66,15 @@ struct UpdateCheckService: UpdateChecking {
     private func fetchLatestRelease() async throws -> GitHubRelease {
         var request = URLRequest(url: config.githubReleasesAPIURL)
         request.httpMethod = "GET"
+        request.timeoutInterval = 10
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Transnote", forHTTPHeaderField: "User-Agent")
 
         let (data, response) = try await session.data(for: request)
+        // レスポンスサイズ上限（8 MB）
+        guard data.count <= Self.maxResponseSize else {
+            throw UpdateCheckError.responseTooLarge
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw UpdateCheckError.invalidResponse
         }
@@ -117,6 +124,7 @@ struct UpdateCheckService: UpdateChecking {
 enum UpdateCheckError: Error, Equatable {
     case invalidResponse
     case httpStatus(Int)
+    case responseTooLarge
 }
 
 private struct GitHubRelease: Decodable {
