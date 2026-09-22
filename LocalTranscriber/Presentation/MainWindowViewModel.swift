@@ -424,6 +424,9 @@ final class MainWindowViewModel: ObservableObject {
         uiState = .idle
         progressDisplay = .idle()
         lastAnnouncedPhase = nil
+        AccessibilityNotification.Announcement(
+            NSLocalizedString("処理をキャンセルしました。", comment: "Accessibility announcement for cancellation")
+        ).post()
     }
 
     func copyTranscript() {
@@ -656,6 +659,8 @@ final class MainWindowViewModel: ObservableObject {
                 action: info.action
             )
         }
+        // キャンセル・失敗も VoiceOver で通知する
+        AccessibilityNotification.Announcement(message).post()
     }
 
     private func isCriticalError(_ error: Error) -> Bool {
