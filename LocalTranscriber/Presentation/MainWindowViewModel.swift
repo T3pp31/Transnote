@@ -1,3 +1,32 @@
+@MainActor
+final class OperationCoordinator {
+    enum Operation: Equatable {
+        case importing
+        case transcription
+        case modelDownload
+        case playback
+    }
+
+    private(set) var activeOperation: Operation?
+
+    func canStart(_ operation: Operation) -> Bool {
+        activeOperation == nil || activeOperation == operation
+    }
+
+    @discardableResult
+    func start(_ operation: Operation) -> Bool {
+        guard canStart(operation) else { return false }
+        activeOperation = operation
+        return true
+    }
+
+    func end(_ operation: Operation) {
+        if activeOperation == operation {
+            activeOperation = nil
+        }
+    }
+}
+
 import AVFoundation
 import SwiftUI
 
@@ -76,8 +105,10 @@ final class MainWindowViewModel: ObservableObject {
         refreshModelAvailability()
     }
 
+    private let operationCoordinator = OperationCoordinator()
+
     var isBusy: Bool {
-        uiState == .preparing || uiState == .transcribing || isDownloadingModel
+        operationCoordinator.activeOperation != nil || isDownloadingModel
     }
 
     var canStartTranscription: Bool {
