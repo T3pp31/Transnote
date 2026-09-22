@@ -2,6 +2,22 @@ import AVFoundation
 import SwiftUI
 
 @MainActor
+struct AppDependencies {
+
+    var transcriber: any Transcriber = WhisperKitTranscriber()
+    var audioFileService: AudioFileService = AudioFileService()
+    var audioImportService: AudioImportService = AudioImportService()
+    var exportService: ExportService = ExportService()
+    var fileAccess: SecurityScopedFileAccess = .shared
+    var settings: AppSettings = AppSettings.shared
+    var modelAvailability: ModelAvailabilityService = ModelAvailabilityService()
+    var modelDownloadService: ModelDownloadService = ModelDownloadService()
+    var audioPlayer: AudioPlayerService? = nil
+
+    static let shared = AppDependencies()
+}
+
+@MainActor
 final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
@@ -73,6 +89,20 @@ final class MainWindowViewModel: ObservableObject {
         self.modelAvailability = modelAvailability
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
+        refreshModelAvailability()
+    }
+
+    /// AppDependencies 経由で依存をまとめて注入するイニシャライザ。
+    init(dependencies: AppDependencies) {
+        self.transcriber = dependencies.transcriber
+        self.audioFileService = dependencies.audioFileService
+        self.audioImportService = dependencies.audioImportService
+        self.exportService = dependencies.exportService
+        self.fileAccess = dependencies.fileAccess
+        self.settings = dependencies.settings
+        self.modelAvailability = dependencies.modelAvailability
+        self.modelDownloadService = dependencies.modelDownloadService
+        self.audioPlayer = dependencies.audioPlayer ?? AudioPlayerService()
         refreshModelAvailability()
     }
 
