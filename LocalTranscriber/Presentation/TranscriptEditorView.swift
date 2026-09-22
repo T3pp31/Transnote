@@ -10,6 +10,9 @@ struct TranscriptEditorView: View {
     @Binding var isEditing: Bool
     let onSegmentTap: (TranscriptSegment) -> Void
     let onCopy: () -> Void
+    let onSegmentPause: () -> Void
+    let onSegmentResume: () -> Void
+    let isSegmentPaused: Bool
     var needsModelDownload: Bool = false
     var onTranscriptTextChange: ((String) -> Void)? = nil
 
@@ -217,7 +220,10 @@ struct TranscriptEditorView: View {
                         segment: segment,
                         isPlaying: playingSegmentID == segment.id,
                         playbackPositionText: playbackPositionText,
-                        onTap: { onSegmentTap(segment) }
+                        isPaused: isSegmentPaused,
+                        onTap: { onSegmentTap(segment) },
+                        onPause: onSegmentPause,
+                        onResume: onSegmentResume
                     )
                 }
             }
@@ -258,7 +264,10 @@ private struct SegmentPlaybackRow: View {
     let segment: TranscriptSegment
     let isPlaying: Bool
     let playbackPositionText: String
+    let isPaused: Bool
     let onTap: () -> Void
+    let onPause: () -> Void
+    let onResume: () -> Void
 
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -271,6 +280,19 @@ private struct SegmentPlaybackRow: View {
                     .foregroundStyle(isPlaying ? Color.accentColor : .secondary)
                     .frame(width: DesignTokens.Icon.compact)
                     .symbolEffect(.variableColor, isActive: isPlaying && !reduceMotion)
+
+                if isPlaying {
+                    Button(isPaused ? "再開" : "一時停止") {
+                        if isPaused {
+                            onResume()
+                        } else {
+                            onPause()
+                        }
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.mini)
+                    .accessibilityLabel(isPaused ? "再生を再開" : "再生を一時停止")
+                }
 
                 Text(segment.formattedStartTime)
                     .font(.caption.monospacedDigit())
