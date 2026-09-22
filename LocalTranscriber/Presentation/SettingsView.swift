@@ -85,6 +85,11 @@ struct SettingsView: View {
             Spacer()
 
             HStack {
+                Button("診断情報をコピー") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(AppDiagnostics.summary, forType: .string)
+                }
+                .buttonStyle(.bordered)
                 Spacer()
                 Button("閉じる") {
                     dismiss()
