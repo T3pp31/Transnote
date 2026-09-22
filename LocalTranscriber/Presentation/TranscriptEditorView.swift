@@ -10,6 +10,7 @@ struct TranscriptEditorView: View {
     let onSegmentTap: (TranscriptSegment) -> Void
     let onCopy: () -> Void
     var needsModelDownload: Bool = false
+    var onTranscriptTextChange: ((String) -> Void)? = nil
 
     @FocusState private var isEditorFocused: Bool
     @Environment(\.colorScheme) private var colorScheme
@@ -78,6 +79,9 @@ struct TranscriptEditorView: View {
                                 .strokeBorder(DesignTokens.Colors.border(colorScheme), lineWidth: 1)
                         )
                         .focused($isEditorFocused)
+                        .onChange(of: text) { newValue in
+                            onTranscriptTextChange?(newValue)
+                        }
                 } else if hasPlayableSegments, let segments {
                     segmentPlaybackView(segments: segments)
                 } else {

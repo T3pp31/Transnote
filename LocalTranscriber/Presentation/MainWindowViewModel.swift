@@ -426,6 +426,20 @@ final class MainWindowViewModel: ObservableObject {
         lastAnnouncedPhase = nil
     }
 
+    /// Full Text 編集内容を currentTranscript の fullText と同期する。
+    /// segment の text が空の場合は、編集後の全文を反映する。
+    func updateTranscriptText(_ newText: String) {
+        transcriptText = newText
+        guard var transcript = currentTranscript else { return }
+        transcript.fullText = newText
+        // 全編集中に segment 表示へ戻っても食い違わないよう、
+        // セグメントが1つしかない（全文を1セグメントで保持している）場合は text も同期する。
+        if transcript.segments.count == 1 {
+            transcript.segments[0].text = newText
+        }
+        currentTranscript = transcript
+    }
+
     func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(transcriptText, forType: .string)
