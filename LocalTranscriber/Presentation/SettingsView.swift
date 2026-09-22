@@ -38,6 +38,24 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
+                    if let selected = settings.selectedModel {
+                        if let license = selected.license {
+                            Text("ライセンス: \(license)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let source = selected.distributionSource {
+                            Text("配布元: \(source)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let version = selected.modelVersion {
+                            Text("モデルバージョン: \(version)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
                     if let selectedModel = settings.selectedModel,
                        !isModelDownloaded(selectedModel) {
                         Button {

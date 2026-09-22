@@ -4,6 +4,25 @@ struct ModelOption: Identifiable, Sendable, Equatable {
     let id: String
     let displayName: String
     let whisperKitModelName: String
+    let license: String?
+    let distributionSource: String?
+    let modelVersion: String?
+
+    init(
+        id: String,
+        displayName: String,
+        whisperKitModelName: String,
+        license: String? = nil,
+        distributionSource: String? = nil,
+        modelVersion: String? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.whisperKitModelName = whisperKitModelName
+        self.license = license
+        self.distributionSource = distributionSource
+        self.modelVersion = modelVersion
+    }
 }
 
 struct LanguageOption: Identifiable, Sendable, Equatable {
@@ -187,7 +206,17 @@ struct AppConfig {
                   let whisperKitModelName = item["whisperKitModelName"] as? String else {
                 return nil
             }
-            return ModelOption(id: id, displayName: displayName, whisperKitModelName: whisperKitModelName)
+            let license = item["license"] as? String
+            let source = item["distributionSource"] as? String
+            let version = item["modelVersion"] as? String
+            return ModelOption(
+                id: id,
+                displayName: displayName,
+                whisperKitModelName: whisperKitModelName,
+                license: license,
+                distributionSource: source,
+                modelVersion: version
+            )
         }
     }
 
