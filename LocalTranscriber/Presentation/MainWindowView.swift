@@ -183,6 +183,7 @@ struct MainWindowView: View {
             playbackPositionText: viewModel.playbackPositionText,
             isEditing: $viewModel.isEditingTranscript,
             onSegmentTap: viewModel.playSegment,
+            onSegmentTextChange: viewModel.updateSegmentText,
             onCopy: viewModel.copyTranscript,
             onSegmentPause: viewModel.pausePlayback,
             onSegmentResume: viewModel.resumePlayback,
