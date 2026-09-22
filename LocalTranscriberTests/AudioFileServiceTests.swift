@@ -99,4 +99,34 @@ final class AudioFileServiceTests: XCTestCase {
 
         XCTAssertEqual(parsed, original)
     }
+
+    func testProbeDecodabilityReturnsTrueForRealWAV() throws {
+        let url = tempRoot.appendingPathComponent("real-silence.wav")
+        let wavHeader = Data([
+            0x52, 0x49, 0x46, 0x46, // RIFF
+            0x24, 0x00, 0x00, 0x00, // size
+            0x57, 0x41, 0x56, 0x45, // WAVE
+            0x66, 0x6d, 0x74, 0x20, // fmt
+            0x10, 0x00, 0x00, 0x00, // fmt size
+            0x01, 0x00, // PCM
+            0x01, 0x00, // channels
+            0x40, 0x1f, 0x00, 0x00, // sample rate 8000
+            0x80, 0x3e, 0x00, 0x00, // byte rate
+            0x02, 0x00, // block align
+            0x10, 0x00, // bits
+            0x64, 0x61, 0x74, 0x61, // data
+            0x00, 0x00, 0x00, 0x00  // data size 0
+        ])
+        FileManager.default.createFile(atPath: url.path, contents: wavHeader)
+
+        XCTAssertTrue(service.probeDecodability(url: url))
+    }
+
+    func testProbeDecodabilityReturnsFalseForGarbage() throws {
+        let url = tempRoot.appendingPathComponent("garbage.wav")
+        FileManager.default.createFile(atPath: url.path, contents: Data("not-audio".utf8))
+
+        XCTAssertFalse(service.probeDecodability(url: url))
+    }
+
 }
