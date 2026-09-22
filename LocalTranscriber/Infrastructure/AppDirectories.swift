@@ -22,6 +22,35 @@ enum AppDirectories {
         applicationSupport.appendingPathComponent("DropStaging", isDirectory: true)
     }
 
+    /// 指定ディレクトリ配下の合計サイズ（バイト）を計算する。
+    static func directorySize(of directory: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.fileSizeKey, .isRegularFileKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: directory,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+
+        var total: Int64 = 0
+        for case let url as URL in enumerator {
+            guard (try? url.resourceValues(forKeys: keys))?.isRegularFile == true else { continue }
+            total += Int64((try? url.resourceValues(forKeys: keys))?.fileSize ?? 0)
+        }
+        return total
+    }
+
+    /// 指定ディレクトリ配下のファイルを削除し、空のディレクトリを残す。
+    static func clearDirectory(_ directory: URL) {
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        ) else { return }
+        for entry in entries {
+            try? FileManager.default.removeItem(at: entry)
+        }
+    }
+
     static func ensureDirectoriesExist() {
         let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory]
         for directory in directories {
