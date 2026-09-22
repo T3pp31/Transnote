@@ -63,7 +63,7 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                 throw AppError.fileAccessDenied
             }
 
-            let decodeOptions = makeDecodingOptions(languageID: job.languageID)
+            let decodeOptions = makeDecodingOptions(languageID: job.languageID, vadEnabled: job.vadEnabled)
 
             progressHandler?(
                 .make(phase: .convertingAudio, fraction: 0, modelDisplayName: job.modelDisplayName)
@@ -207,22 +207,20 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         return try await WhisperKit(config)
     }
 
-    private func makeDecodingOptions(languageID: String) -> DecodingOptions {
+    private func makeDecodingOptions(languageID: String, vadEnabled: Bool = false) -> DecodingOptions {
         switch languageID {
         case "ja", "en":
             return DecodingOptions(
                 language: languageID,
                 usePrefillPrompt: true,
                 detectLanguage: false,
-                skipSpecialTokens: true
-            )
+                skipSpecialTokens: true,            )
         default:
             return DecodingOptions(
                 language: nil,
                 usePrefillPrompt: false,
                 detectLanguage: true,
-                skipSpecialTokens: true
-            )
+                skipSpecialTokens: true,            )
         }
     }
 
