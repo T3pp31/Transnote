@@ -91,10 +91,10 @@ struct AppConfig {
             if let loaded = NSDictionary(contentsOf: developmentPlistURL) as? [String: Any] {
                 data = loaded
             } else {
-                data = Self.fallbackData
+                data = [:]
             }
             #else
-            data = Self.fallbackData
+            data = [:]
             #endif
         }
 
@@ -152,19 +152,6 @@ struct AppConfig {
         self.maxImportFileSizeBytes = maxImportFileSizeBytes
     }
 
-    private static let fallbackData: [String: Any] = [
-        "SupportedAudioExtensions": ["wav", "mp3", "m4a", "flac"],
-        "DefaultModelID": "base",
-        "DefaultLanguage": "auto",
-        "ModelsDirectoryName": "Models",
-        "UpdateCheckEnabled": true,
-        "ExpectedGitHubRepository": "T3pp31/Transnote",
-        "GitHubReleasesAPIURL": "https://api.github.com/repos/T3pp31/Transnote/releases/latest",
-        "UpdateDownloadFallbackURL": "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg",
-        "UpdateDMGAssetName": "Transnote.dmg",
-        "AllowedUpdateDownloadHosts": ["github.com", "objects.githubusercontent.com"],
-        "MaxImportFileSizeBytes": 524_288_000
-    ]
 
     private static func int64(from value: Any?, fallback: Int64) -> Int64 {
         if let number = value as? NSNumber {
