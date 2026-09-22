@@ -13,6 +13,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 env:
   XCODE_VERSION: '16.4'
@@ -173,6 +175,15 @@ jobs:
 
           > **コード署名について**: 現時点では未署名ビルドを配布しています。Developer ID 署名と Notarization には [Apple Developer Program](https://developer.apple.com/programs/) への加入と CI 用証明書の設定が必要です（将来対応予定）。
           EOF
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: |
+            ${{ steps.dmg.outputs.dmg_path }}
+            ${{ steps.dmg.outputs.latest_dmg_path }}
+          subject-name: Transnote
+          show-summary: true
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
