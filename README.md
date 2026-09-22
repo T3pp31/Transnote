@@ -78,7 +78,7 @@ bash "/Volumes/Transnote/インストール.command"
 | 領域 | 技術 |
 | --- | --- |
 | UI | SwiftUI |
-| 文字起こし | [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) 0.9.0+ |
+| 文字起こし | [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) 0.18.0（Package.resolved で固定） |
 | 音声処理 | AVFoundation |
 | 設定 | `Config/Defaults.plist` + UserDefaults |
 | データ永続化 | ファイルシステム（`~/Library/Application Support/LocalTranscriber/`） |
@@ -95,7 +95,7 @@ Python や Rust は採用しない。Xcode プロジェクトの再生成に Pyt
 | macOS | 14.0 以降 |
 | Xcode | 16.0 以降（CI は 16.4） |
 
-WhisperKit は `argmaxinc/argmax-oss-swift` の Swift Package として提供される。前提環境は公式 README に準拠する。
+WhisperKit は `argmaxinc/argmax-oss-swift` の Swift Package として提供され、`LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` でバージョン 0.18.0（revision `e2adabb`）に固定している。前提環境は公式 README に準拠する。
 
 ## プロジェクト構成
 
