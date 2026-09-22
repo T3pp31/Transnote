@@ -7,6 +7,7 @@ struct SettingsView: View {
     let canDownloadSelectedModel: Bool
     let isModelDownloaded: (ModelOption) -> Bool
     let onDownloadSelectedModel: () -> Void
+    let onDiskUsage: (ModelOption) -> String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -37,6 +38,13 @@ struct SettingsView: View {
                     Text("使用するWhisperモデルを選択します。モデルは別途ダウンロードが必要です。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if let selected = settings.selectedModel,
+                       let usage = onDiskUsage(selected) {
+                        Text("使用中ディスク: \(usage)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
 
                     if let selectedModel = settings.selectedModel,
                        !isModelDownloaded(selectedModel) {

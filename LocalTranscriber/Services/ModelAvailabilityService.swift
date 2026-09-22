@@ -78,6 +78,12 @@ struct ModelAvailabilityService: Sendable {
         hasRequiredModelFilesDirectly(in: folder)
     }
 
+    /// 指定モデルの使用ディスク容量（バイト）を返す。未ダウンロードの場合は 0。
+    func diskUsage(whisperKitModelName: String) -> Int64 {
+        guard let folder = modelFolder(for: whisperKitModelName) else { return 0 }
+        return directorySize(in: folder)
+    }
+
     private func isDirectory(_ url: URL) -> Bool {
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory) else {
@@ -176,5 +182,21 @@ struct ModelAvailabilityService: Sendable {
         guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
         let size = attributes[.size] as? NSNumber
         return (size?.intValue ?? -1) > 0
+    }
+
+    /// ディレクトリ配下の合計サイズをバイトで返す（ディスク使用量表示用）。
+    private func directorySize(in directory: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
+        guard let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        var total: Int64 = 0
+        for case let url as URL in enumerator {
+            guard (try? url.resourceValues(forKeys: keys))?.isRegularFile == true else { continue }
+            total += Int64((try? url.resourceValues(forKeys: keys))?.fileSize ?? 0)
+        }
+        return total
     }
 }
