@@ -399,6 +399,7 @@ private struct ModelDownloadGuidanceBanner: View {
 private struct HistorySheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var items: [Transcript] = []
+    @State private var query: String = ""
     private let store = HistoryStore()
 
     var body: some View {
@@ -412,6 +413,12 @@ private struct HistorySheet: View {
                 }
                 .keyboardShortcut(.cancelAction)
             }
+
+            TextField("全文・ファイル名で検索", text: $query)
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: query) { _ in
+                    items = store.search(query: query)
+                }
 
             if items.isEmpty {
                 Text("履歴はまだありません。")
