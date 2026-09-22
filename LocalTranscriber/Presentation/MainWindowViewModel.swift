@@ -80,6 +80,13 @@ final class MainWindowViewModel: ObservableObject {
         uiState == .preparing && progressDisplay.phase == .downloadingModel
     }
 
+    /// テスト専用: モデルダウンロード中の状態をシミュレートする。
+    /// 本番コードでは使用しない（状態機械の整合性を保つため）。
+    func simulateModelDownloadForTesting() {
+        uiState = .preparing
+        progressDisplay = TranscriptionProgressDisplay.from(update: .make(phase: .downloadingModel, fraction: 0))
+    }
+
     var isBusy: Bool {
         uiState == .preparing || uiState == .transcribing || isDownloadingModel
     }
