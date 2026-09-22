@@ -108,7 +108,7 @@ final class MainWindowViewModel: ObservableObject {
     private let operationCoordinator = OperationCoordinator()
 
     var isBusy: Bool {
-        operationCoordinator.activeOperation != nil
+        operationCoordinator.activeOperation != nil || isDownloadingModel
     }
 
     var canStartTranscription: Bool {
