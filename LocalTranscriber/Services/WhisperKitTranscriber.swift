@@ -87,6 +87,8 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
                         partialText: partialText
                     )
                 )
+                // 途中結果をディスクへチェックポイント保存（クラッシュ・終了時の復旧用）
+                self.saveCheckpoint(text: partialText, for: job)
             }
             defer {
                 whisperKit.segmentDiscoveryCallback = nil
@@ -205,6 +207,24 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
         )
 
         return try await WhisperKit(config)
+    }
+
+    /// 途中結果をディスクへチェックポイント保存する。
+    /// クラッシュ・アプリ終了時に、このファイルから再開・復旧できる。
+    private func saveCheckpoint(text: String, for job: TranscriptionJob) {
+        guard !text.isEmpty else { return }
+        let directory = AppDirectories.checkpointDirectory
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("\(job.id.uuidString).json")
+        let payload: [String: Any] = [
+            "jobID": job.id.uuidString,
+            "sourceFileName": job.sourceFileName,
+            "text": text,
+            "updatedAt": Date().timeIntervalSince1970
+        ]
+        if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]) {
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     private func makeDecodingOptions(languageID: String) -> DecodingOptions {
