@@ -103,6 +103,7 @@ struct MainWindowView: View {
             cancelMenuTitle: viewModel.cancelMenuTitle,
             canCopy: viewModel.canCopyTranscript,
             copyTranscript: viewModel.copyTranscript,
+            canOpenFile: !viewModel.isBusy,
             openFile: openFilePanel
         ))
     }
@@ -283,6 +284,7 @@ struct MainWindowView: View {
         }
     }
     private func openFilePanel() {
+        guard !viewModel.isBusy else { return }
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
