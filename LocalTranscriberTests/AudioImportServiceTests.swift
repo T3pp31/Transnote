@@ -205,6 +205,30 @@ final class AudioImportServiceTests: XCTestCase {
         XCTAssertEqual(importedData, content)
         XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path))
     }
+
+// MARK: - cleanup (#187)
+
+    func testCleanupExpiredImportsRemovesOldFilesAndKeepsRecentOnes() throws {
+        try FileManager.default.createDirectory(at: importsRoot, withIntermediateDirectories: true)
+
+        let oldURL = importsRoot.appendingPathComponent("old.m4a")
+        let recentURL = importsRoot.appendingPathComponent("recent.m4a")
+        FileManager.default.createFile(atPath: oldURL.path, contents: Data("old".utf8))
+        FileManager.default.createFile(atPath: recentURL.path, contents: Data("recent".utf8))
+
+        let oldDate = Date(timeIntervalSinceNow: -40 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: oldURL.path)
+
+        try service.cleanupExpiredImports(maxAge: 30 * 24 * 60 * 60, now: Date())
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: oldURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: recentURL.path))
+    }
+
+    func testCleanupExpiredImportsIsNoOpWhenImportsRootMissing() throws {
+        // importsRoot が存在しない場合でも throw しない
+        XCTAssertNoThrow(try service.cleanupExpiredImports())
+    }
 }
 
 /// copyItem が常に失敗し、その際に destination へ部分的なファイルを残す FileManager。
