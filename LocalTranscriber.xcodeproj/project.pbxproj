@@ -63,6 +63,7 @@
 		18EC38674F064436BEA2724D /* AppVersionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8BFD72F88604AB69C76D542 /* AppVersionTests.swift */; };
 		58B4F11ACE864572B6695700 /* UpdateCheckServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D6599409FD042148EDA220C /* UpdateCheckServiceTests.swift */; };
 		F1A2B3C4D5E64356A7890ABE /* UpdateURLValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E64356A7890ABF /* UpdateURLValidatorTests.swift */; };
+		D1E2F3A4B5C60718293D4E5F /* SecurityScopedFileAccessTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E2F3A4B5C60718293D4E60 /* SecurityScopedFileAccessTests.swift */; };
 		C4D5E6F7A8B94012CDEF2401 /* ErrorMapperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E6F7A8B9C04123DEF24012 /* ErrorMapperTests.swift */; };
 		E3A91C47B8D24F6A9C0E1B55 /* LocalizedStringTestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4B02D58C9E3507B0D1F2C66 /* LocalizedStringTestSupport.swift */; };
 		A1B2C3D4E5F64789ABCDEF01 /* AudioFileNameResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A74889ABCDEF012 /* AudioFileNameResolverTests.swift */; };
@@ -133,6 +134,7 @@
 		F8BFD72F88604AB69C76D542 /* AppVersionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppVersionTests.swift; sourceTree = "<group>"; };
 		3D6599409FD042148EDA220C /* UpdateCheckServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateCheckServiceTests.swift; sourceTree = "<group>"; };
 		F1A2B3C4D5E64356A7890ABF /* UpdateURLValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateURLValidatorTests.swift; sourceTree = "<group>"; };
+		D1E2F3A4B5C60718293D4E60 /* SecurityScopedFileAccessTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityScopedFileAccessTests.swift; sourceTree = "<group>"; };
 		D5E6F7A8B9C04123DEF24012 /* ErrorMapperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorMapperTests.swift; sourceTree = "<group>"; };
 		F4B02D58C9E3507B0D1F2C66 /* LocalizedStringTestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizedStringTestSupport.swift; sourceTree = "<group>"; };
 		AA01B001F101A2B3C4D5E602 /* PerformanceBaselineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceBaselineTests.swift; sourceTree = "<group>"; };
@@ -262,6 +264,7 @@
 				F8BFD72F88604AB69C76D542 /* AppVersionTests.swift */,
 				3D6599409FD042148EDA220C /* UpdateCheckServiceTests.swift */,
 				F1A2B3C4D5E64356A7890ABF /* UpdateURLValidatorTests.swift */,
+				D1E2F3A4B5C60718293D4E60 /* SecurityScopedFileAccessTests.swift */,
 				D5E6F7A8B9C04123DEF24012 /* ErrorMapperTests.swift */,
 				B2C3D4E5F6A74889ABCDEF012 /* AudioFileNameResolverTests.swift */,
 				F4B02D58C9E3507B0D1F2C66 /* LocalizedStringTestSupport.swift */,
@@ -446,6 +449,7 @@
 				18EC38674F064436BEA2724D /* AppVersionTests.swift in Sources */,
 				58B4F11ACE864572B6695700 /* UpdateCheckServiceTests.swift in Sources */,
 				F1A2B3C4D5E64356A7890ABE /* UpdateURLValidatorTests.swift in Sources */,
+				D1E2F3A4B5C60718293D4E5F /* SecurityScopedFileAccessTests.swift in Sources */,
 				C4D5E6F7A8B94012CDEF2401 /* ErrorMapperTests.swift in Sources */,
 				A1B2C3D4E5F64789ABCDEF01 /* AudioFileNameResolverTests.swift in Sources */,
 				E3A91C47B8D24F6A9C0E1B55 /* LocalizedStringTestSupport.swift in Sources */,
