@@ -15,6 +15,8 @@ struct Transcript: Codable, Identifiable, Sendable {
     var modelID: String?
     /// 元音声ファイルの識別用フィンガープリント（SHA256）。
     var sourceFileFingerprint: String?
+    /// 最後に編集された日時（未編集なら nil）。
+    var updatedAt: Date?
     let schemaVersion: Int
 
     init(
@@ -26,6 +28,7 @@ struct Transcript: Codable, Identifiable, Sendable {
         segments: [TranscriptSegment] = [],
         modelID: String? = nil,
         sourceFileFingerprint: String? = nil,
+        updatedAt: Date? = nil,
         schemaVersion: Int = Transcript.currentSchemaVersion
     ) {
         self.id = id
@@ -36,12 +39,13 @@ struct Transcript: Codable, Identifiable, Sendable {
         self.segments = segments
         self.modelID = modelID
         self.sourceFileFingerprint = sourceFileFingerprint
+        self.updatedAt = updatedAt
         self.schemaVersion = schemaVersion
     }
 
     // 既存 JSON（schemaVersion なし）も読み込めるよう decodeIfPresent を使う。
     private enum CodingKeys: String, CodingKey {
-        case id, sourceFileName, language, createdAt, fullText, segments, modelID, sourceFileFingerprint, schemaVersion
+        case id, sourceFileName, language, createdAt, fullText, segments, modelID, sourceFileFingerprint, updatedAt, schemaVersion
     }
 
     init(from decoder: Decoder) throws {
@@ -54,6 +58,7 @@ struct Transcript: Codable, Identifiable, Sendable {
         segments = try container.decode([TranscriptSegment].self, forKey: .segments)
         modelID = try container.decodeIfPresent(String.self, forKey: .modelID)
         sourceFileFingerprint = try container.decodeIfPresent(String.self, forKey: .sourceFileFingerprint)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
         schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
     }
 }
