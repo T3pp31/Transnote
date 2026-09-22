@@ -50,6 +50,26 @@ final class AppSettings: ObservableObject {
         models.first { $0.id == selectedModelID }
     }
 
+    /// RAM・CPUコア数に基づく推奨モデル ID。
+    /// - 16GB 以上: small
+    /// - 8GB 以上: base
+    /// - それ以外: tiny
+    var recommendedModelID: String {
+        let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
+        let cores = ProcessInfo.processInfo.processorCount
+        if memoryGB >= 16 || cores >= 12 {
+            return "small"
+        }
+        if memoryGB >= 8 {
+            return "base"
+        }
+        return "tiny"
+    }
+
+    var recommendedModel: ModelOption? {
+        models.first { $0.id == recommendedModelID }
+    }
+
     var selectedLanguage: LanguageOption? {
         languages.first { $0.id == selectedLanguageID }
     }
