@@ -127,3 +127,20 @@ enum AppVersion {
         return stripped.isEmpty ? "0" : String(stripped)
     }
 }
+
+enum AppDiagnostics {
+    static var summary: String {
+        let appVersion = AppVersion.current()
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        let osText = "\(os.majorVersion).\(os.minorVersion).\(os.patchVersion)"
+        let models = AppConfig.shared.models.map { model in "- \(model.id): \(model.whisperKitModelName)" }
+        var lines = [
+            "アプリバージョン: \(appVersion)",
+            "macOS: \(osText)",
+            "CPUコア数: \(ProcessInfo.processInfo.processorCount)",
+            "メモリ: \(ProcessInfo.processInfo.physicalMemory / (1024 * 1024 * 1024)) GB",
+            "モデル:",
+        ]
+        return (lines + models).joined(separator: " | ")
+    }
+}
