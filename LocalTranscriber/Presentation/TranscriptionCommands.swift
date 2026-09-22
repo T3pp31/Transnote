@@ -12,6 +12,7 @@ struct TranscriptionActionsValue {
     let cancelMenuTitle: String
     let canCopy: Bool
     let copyTranscript: () -> Void
+    let canOpenFile: Bool
     let openFile: () -> Void
 }
 
@@ -37,7 +38,7 @@ struct TranscriptionCommands: Commands {
                 actions?.openFile()
             }
             .keyboardShortcut("o", modifiers: [.command])
-            .disabled(actions == nil)
+            .disabled(actions?.canOpenFile != true)
 
             Button("結果をすべてコピー") {
                 actions?.copyTranscript()
