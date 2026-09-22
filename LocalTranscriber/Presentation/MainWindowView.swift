@@ -249,8 +249,14 @@ struct MainWindowView: View {
 
             Menu("エクスポート") {
                 ForEach(ExportFormat.allCases) { format in
-                    Button(format.displayName) {
+                    Button {
                         viewModel.exportTranscript(format: format)
+                    } label: {
+                        if format == settings.defaultExportFormat {
+                            Label(format.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(format.displayName)
+                        }
                     }
                 }
             }
