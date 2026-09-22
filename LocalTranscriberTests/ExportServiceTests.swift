@@ -89,4 +89,27 @@ final class ExportServiceTests: XCTestCase {
         let srt = try exportService.content(for: transcript, format: .srt)
         XCTAssertTrue(srt.contains("00:00:01,234 --> 00:00:05,678"))
     }
+    // MARK: - markdown escape (#200)
+
+    func testMarkdownEscapesSpecialCharactersInFileName() throws {
+        let transcript = Transcript(
+            sourceFileName: "meeting [final] #1.wav",
+            fullText: "hello",
+            segments: []
+        )
+        let content = try exportService.content(for: transcript, format: .markdown)
+        XCTAssertTrue(content.contains("meeting \\[final\\] \\#1.wav"))
+    }
+
+    func testMarkdownEscapesSpecialCharactersInSegmentText() throws {
+        let transcript = Transcript(
+            sourceFileName: "test.wav",
+            fullText: "text *italic* _under_ [link]",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 1, text: "text *italic* _under_ [link]")
+            ]
+        )
+        let content = try exportService.content(for: transcript, format: .markdown)
+        XCTAssertTrue(content.contains("text \\*italic\\* \\_under\\_ \\[link\\]"))
+    }
 }
