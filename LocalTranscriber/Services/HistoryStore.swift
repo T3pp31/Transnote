@@ -53,4 +53,31 @@ struct HistoryStore: Sendable {
         let url = historyRoot.appendingPathComponent("\(transcript.id.uuidString).json")
         try? fileManager.removeItem(at: url)
     }
+
+    // MARK: - Crash recovery (temporary transcripts)
+
+    /// クラッシュ復旧用に一時的な Transcript を保存する。
+    func saveTemporary(_ transcript: Transcript) throws {
+        try fileManager.createDirectory(at: AppDirectories.tempTranscriptsDirectory, withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(transcript)
+        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        try data.write(to: url, options: .atomic)
+    }
+
+    /// クラッシュ復旧用の一時 Transcript を読み込む。なければ nil。
+    func loadTemporary() -> Transcript? {
+        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(Transcript.self, from: data)
+    }
+
+    /// クラッシュ復旧用の一時 Transcript を削除する。
+    func clearTemporary() {
+        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        try? fileManager.removeItem(at: url)
+    }
 }

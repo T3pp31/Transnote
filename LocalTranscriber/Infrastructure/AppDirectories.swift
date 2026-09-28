@@ -55,8 +55,12 @@ enum AppDirectories {
         }
     }
 
+    static var tempTranscriptsDirectory: URL {
+        applicationSupport.appendingPathComponent("TempTranscripts", isDirectory: true)
+    }
+
     static func ensureDirectoriesExist() {
-        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory, historyDirectory]
+        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory, historyDirectory, tempTranscriptsDirectory]
         for directory in directories {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
