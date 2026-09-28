@@ -2,6 +2,7 @@
 """Generate LocalTranscriber.xcodeproj/project.pbxproj"""
 
 import os
+import hashlib
 import uuid
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -89,8 +90,10 @@ EXTRA_FILES = [
 ]
 
 
-def uid():
-    return uuid.uuid4().hex[:24].upper()
+def uid(seed: str):
+    """ファイルパス等を seed に、決定的な PBX ID を生成する。
+    PBX の再生成で既存 ID が毎回変わらないようにする。"""
+    return hashlib.sha256(seed.encode()).hexdigest()[:24].upper()
 
 
 def pbx_file_ref(path):
@@ -111,39 +114,39 @@ def pbx_file_ref(path):
 
 
 ids = {
-    "project": uid(),
-    "main_group": uid(),
-    "products_group": uid(),
-    "config_group": uid(),
-    "app_target": uid(),
-    "test_target": uid(),
-    "app_product": uid(),
-    "test_product": uid(),
-    "sources_phase_app": uid(),
-    "resources_phase_app": uid(),
-    "frameworks_phase_app": uid(),
-    "sources_phase_test": uid(),
-    "frameworks_phase_test": uid(),
-    "test_dep": uid(),
-    "app_proxy": uid(),
-    "whisperkit_ref": uid(),
-    "whisperkit_product": uid(),
-    "pkg_ref": uid(),
-    "debug_config": uid(),
-    "release_config": uid(),
-    "app_debug": uid(),
-    "app_release": uid(),
-    "test_debug": uid(),
-    "test_release": uid(),
-    "project_config_list": uid(),
-    "app_config_list": uid(),
-    "test_config_list": uid(),
-    "domain_group": uid(),
-    "infra_group": uid(),
-    "services_group": uid(),
-    "presentation_group": uid(),
-    "local_group": uid(),
-    "tests_group": uid(),
+    "project": uid("project"),
+    "main_group": uid("main_group"),
+    "products_group": uid("products_group"),
+    "config_group": uid("config_group"),
+    "app_target": uid("app_target"),
+    "test_target": uid("test_target"),
+    "app_product": uid("app_product"),
+    "test_product": uid("test_product"),
+    "sources_phase_app": uid("sources_phase_app"),
+    "resources_phase_app": uid("resources_phase_app"),
+    "frameworks_phase_app": uid("frameworks_phase_app"),
+    "sources_phase_test": uid("sources_phase_test"),
+    "frameworks_phase_test": uid("frameworks_phase_test"),
+    "test_dep": uid("test_dep"),
+    "app_proxy": uid("app_proxy"),
+    "whisperkit_ref": uid("whisperkit_ref"),
+    "whisperkit_product": uid("whisperkit_product"),
+    "pkg_ref": uid("pkg_ref"),
+    "debug_config": uid("debug_config"),
+    "release_config": uid("release_config"),
+    "app_debug": uid("app_debug"),
+    "app_release": uid("app_release"),
+    "test_debug": uid("test_debug"),
+    "test_release": uid("test_release"),
+    "project_config_list": uid("project_config_list"),
+    "app_config_list": uid("app_config_list"),
+    "test_config_list": uid("test_config_list"),
+    "domain_group": uid("domain_group"),
+    "infra_group": uid("infra_group"),
+    "services_group": uid("services_group"),
+    "presentation_group": uid("presentation_group"),
+    "local_group": uid("local_group"),
+    "tests_group": uid("tests_group"),
 }
 
 file_refs = {}
@@ -151,13 +154,13 @@ build_files = {}
 
 all_paths = APP_SOURCES + TEST_SOURCES + RESOURCES + EXTRA_FILES
 for path in all_paths:
-    file_refs[path] = uid()
+    file_refs[path] = uid("fileref-" + path)
 
 for path in APP_SOURCES + TEST_SOURCES:
-    build_files[path] = uid()
+    build_files[path] = uid("build-01-" + path)
 
 for path in RESOURCES:
-    build_files[path] = uid()
+    build_files[path] = uid("build-01-" + path)
 
 lines = []
 lines.append("// !$*UTF8*$!")
