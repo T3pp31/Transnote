@@ -105,15 +105,15 @@ struct AudioImportService: Sendable {
 
         var buffer = [UInt8](repeating: 0, count: Self.copyBufferSize)
 
-        while inputStream.hasBytesAvailable {
+        // hasBytesAvailable は read の前に必ずしも正確ではないため、
+        // read が 0（EOF）を返すまで読み続ける。
+        while true {
             let bytesRead = inputStream.read(&buffer, maxLength: buffer.count)
             if bytesRead < 0 {
                 removeFileIfExistsIfFailed(destinationURL)
                 throw AppError.fileAccessDenied
             }
             if bytesRead == 0 {
-                // InputStream.read が 0 を返すのは EOF。hasBytesAvailable が
-                // 真のまま残ってもループし続けない。
                 break
             }
 
