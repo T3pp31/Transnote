@@ -113,7 +113,8 @@ actor WhisperKitTranscriber: Transcriber {
                             modelDisplayName: job.modelDisplayName
                         )
                     )
-                    return true
+                    // キャンセル時は false を返し、WhisperKit の内部処理を即時停止させる。
+                    return !Task.isCancelled
                 }
             )
 
