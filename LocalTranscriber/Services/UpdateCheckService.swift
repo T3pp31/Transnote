@@ -4,6 +4,7 @@ struct UpdateOffer: Sendable, Equatable {
     let latestVersion: String
     let currentVersion: String
     let downloadURL: URL
+    let sha256URL: URL?
     let releaseNotes: String?
 }
 
@@ -70,6 +71,7 @@ struct UpdateCheckService: UpdateChecking {
                 latestVersion: latestVersion,
                 currentVersion: currentVersion,
                 downloadURL: downloadURL,
+                sha256URL: resolveSHA256URL(from: release.assets),
                 releaseNotes: release.body
             )
         } catch let error as UpdateCheckError {
@@ -124,6 +126,16 @@ struct UpdateCheckService: UpdateChecking {
             release.htmlURL,
             expectedRepository: config.expectedGitHubRepository
         )
+    }
+
+    private func resolveSHA256URL(from assets: [GitHubReleaseAsset]) -> URL? {
+        guard let asset = assets.first(where: { $0.name.hasSuffix(".sha256") }) else {
+            return nil
+        }
+        return UpdateURLValidator.isAllowedDownloadURL(
+            asset.browserDownloadURL,
+            allowedHosts: config.allowedUpdateDownloadHosts
+        ) ? asset.browserDownloadURL : nil
     }
 
     private func resolveDownloadURL(from assets: [GitHubReleaseAsset]) -> URL? {
