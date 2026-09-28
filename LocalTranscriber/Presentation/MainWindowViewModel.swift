@@ -512,6 +512,16 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
+        guard operationCoordinator.start(.transcription) else {
+            presentInlineError(
+                title: NSLocalizedString("処理中", comment: "Busy title"),
+                message: NSLocalizedString("別の処理を実行中のため開始できません。", comment: "Busy message"),
+                canRetry: false,
+                action: nil
+            )
+            return
+        }
+
         settings.persist()
         clearErrors()
         stopPlayback()
@@ -572,6 +582,7 @@ final class MainWindowViewModel: ObservableObject {
                 activeJobID = nil
                 transcriptionTask = nil
             }
+            operationCoordinator.end(.transcription)
         }
     }
 
@@ -583,6 +594,7 @@ final class MainWindowViewModel: ObservableObject {
         transcriptionTask?.cancel()
         transcriptionTask = nil
         activeJobID = nil
+        operationCoordinator.end(.transcription)
 
         uiState = .idle
         progressDisplay = .idle()
