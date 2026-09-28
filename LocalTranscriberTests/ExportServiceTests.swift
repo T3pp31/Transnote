@@ -113,5 +113,46 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(srt.contains("00:00:00,000 --> 00:00:01,000"))
         XCTAssertTrue(vtt.contains("00:00:00.000 --> 00:00:01.000"))
     }
+    func testExportRejectsSegmentWithStartAfterEnd() throws {
+        let transcript = Transcript(
+            sourceFileName: "bad.wav",
+            fullText: "bad",
+            segments: [TranscriptSegment(startTime: 5, endTime: 2, text: "bad")]
+        )
+        XCTAssertThrowsError(try exportService.content(for: transcript, format: .srt))
+    }
+
+    func testExportRejectsOverlappingSegments() throws {
+        let transcript = Transcript(
+            sourceFileName: "overlap.wav",
+            fullText: "overlap",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 3, text: "a"),
+                TranscriptSegment(startTime: 2, endTime: 4, text: "b")
+            ]
+        )
+        XCTAssertThrowsError(try exportService.content(for: transcript, format: .srt))
+    }
+
+    func testExportRejectsNegativeStartTime() throws {
+        let transcript = Transcript(
+            sourceFileName: "negative.wav",
+            fullText: "negative",
+            segments: [TranscriptSegment(startTime: -1, endTime: 2, text: "bad")]
+        )
+        XCTAssertThrowsError(try exportService.content(for: transcript, format: .vtt))
+    }
+
+    func testExportAcceptsValidSegments() throws {
+        let transcript = Transcript(
+            sourceFileName: "valid.wav",
+            fullText: "valid",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 2, text: "a"),
+                TranscriptSegment(startTime: 2, endTime: 4, text: "b")
+            ]
+        )
+        XCTAssertNoThrow(try exportService.content(for: transcript, format: .srt))
+    }
 
 }
