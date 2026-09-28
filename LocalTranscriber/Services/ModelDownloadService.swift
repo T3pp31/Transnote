@@ -37,12 +37,37 @@ struct ModelDownloadService: Sendable {
         )
     }
 
+    /// モデルダウンロードに必要な空き容量（5GB）を確保できているか検査する。
+    /// 不足時は AppError.fileTooLarge ではなく専用エラーで通知する。
+    private func ensureEnoughDiskSpace() throws {
+        let resourceValues = try? modelsRoot.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        guard let available = resourceValues?.volumeAvailableCapacityForImportantUsage,
+              available > 0 else {
+            // 容量を取得できない場合は検査をスキップ（非ブロッキング）
+            AppLogger.info("Could not determine free disk space; skipping check", logger: AppLogger.transcription)
+            return
+        }
+        let minimumRequired: Int64 = 5 * 1024 * 1024 * 1024
+        if available < minimumRequired {
+            AppLogger.error("Insufficient disk space: \(available) bytes available", logger: AppLogger.transcription)
+            throw AppError.transcriptionFailed(
+                NSLocalizedString(
+                    "モデルのダウンロードに必要な空き容量が不足しています。ディスクの空き容量を確認してください。",
+                    comment: "Insufficient disk space for model download"
+                )
+            )
+        }
+    }
+
     private func download(
         whisperKitModelName: String,
         modelDisplayName: String?,
         progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
     ) async throws -> URL {
         AppDirectories.ensureDirectoriesExist()
+
+        // ダウンロード前に空き容量を検査する（モデル最低サイズの目安として 5GB 未満なら中止）。
+        try ensureEnoughDiskSpace()
 
         AppLogger.info("Downloading model: \(whisperKitModelName)", logger: AppLogger.transcription)
         progressHandler?(
