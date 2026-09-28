@@ -18,9 +18,7 @@ actor WhisperKitTranscriber: Transcriber {
     ) async throws -> Transcript {
         // 同一 WhisperKit インスタンスでの並列 transcribe は禁止する。
         // activeTasks が非空なら新しいジョブを拒否する。
-        lock.lock()
         let alreadyActive = !activeTasks.isEmpty
-        lock.unlock()
         guard !alreadyActive else {
             throw AppError.transcriptionFailed(
                 NSLocalizedString(
