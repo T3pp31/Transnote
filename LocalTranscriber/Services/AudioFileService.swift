@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 
 struct AudioFileInfo: Sendable, Equatable {
@@ -45,6 +46,19 @@ struct AudioFileService {
             fileSizeBytes: fileSize,
             formattedFileSize: Self.formatByteCount(fileSize)
         )
+    }
+
+    /// AVFoundation で実際にデコード可能かを軽くプローブする。
+    /// 拡張子チェックだけでは見逃す破損ファイルを検出するための補助。
+    /// - Parameter url: プローブ対象のファイル URL
+    /// - Returns: デコード可能なら true
+    func probeDecodability(url: URL) -> Bool {
+        let asset = AVURLAsset(url: url)
+        // 同期的にトラック情報へアクセスして再生可能性を確認する（軽量プローブ）
+        guard asset.tracks(withMediaType: .audio).first != nil || asset.isPlayable else {
+            return false
+        }
+        return true
     }
 
     static func formatByteCount(_ bytes: Int64) -> String {
