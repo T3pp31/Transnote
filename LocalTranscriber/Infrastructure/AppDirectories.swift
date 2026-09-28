@@ -22,6 +22,10 @@ enum AppDirectories {
         applicationSupport.appendingPathComponent("DropStaging", isDirectory: true)
     }
 
+    static var historyDirectory: URL {
+        applicationSupport.appendingPathComponent("History", isDirectory: true)
+    }
+
     /// 指定ディレクトリ配下の合計サイズ（バイト）を計算する。
     static func directorySize(of directory: URL) -> Int64 {
         let keys: Set<URLResourceKey> = [.fileSizeKey, .isRegularFileKey]
@@ -52,7 +56,7 @@ enum AppDirectories {
     }
 
     static func ensureDirectoriesExist() {
-        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory]
+        let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory, historyDirectory]
         for directory in directories {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }

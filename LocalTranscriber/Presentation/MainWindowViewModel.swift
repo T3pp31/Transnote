@@ -72,6 +72,7 @@ struct AppDependencies {
     var modelAvailability: ModelAvailabilityService = ModelAvailabilityService()
     var modelDownloadService: ModelDownloadService = ModelDownloadService()
     var audioPlayer: AudioPlayerService? = nil
+    var historyStore: HistoryStore = HistoryStore()
 
     static let shared = AppDependencies()
 }
@@ -131,6 +132,7 @@ final class MainWindowViewModel: ObservableObject {
     private let modelAvailability: ModelAvailabilityService
     private let modelDownloadService: ModelDownloadService
     private let audioPlayer: AudioPlayerService
+    private let historyStore: HistoryStore
 
     init(
         transcriber: Transcriber = WhisperKitTranscriber(),
@@ -141,7 +143,8 @@ final class MainWindowViewModel: ObservableObject {
         settings: any AppSettingsProviding = AppSettings.shared,
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
         modelDownloadService: ModelDownloadService = ModelDownloadService(),
-        audioPlayer: AudioPlayerService? = nil
+        audioPlayer: AudioPlayerService? = nil,
+        historyStore: HistoryStore = HistoryStore()
     ) {
         self.transcriber = transcriber
         self.audioFileService = audioFileService
@@ -152,6 +155,7 @@ final class MainWindowViewModel: ObservableObject {
         self.modelAvailability = modelAvailability
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
+        self.historyStore = historyStore
         self.audioPlayer.onPlaybackTimeUpdate = { [weak self] current, duration in
             Task { @MainActor in
                 self?.updatePlaybackPosition(current: current, duration: duration)
@@ -171,6 +175,7 @@ final class MainWindowViewModel: ObservableObject {
         self.modelAvailability = dependencies.modelAvailability
         self.modelDownloadService = dependencies.modelDownloadService
         self.audioPlayer = dependencies.audioPlayer ?? AudioPlayerService()
+        self.historyStore = dependencies.historyStore
         refreshModelAvailability()
     }
 
@@ -525,6 +530,7 @@ final class MainWindowViewModel: ObservableObject {
 
                 guard activeJobID == job.id else { return }
                 currentTranscript = transcript
+                try? historyStore.save(transcript)
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
                 isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
