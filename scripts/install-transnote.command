@@ -139,6 +139,17 @@ eject_installer_volume() {
   hdiutil detach "$volume_path" -quiet >/dev/null 2>&1 || true
 }
 
+remove_quarantine_attribute() {
+  local target="$1"
+  if command -v xattr >/dev/null 2>&1; then
+    find "$target" -type f -print0 2>/dev/null | while IFS= read -r -d '' path; do
+      if xattr -p com.apple.quarantine "$path" >/dev/null 2>&1; then
+        xattr -d com.apple.quarantine "$path" >/dev/null 2>&1 || true
+      fi
+    done
+  fi
+}
+
 osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
 sleep 1
 
@@ -179,6 +190,10 @@ done
 if ! ditto "${TMP_STAGE}/${APP_NAME}.app" "$TARGET_APP"; then
   fail "新バージョンの配置に失敗しました。旧バージョンを復元します。"
 fi
+
+# すべての extended attributes を削除せず、Gatekeeper が参照する quarantine 属性のみを対象にする。
+# 他の拡張属性（Finder や署名情報など）は残す。
+remove_quarantine_attribute "$TARGET_APP"
 
 # 成功時はバックアップを破棄
 rm -rf "$BACKUP_DIR" "$TMP_STAGE"
