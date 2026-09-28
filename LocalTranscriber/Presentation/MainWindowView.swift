@@ -75,7 +75,7 @@ struct MainWindowView: View {
         } message: {
             Text(
                 NSLocalizedString(
-                    "新しいファイルを選ぶと、現在の文字起こし結果は失われます。",
+                    "新しいファイルを選ぶと、現在の文字起こし結果（未保存の編集を含む）は失われます。",
                     comment: "Replace transcript confirmation message"
                 )
             )

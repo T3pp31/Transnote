@@ -259,10 +259,19 @@ final class MainWindowViewModel: ObservableObject {
             .isEmpty == false
     }
 
+    /// 編集モードで内容が元の文字起こしから変わっているかを表す。
+    /// ウィンドウ終了・ファイル差し替え前に確認するための dirty 状態。
+    var hasUnsavedChanges: Bool {
+        guard let transcript = currentTranscript else { return false }
+        let normalizedEdited = transcriptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedOriginal = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedEdited != normalizedOriginal
+    }
+
     func selectFile(url: URL, preferredFileName: String? = nil) {
         clearErrors()
 
-        if hasExistingResult {
+        if hasExistingResult || hasUnsavedChanges {
             pendingFileImport = (url, preferredFileName)
             confirmFileImport = true
             return
