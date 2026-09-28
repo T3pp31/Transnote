@@ -29,8 +29,6 @@ struct AudioImportService: Sendable {
             throw AppError.fileNotFound
         }
 
-        try validateFileSize(at: sourceURL)
-
         try fileManager.createDirectory(at: importsRoot, withIntermediateDirectories: true)
 
         let destinationURL = uniqueDestinationURL(
@@ -52,6 +50,11 @@ struct AudioImportService: Sendable {
                 sourceURL.stopAccessingSecurityScopedResource()
             }
         }
+
+        // security-scoped access を開始した後にファイル属性を読む。
+        // Sandbox 環境ではアクセス開始前の属性取得が失敗し得るため。
+        // サイズ超過はフォールバックせず、そのままエラーとして扱う。
+        try validateFileSize(at: sourceURL)
 
         do {
             try fileManager.copyItem(at: sourceURL, to: destinationURL)
