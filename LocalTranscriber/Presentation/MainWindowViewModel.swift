@@ -73,6 +73,7 @@ struct AppDependencies {
     var modelDownloadService: ModelDownloadService = ModelDownloadService()
     var audioPlayer: AudioPlayerService? = nil
     var historyStore: HistoryStore = HistoryStore()
+    var savePanelPresenter: any SavePanelPresenting = NSSavePanelPresenter()
 
     static let shared = AppDependencies()
 }
@@ -128,6 +129,7 @@ final class MainWindowViewModel: ObservableObject {
     private let audioImportService: AudioImportService
     private let exportService: ExportService
     private let fileAccess: SecurityScopedFileAccess
+    private let savePanelPresenter: any SavePanelPresenting
     private let settings: any AppSettingsProviding
     private let modelAvailability: ModelAvailabilityService
     private let modelDownloadService: ModelDownloadService
@@ -140,6 +142,7 @@ final class MainWindowViewModel: ObservableObject {
         audioImportService: AudioImportService = AudioImportService(),
         exportService: ExportService = ExportService(),
         fileAccess: SecurityScopedFileAccess = .shared,
+        savePanelPresenter: any SavePanelPresenting = NSSavePanelPresenter(),
         settings: any AppSettingsProviding = AppSettings.shared,
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
         modelDownloadService: ModelDownloadService = ModelDownloadService(),
@@ -151,6 +154,7 @@ final class MainWindowViewModel: ObservableObject {
         self.audioImportService = audioImportService
         self.exportService = exportService
         self.fileAccess = fileAccess
+        self.savePanelPresenter = savePanelPresenter
         self.settings = settings
         self.modelAvailability = modelAvailability
         self.modelDownloadService = modelDownloadService
@@ -171,6 +175,7 @@ final class MainWindowViewModel: ObservableObject {
         self.audioImportService = dependencies.audioImportService
         self.exportService = dependencies.exportService
         self.fileAccess = dependencies.fileAccess
+        self.savePanelPresenter = dependencies.savePanelPresenter
         self.settings = dependencies.settings
         self.modelAvailability = dependencies.modelAvailability
         self.modelDownloadService = dependencies.modelDownloadService
@@ -731,14 +736,12 @@ final class MainWindowViewModel: ObservableObject {
         transcript.updatedAt = Date()
         currentTranscript = transcript
 
-        let panel = NSSavePanel()
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = defaultExportFilename(for: transcript, format: format)
-        panel.allowedContentTypes = [UTType(filenameExtension: format.fileExtension) ?? .plainText]
-        // 前回エクスポート先を security-scoped bookmark から復元して初期ディレクトリにする
-        panel.directoryURL = fileAccess.loadLastExportDirectory()
-
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let url = savePanelPresenter.presentSavePanel(
+            defaultFileName: defaultExportFilename(for: transcript, format: format),
+            allowedContentTypes: [UTType(filenameExtension: format.fileExtension) ?? .plainText],
+            initialDirectoryURL: fileAccess.loadLastExportDirectory()
+        )
+        guard let url else { return }
 
         // 成功時に次回の初期ディレクトリとして bookmark を保存する
         fileAccess.saveLastExportDirectoryBookmark(for: url.deletingLastPathComponent())
@@ -1003,3 +1006,22 @@ final class MainWindowViewModel: ObservableObject {
 }
 
 import UniformTypeIdentifiers
+
+// MARK: - Save panel abstraction
+
+/// NSSavePanel の生成・表示を抽象化する。テストで差し替え可能にする。
+protocol SavePanelPresenting {
+    func presentSavePanel(defaultFileName: String, allowedContentTypes: [UTType], initialDirectoryURL: URL?) -> URL?
+}
+
+struct NSSavePanelPresenter: SavePanelPresenting {
+    func presentSavePanel(defaultFileName: String, allowedContentTypes: [UTType], initialDirectoryURL: URL?) -> URL? {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = defaultFileName
+        panel.allowedContentTypes = allowedContentTypes
+        panel.directoryURL = initialDirectoryURL
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        return url
+    }
+}
