@@ -448,6 +448,7 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
+    /// 文字起こしのみをキャンセルする（モデルDLは対象外）。
     func cancelTranscription() {
         if let jobID = activeJobID {
             Task { await transcriber.cancel(jobID: jobID) }
@@ -456,11 +457,17 @@ final class MainWindowViewModel: ObservableObject {
         transcriptionTask = nil
         activeJobID = nil
 
+        uiState = .idle
+        progressDisplay = .idle()
+        lastAnnouncedPhase = nil
+    }
+
+    /// モデルダウンロードのみをキャンセルする（文字起こしは対象外）。
+    func cancelModelDownload() {
         modelDownloadTask?.cancel()
         modelDownloadTask = nil
         activeModelDownloadID = nil
         isDownloadingModel = false
-
         uiState = .idle
         progressDisplay = .idle()
         lastAnnouncedPhase = nil
