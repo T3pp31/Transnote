@@ -15,24 +15,41 @@ struct UpdateCheckService: UpdateChecking {
     private let config: AppConfig
     private let session: URLSession
     private let currentVersionProvider: @Sendable () -> String
+    private let checkInterval: TimeInterval
+    private let defaults: UserDefaults
 
     init(
         config: AppConfig = .shared,
         session: URLSession = .shared,
-        currentVersionProvider: @escaping @Sendable () -> String = { AppVersion.current() }
+        currentVersionProvider: @escaping @Sendable () -> String = { AppVersion.current() },
+        checkInterval: TimeInterval = 6 * 60 * 60,
+        defaults: UserDefaults = .standard
     ) {
         self.config = config
         self.session = session
         self.currentVersionProvider = currentVersionProvider
+        self.checkInterval = checkInterval
+        self.defaults = defaults
     }
+
+    /// 確認間隔（秒）。6時間以内は API を呼ばない。
+    private static let minimumCheckInterval: TimeInterval = 6 * 60 * 60
 
     func checkForUpdate() async -> UpdateOffer? {
         guard config.updateCheckEnabled else {
             return nil
         }
 
+        // 前回確認から間隔内ならスキップ（起動ごとの API 呼び出しを防ぐ）
+        if let lastCheck = defaults.object(forKey: "lastUpdateCheckDate") as? Date,
+           Date().timeIntervalSince(lastCheck) < checkInterval {
+            return nil
+        }
+
         do {
             let release = try await fetchLatestRelease()
+            defaults.set(Date(), forKey: "lastUpdateCheckDate")
+            defaults.set(release.etag, forKey: "updateETag")
             let currentVersion = AppVersion.normalize(currentVersionProvider())
             let latestVersion = AppVersion.normalize(release.tagName)
 
@@ -55,6 +72,13 @@ struct UpdateCheckService: UpdateChecking {
                 downloadURL: downloadURL,
                 releaseNotes: release.body
             )
+        } catch let error as UpdateCheckError {
+            if case .notModified = error {
+                // 304 Not Modified: 変更なし。エラーログは不要。
+                return nil
+            }
+            AppLogger.error("Update check failed: \(error)", logger: AppLogger.general)
+            return nil
         } catch {
             AppLogger.error("Update check failed: \(error)", logger: AppLogger.general)
             return nil
@@ -67,11 +91,19 @@ struct UpdateCheckService: UpdateChecking {
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Transnote", forHTTPHeaderField: "User-Agent")
 
+        // 前回取得時の ETag があれば If-None-Match で送信し、304 なら更新なしとする
+        if let etag = defaults.string(forKey: "updateETag") {
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
+
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw UpdateCheckError.invalidResponse
         }
         guard (200...299).contains(httpResponse.statusCode) else {
+            if httpResponse.statusCode == 304 {
+                throw UpdateCheckError.notModified
+            }
             throw UpdateCheckError.httpStatus(httpResponse.statusCode)
         }
 
@@ -117,6 +149,7 @@ struct UpdateCheckService: UpdateChecking {
 enum UpdateCheckError: Error, Equatable {
     case invalidResponse
     case httpStatus(Int)
+    case notModified
 }
 
 private struct GitHubRelease: Decodable {
@@ -125,6 +158,7 @@ private struct GitHubRelease: Decodable {
     let assets: [GitHubReleaseAsset]
     let htmlURL: URL
     let repository: GitHubReleaseRepository?
+    let etag: String?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
@@ -132,6 +166,7 @@ private struct GitHubRelease: Decodable {
         case assets
         case htmlURL = "html_url"
         case repository
+        case etag
     }
 }
 
