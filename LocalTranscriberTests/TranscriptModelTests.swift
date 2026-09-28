@@ -53,4 +53,42 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(ExportFormat.srt.fileExtension, "srt")
         XCTAssertEqual(ExportFormat.vtt.fileExtension, "vtt")
     }
+    // MARK: - AppConfig / AppSettings (#245)
+
+    func testAppConfigDefaultValues() {
+        let config = AppConfig()
+        XCTAssertFalse(config.supportedExtensions.isEmpty)
+        XCTAssertFalse(config.models.isEmpty)
+        XCTAssertFalse(config.languages.isEmpty)
+        XCTAssertFalse(config.defaultModelID.isEmpty)
+        XCTAssertEqual(config.modelsDirectoryName, "Models")
+    }
+
+    func testAppConfigCustomInit() {
+        let config = AppConfig(
+            supportedExtensions: ["wav"],
+            defaultModelID: "tiny",
+            defaultLanguageID: "en",
+            modelsDirectoryName: "Models",
+            models: [ModelOption(id: "tiny", displayName: "Tiny", whisperKitModelName: "tiny")],
+            languages: [LanguageOption(id: "en", displayName: "English")],
+            updateCheckEnabled: true,
+            githubReleasesAPIURL: URL(string: "https://api.github.com/repos/T3pp31/Transnote/releases/latest")!,
+            updateDownloadFallbackURL: URL(string: "https://github.com/T3pp31/Transnote")!,
+            updateDMGAssetName: "Transnote.dmg"
+        )
+        XCTAssertEqual(config.supportedExtensions, ["wav"])
+        XCTAssertEqual(config.defaultModelID, "tiny")
+        XCTAssertEqual(config.models.count, 1)
+    }
+
+    @MainActor
+    func testAppSettingsSharedHasValidSelection() {
+        // shared シングルトンが初期化でき、選択値がモデル/言語リストに存在する
+        let settings = AppSettings.shared
+        XCTAssertFalse(settings.models.isEmpty)
+        XCTAssertFalse(settings.languages.isEmpty)
+        XCTAssertNotNil(settings.selectedModel)
+        XCTAssertNotNil(settings.selectedLanguage)
+    }
 }
