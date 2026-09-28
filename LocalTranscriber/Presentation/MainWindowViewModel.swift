@@ -85,6 +85,7 @@ final class MainWindowViewModel: ObservableObject {
     @Published var currentTranscript: Transcript?
     @Published var playingSegmentID: UUID?
     @Published var playbackPositionText: String = ""
+    @Published var isSegmentPaused = false
     @Published var isEditingTranscript = false
     @Published var errorMessage: String?
     @Published var inlineErrorTitle: String?
@@ -649,9 +650,20 @@ final class MainWindowViewModel: ObservableObject {
         return String(format: "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
+    func pausePlayback() {
+        audioPlayer.pause()
+        isSegmentPaused = true
+    }
+
+    func resumePlayback() {
+        audioPlayer.resume()
+        isSegmentPaused = false
+    }
+
     func stopPlayback() {
         audioPlayer.stop()
         playingSegmentID = nil
+        isSegmentPaused = false
     }
 
     func exportTranscript(format: ExportFormat) {
