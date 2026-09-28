@@ -4,11 +4,21 @@ struct ModelOption: Identifiable, Sendable, Equatable {
     let id: String
     let displayName: String
     let whisperKitModelName: String
+
+    /// Localizable.xcstrings から取得するローカライズ済み表示名。
+    var localizedDisplayName: String {
+        NSLocalizedString("model.\(id)", comment: "Model display name")
+    }
 }
 
 struct LanguageOption: Identifiable, Sendable, Equatable {
     let id: String
     let displayName: String
+
+    /// Localizable.xcstrings から取得するローカライズ済み表示名。
+    var localizedDisplayName: String {
+        NSLocalizedString("language.\(id)", comment: "Language display name")
+    }
 }
 
 @MainActor

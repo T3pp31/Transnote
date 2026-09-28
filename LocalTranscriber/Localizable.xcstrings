@@ -1,580 +1,954 @@
 {
-  "sourceLanguage" : "ja",
-  "strings" : {
-    "%dパーセント完了" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "%d percent complete" }
+  "sourceLanguage": "ja",
+  "strings": {
+    "%dパーセント完了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d percent complete"
+          }
         }
       }
     },
-    "%@、%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "%@, %@" }
+    "%@、%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, %@"
+          }
         }
       }
     },
-    "%@でエクスポートしました" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Exported as %@" }
+    "%@でエクスポートしました": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exported as %@"
+          }
         }
       }
     },
-    "文字起こし処理中です" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcription is in progress" }
+    "文字起こし処理中です": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription is in progress"
+          }
         }
       }
     },
-    "文字起こしを開始（⌘↩）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Start transcription (⌘↩)" }
+    "文字起こしを開始（⌘↩）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start transcription (⌘↩)"
+          }
         }
       }
     },
-    "音声ファイルを選択してください" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Select an audio file" }
+    "音声ファイルを選択してください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select an audio file"
+          }
         }
       }
     },
-    "モデルを選択してください" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Select a model" }
+    "モデルを選択してください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a model"
+          }
         }
       }
     },
-    "モデルをダウンロードしてください" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Download the selected model" }
+    "モデルをダウンロードしてください": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download the selected model"
+          }
         }
       }
     },
-    "処理中です" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Operation in progress" }
+    "処理中です": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Operation in progress"
+          }
         }
       }
     },
-    "文字起こし結果をコピーしました" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcription copied" }
+    "文字起こし結果をコピーしました": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription copied"
+          }
         }
       }
     },
-    "保存しました: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Saved: %@" }
+    "保存しました: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved: %@"
+          }
         }
       }
     },
-    "Finder で表示" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Show in Finder" }
+    "Finder で表示": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show in Finder"
+          }
         }
       }
     },
-    "アップデートが利用可能です" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Update Available" }
+    "アップデートが利用可能です": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Update Available"
+          }
         }
       }
     },
-    "ダウンロード" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Download" }
+    "ダウンロード": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download"
+          }
         }
       }
     },
-    "アップデートを入手" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Get Update" }
+    "アップデートを入手": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get Update"
+          }
         }
       }
     },
-    "後で" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Later" }
+    "後で": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Later"
+          }
         }
       }
     },
-    "バージョン %@ が利用可能です（現在: %@）。\nダウンロード後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Version %@ is available (current: %@).\nAfter downloading, run “Install.command” in the DMG.\nThe previous version will be replaced automatically." }
+    "バージョン %@ が利用可能です（現在: %@）。\nダウンロード後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ is available (current: %@).\nAfter downloading, run “Install.command” in the DMG.\nThe previous version will be replaced automatically."
+          }
         }
       }
     },
-    "バージョン %@ が利用可能です（現在: %@）。\nアップデートファイル取得後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Version %@ is available (current: %@).\nAfter obtaining the update file, run “Install.command” in the DMG.\nThe previous version will be replaced automatically." }
+    "バージョン %@ が利用可能です（現在: %@）。\nアップデートファイル取得後、DMG 内の「インストール.command」を実行してください。\n旧バージョンは自動的に置き換えられます。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ is available (current: %@).\nAfter obtaining the update file, run “Install.command” in the DMG.\nThe previous version will be replaced automatically."
+          }
         }
       }
     },
-    "モデル" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Model" }
+    "モデル": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
         }
       }
     },
-    "使用するWhisperモデルを選択します" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Select the Whisper model to use" }
+    "使用するWhisperモデルを選択します": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the Whisper model to use"
+          }
         }
       }
     },
-    "使用するWhisperモデルを選択します。モデルは別途ダウンロードが必要です。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Select the Whisper model to use. The model must be downloaded separately." }
+    "使用するWhisperモデルを選択します。モデルは別途ダウンロードが必要です。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the Whisper model to use. The model must be downloaded separately."
+          }
         }
       }
     },
-    "言語" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Language" }
+    "言語": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language"
+          }
         }
       }
     },
-    "音声の言語を選択します" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Select the language spoken in the audio" }
+    "音声の言語を選択します": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the language spoken in the audio"
+          }
         }
       }
     },
-    "音声の言語を選択します。Autoは自動検出です。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Select the language spoken in the audio. Auto detects it automatically." }
+    "音声の言語を選択します。Autoは自動検出です。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select the language spoken in the audio. Auto detects it automatically."
+          }
         }
       }
     },
-    "選択中のモデルをダウンロード" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Download the selected model" }
+    "選択中のモデルをダウンロード": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download the selected model"
+          }
         }
       }
     },
-    "モデルをダウンロード中" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Downloading model" }
+    "モデルをダウンロード中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading model"
+          }
         }
       }
     },
-    "選択中の文字起こしモデルをダウンロードします" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Download the selected transcription model" }
+    "選択中の文字起こしモデルをダウンロードします": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download the selected transcription model"
+          }
         }
       }
     },
-    "文字起こし結果をエクスポート" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Export transcription result" }
+    "文字起こし結果をエクスポート": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export transcription result"
+          }
         }
       }
     },
-    "テキスト、SRT、VTT などの形式で書き出します" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Export as text, SRT, VTT, or another format" }
+    "テキスト、SRT、VTT などの形式で書き出します": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export as text, SRT, VTT, or another format"
+          }
         }
       }
     },
-    "選択した音声ファイルの文字起こしを開始します" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Start transcribing the selected audio file" }
+    "選択した音声ファイルの文字起こしを開始します": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start transcribing the selected audio file"
+          }
         }
       }
     },
-    "再試行" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Retry" }
+    "再試行": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Retry"
+          }
         }
       }
     },
-    "エラーを閉じる" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Dismiss error" }
+    "エラーを閉じる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dismiss error"
+          }
         }
       }
     },
-    "エラー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Error" }
+    "エラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error"
+          }
         }
       }
     },
-    "設定エラー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Configuration Error" }
+    "設定エラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuration Error"
+          }
         }
       }
     },
-    "ファイルアクセスエラー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "File Access Error" }
+    "ファイルアクセスエラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File Access Error"
+          }
         }
       }
     },
-    "ファイルの読み込みエラー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "File Import Error" }
+    "ファイルの読み込みエラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File Import Error"
+          }
         }
       }
     },
-    "文字起こしエラー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcription Error" }
+    "文字起こしエラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription Error"
+          }
         }
       }
     },
-    "モデルのダウンロードエラー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Model Download Error" }
+    "モデルのダウンロードエラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model Download Error"
+          }
         }
       }
     },
-    "エクスポートエラー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Export Error" }
+    "エクスポートエラー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Error"
+          }
         }
       }
     },
-    "モデル未ダウンロード" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Model Not Downloaded" }
+    "モデル未ダウンロード": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model Not Downloaded"
+          }
         }
       }
     },
-    "未対応のファイル形式です: %@。wav / mp3 / m4a / flac に対応しています。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Unsupported file format: %@. Supported formats: wav, mp3, m4a, and flac." }
+    "未対応のファイル形式です: %@。wav / mp3 / m4a / flac に対応しています。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unsupported file format: %@. Supported formats: wav, mp3, m4a, and flac."
+          }
         }
       }
     },
-    "選択したファイルが見つかりません。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "The selected file could not be found." }
+    "選択したファイルが見つかりません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected file could not be found."
+          }
         }
       }
     },
-    "ファイルへのアクセスが拒否されました。もう一度ファイルを選択してください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Access to the file was denied. Please select the file again." }
+    "ファイルへのアクセスが拒否されました。もう一度ファイルを選択してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access to the file was denied. Please select the file again."
+          }
         }
       }
     },
-    "文字起こしをキャンセルしました。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcription was cancelled." }
+    "文字起こしをキャンセルしました。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription was cancelled."
+          }
         }
       }
     },
-    "エクスポートに失敗しました: %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Export failed: %@" }
+    "エクスポートに失敗しました: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export failed: %@"
+          }
         }
       }
     },
-    "アプリ設定が不正です。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "The app configuration is invalid." }
+    "アプリ設定が不正です。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app configuration is invalid."
+          }
         }
       }
     },
-    "保存済みファイルへのアクセスを復元できませんでした。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Access to the saved file could not be restored." }
+    "保存済みファイルへのアクセスを復元できませんでした。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Access to the saved file could not be restored."
+          }
         }
       }
     },
-    "モデル「%@」がダウンロードされていません。ツールバーの「ダウンロード」ボタンからダウンロードしてください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Model “%@” has not been downloaded. Download it using the Download button in the toolbar." }
+    "モデル「%@」がダウンロードされていません。ツールバーの「ダウンロード」ボタンからダウンロードしてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model “%@” has not been downloaded. Download it using the Download button in the toolbar."
+          }
         }
       }
     },
-    "モデル「%@」がダウンロードされていません。ツールバーの「モデルをダウンロード」ボタンからダウンロードしてください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Model “%@” has not been downloaded. Download it using the Download Model button in the toolbar." }
+    "モデル「%@」がダウンロードされていません。ツールバーの「モデルをダウンロード」ボタンからダウンロードしてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model “%@” has not been downloaded. Download it using the Download Model button in the toolbar."
+          }
         }
       }
     },
-    "モデルがダウンロードされていません。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "The model has not been downloaded." }
+    "モデルがダウンロードされていません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The model has not been downloaded."
+          }
         }
       }
     },
-    "ファイルサイズが上限（500MB）を超えています。より小さいファイルを選択してください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "The file exceeds the 500 MB limit. Select a smaller file." }
+    "ファイルサイズが上限（500MB）を超えています。より小さいファイルを選択してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file exceeds the 500 MB limit. Select a smaller file."
+          }
         }
       }
     },
-    "処理がキャンセルされました。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "The operation was cancelled." }
+    "処理がキャンセルされました。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The operation was cancelled."
+          }
         }
       }
     },
-    "モデルの読み込みに失敗しました。モデル管理から再ダウンロードしてください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Failed to load the model. Download it again from model management." }
+    "モデルの読み込みに失敗しました。モデル管理から再ダウンロードしてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to load the model. Download it again from model management."
+          }
         }
       }
     },
-    "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Failed to download the model. Check your network connection." }
+    "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to download the model. Check your network connection."
+          }
         }
       }
     },
-    "予期しないエラーが発生しました。もう一度お試しください。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "An unexpected error occurred. Please try again." }
+    "予期しないエラーが発生しました。もう一度お試しください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An unexpected error occurred. Please try again."
+          }
         }
       }
     },
-    "準備中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Preparing…" }
+    "準備中…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing…"
+          }
         }
       }
     },
-    "モデルを読み込み中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Loading model…" }
+    "モデルを読み込み中…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading model…"
+          }
         }
       }
     },
-    "モデルをダウンロード中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Downloading model…" }
+    "モデルをダウンロード中…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading model…"
+          }
         }
       }
     },
-    "音声を変換中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Converting audio…" }
+    "音声を変換中…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Converting audio…"
+          }
         }
       }
     },
-    "文字起こし中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcribing…" }
+    "文字起こし中…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcribing…"
+          }
         }
       }
     },
-    "完了" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Done" }
+    "完了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
         }
       }
     },
-    "文字起こし結果" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcription Result" }
+    "文字起こし結果": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription Result"
+          }
         }
       }
     },
-    "文字起こしを開始" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Start Transcription" }
+    "文字起こしを開始": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start Transcription"
+          }
         }
       }
     },
-    "ファイルを開く…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Open File…" }
+    "ファイルを開く…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open File…"
+          }
         }
       }
     },
-    "音声ファイルをここにドロップ" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Drop audio file here" }
+    "音声ファイルをここにドロップ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drop audio file here"
+          }
         }
       }
     },
-    "キャンセル" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Cancel" }
+    "キャンセル": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
         }
       }
     },
-    "ダウンロードをキャンセル" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Cancel Download" }
+    "ダウンロードをキャンセル": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel Download"
+          }
         }
       }
     },
-    "ダウンロードをキャンセル（Esc）" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Cancel download (Esc)" }
+    "ダウンロードをキャンセル（Esc）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel download (Esc)"
+          }
         }
       }
     },
-    "コピー" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Copy" }
+    "コピー": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy"
+          }
         }
       }
     },
-    "エクスポート" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Export" }
+    "エクスポート": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export"
+          }
         }
       }
     },
-    "設定" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Settings" }
+    "設定": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
         }
       }
     },
-    "準備完了" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Ready" }
+    "準備完了": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ready"
+          }
         }
       }
     },
-    "待機中" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Waiting" }
+    "待機中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting"
+          }
         }
       }
     },
-    "モデルをダウンロード" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Download Model" }
+    "モデルをダウンロード": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download Model"
+          }
         }
       }
     },
-    "このモデルをダウンロード" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Download This Model" }
+    "このモデルをダウンロード": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Download This Model"
+          }
         }
       }
     },
-    "選択中のモデルをダウンロードします" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Downloads the selected model" }
+    "選択中のモデルをダウンロードします": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloads the selected model"
+          }
         }
       }
     },
-    "ダウンロード中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Downloading…" }
+    "ダウンロード中…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloading…"
+          }
         }
       }
     },
-    "閉じる" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Close" }
+    "閉じる": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
         }
       }
     },
-    "文字起こしモデル" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcription Model" }
+    "文字起こしモデル": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription Model"
+          }
         }
       }
     },
-    "文字起こし言語" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Transcription Language" }
+    "文字起こし言語": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Transcription Language"
+          }
         }
       }
     },
-    "進行中" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "In progress" }
+    "進行中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In progress"
+          }
         }
       }
     },
-    "音声は端末内で処理されます。通信はモデルダウンロード時のみです。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : { "state" : "translated", "value" : "Audio is processed on your device. Network is used only when downloading models." }
+    "音声は端末内で処理されます。通信はモデルダウンロード時のみです。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio is processed on your device. Network is used only when downloading models."
+          }
+        }
+      }
+    },
+    "model.tiny": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiny"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiny"
+          }
+        }
+      }
+    },
+    "model.base": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Base"
+          }
+        }
+      }
+    },
+    "model.small": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Small"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Small"
+          }
+        }
+      }
+    },
+    "model.large-v3-compressed": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large v3 Turbo (compressed)"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large v3 Turbo (compressed)"
+          }
+        }
+      }
+    },
+    "model.large-v3-turbo": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large v3 Turbo"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large v3 Turbo"
+          }
+        }
+      }
+    },
+    "language.auto": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "自動"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auto"
+          }
+        }
+      }
+    },
+    "language.ja": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "日本語"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Japanese"
+          }
+        }
+      }
+    },
+    "language.en": {
+      "localizations": {
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "英語"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
         }
       }
     }
   },
-  "version" : "1.0"
+  "version": "1.0"
 }
