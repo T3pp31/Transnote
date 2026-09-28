@@ -244,13 +244,50 @@
       rerenderIfNeeded();
     });
 
-  fetch('https://api.github.com/repos/T3pp31/Transnote/releases?per_page=30')
-    .then(function (response) {
+  var releasesAPIBase = 'https://api.github.com/repos/T3pp31/Transnote/releases';
+  var maxReleasePages = 5;
+
+  function fetchReleasePage(pageURL) {
+    return fetch(pageURL).then(function (response) {
       if (!response.ok) {
         throw new Error('GitHub API request failed: ' + response.status);
       }
-      return response.json();
-    })
+      return response.json().then(function (page) {
+        return { page: page, nextURL: parseNextPageURL(response) };
+      });
+    });
+  }
+
+  function parseNextPageURL(response) {
+    var link = response.headers.get('Link');
+    if (!link || typeof link !== 'string') {
+      return null;
+    }
+    var match = link.match(/<([^>]+)>;\s*rel="next"/);
+    return match ? match[1] : null;
+  }
+
+  function fetchAllReleasePages() {
+    var all = [];
+    var currentURL = releasesAPIBase + '?per_page=30';
+    var pageCount = 0;
+
+    function fetchNext() {
+      return fetchReleasePage(currentURL).then(function (result) {
+        all = all.concat(result.page);
+        pageCount += 1;
+        if (result.nextURL && pageCount < maxReleasePages) {
+          currentURL = result.nextURL;
+          return fetchNext();
+        }
+        return all;
+      });
+    }
+
+    return fetchNext();
+  }
+
+  fetchAllReleasePages()
     .then(function (releases) {
       if (!Array.isArray(releases)) {
         showReleaseListError();
