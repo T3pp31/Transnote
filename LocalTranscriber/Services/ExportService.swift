@@ -67,7 +67,7 @@ struct ExportService {
     private func exportSRT(_ transcript: Transcript) -> String {
         var blocks: [String] = []
         let segments = transcript.segments.isEmpty
-            ? [TranscriptSegment(startTime: 0, endTime: 0, text: transcript.fullText)]
+            ? [fallbackSegment(for: transcript)]
             : transcript.segments
 
         for (index, segment) in segments.enumerated() {
@@ -85,7 +85,7 @@ struct ExportService {
     private func exportVTT(_ transcript: Transcript) -> String {
         var lines = ["WEBVTT", ""]
         let segments = transcript.segments.isEmpty
-            ? [TranscriptSegment(startTime: 0, endTime: 0, text: transcript.fullText)]
+            ? [fallbackSegment(for: transcript)]
             : transcript.segments
 
         for segment in segments {
@@ -97,6 +97,13 @@ struct ExportService {
         }
 
         return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// segment が無い場合の字幕用フォールバック。
+    /// 00:00:00 -> 00:00:00 の無効な区間ではなく、テキスト全体を
+    /// 0 秒からざっくり 1 秒の区間として表示する（実時間が不明なため）。
+    private func fallbackSegment(for transcript: Transcript) -> TranscriptSegment {
+        TranscriptSegment(startTime: 0, endTime: 1, text: transcript.fullText)
     }
 
     private func formatTimestamp(_ time: TimeInterval, separator: String) -> String {
