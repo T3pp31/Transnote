@@ -117,10 +117,17 @@ struct AudioImportService: Sendable {
                 break
             }
 
-            let bytesWritten = outputStream.write(buffer, maxLength: bytesRead)
-            if bytesWritten != bytesRead {
-                removeFileIfExistsIfFailed(destinationURL)
-                throw AppError.fileAccessDenied
+            // OutputStream.write は部分書き込みを行うことがあるため、
+            // 書き込めた分を進め、残りを再度書き込むループにする。
+            var writtenTotal = 0
+            while writtenTotal < bytesRead {
+                let remaining = Array(buffer[writtenTotal..<bytesRead])
+                let bytesWritten = outputStream.write(remaining, maxLength: remaining.count)
+                if bytesWritten <= 0 {
+                    removeFileIfExistsIfFailed(destinationURL)
+                    throw AppError.fileAccessDenied
+                }
+                writtenTotal += bytesWritten
             }
         }
     }
