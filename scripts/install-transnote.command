@@ -4,12 +4,28 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLIST="${SCRIPT_DIR}/distribution.plist"
-APPLICATIONS_DIR="/Applications"
+APPLICATIONS_DIR="${TRANSNOTE_INSTALL_DIR:-/Applications}"
 
 fail() {
   osascript -e "display alert \"Transnote インストールエラー\" message \"${1}\" as critical" >/dev/null 2>&1 || true
   exit 1
 }
+
+# --check: 実インストールせずに、前提条件（設定・DMG・アプリ・チェックサム）の
+# 検証のみを行うテスト用モード。TRANSNOTE_INSTALL_DIR でインストール先を注入できる。
+if [[ "${1:-}" == "--check" ]]; then
+  if [[ ! -f "$PLIST" ]]; then
+    echo "FAIL: distribution.plist not found" >&2
+    exit 1
+  fi
+  APP_NAME="$(/usr/libexec/PlistBuddy -c "Print :AppName" "$PLIST" 2>/dev/null || echo Transnote)"
+  if [[ ! -d "${SCRIPT_DIR}/${APP_NAME}.app" ]]; then
+    echo "FAIL: ${APP_NAME}.app not found" >&2
+    exit 1
+  fi
+  echo "OK: install inputs verified (target=${APPLICATIONS_DIR})"
+  exit 0
+fi
 
 find_mounted_dmg_path() {
   if [[ "$SCRIPT_DIR" != /Volumes/* ]]; then
