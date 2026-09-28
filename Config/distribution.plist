@@ -4,6 +4,8 @@
 <dict>
 	<key>AppName</key>
 	<string>Transnote</string>
+	<key>BundleIdentifier</key>
+	<string>com.transnote.LocalTranscriber</string>
 	<key>LegacyAppNames</key>
 	<array>
 		<string>LocalTranscriber</string>

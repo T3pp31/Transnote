@@ -79,6 +79,7 @@ if [[ ! -f "$PLIST" ]]; then
 fi
 
 APP_NAME="$(/usr/libexec/PlistBuddy -c "Print :AppName" "$PLIST")"
+BUNDLE_IDENTIFIER="$(/usr/libexec/PlistBuddy -c "Print :BundleIdentifier" "$PLIST" 2>/dev/null || true)"
 SOURCE_APP="${SCRIPT_DIR}/${APP_NAME}.app"
 TARGET_APP="${APPLICATIONS_DIR}/${APP_NAME}.app"
 
@@ -91,10 +92,21 @@ verify_dmg_checksum
 remove_installed_apps() {
   local base_name="$1"
   local candidate
+  local expected_id="${BUNDLE_IDENTIFIER}"
 
   shopt -s nullglob
   for candidate in "${APPLICATIONS_DIR}/${base_name}.app" "${APPLICATIONS_DIR}/${base_name} "*.app; do
     if [[ -d "$candidate" ]]; then
+      # 削除前に Bundle ID を検証し、同名の無関係アプリを誤って削除しない。
+      local candidate_id
+      candidate_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${candidate}/Contents/Info.plist" 2>/dev/null || true)"
+      if [[ -z "$candidate_id" ]]; then
+        continue
+      fi
+      if [[ "$candidate_id" != "$expected_id" ]]; then
+        echo "Bundle ID mismatch: skip $candidate ($candidate_id != $expected_id)" >&2
+        continue
+      fi
       rm -rf "$candidate"
     fi
   done
