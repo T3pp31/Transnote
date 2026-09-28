@@ -121,7 +121,8 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
             return mapToTranscript(
                 merged,
                 sourceFileName: job.sourceFileName,
-                tokenizer: whisperKit.tokenizer
+                tokenizer: whisperKit.tokenizer,
+                modelID: job.modelID
             )
         } catch is CancellationError {
             throw AppError.transcriptionCancelled
@@ -256,7 +257,8 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
     private func mapToTranscript(
         _ result: TranscriptionResult,
         sourceFileName: String,
-        tokenizer: WhisperTokenizer?
+        tokenizer: WhisperTokenizer?,
+        modelID: String?
     ) -> Transcript {
         let segments: [TranscriptSegment]
         if let tokenizer {
@@ -272,7 +274,8 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
             sourceFileName: sourceFileName,
             language: result.language.isEmpty ? nil : result.language,
             fullText: fullText,
-            segments: segments
+            segments: segments,
+            modelID: modelID
         )
     }
 }
