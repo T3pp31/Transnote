@@ -29,8 +29,11 @@ enum DesignTokens {
     }
 
     enum Colors {
-        static func border(_ colorScheme: ColorScheme) -> Color {
-            Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.12)
+        static func border(_ colorScheme: ColorScheme, increasedContrast: Bool = false) -> Color {
+            if increasedContrast {
+                return Color.primary.opacity(colorScheme == .dark ? 0.4 : 0.25)
+            }
+            return Color.primary.opacity(colorScheme == .dark ? 0.22 : 0.12)
         }
 
         static func hoverFill(_ colorScheme: ColorScheme) -> Color {
