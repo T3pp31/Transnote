@@ -114,7 +114,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         AppSettings.shared.selectedModelID = "base"
         viewModel = MainWindowViewModel()
         viewModel.downloadedModelIDs = []
-        viewModel.isDownloadingModel = true
+        viewModel.simulateModelDownloadForTesting()
 
         XCTAssertTrue(viewModel.shouldShowModelDownloadButton)
         XCTAssertFalse(viewModel.canDownloadSelectedModel)
@@ -140,7 +140,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     func testCancelActionLabelsSwitchForModelDownload() {
         AppSettings.shared.selectedModelID = "base"
         viewModel = MainWindowViewModel()
-        viewModel.isDownloadingModel = true
+        viewModel.simulateModelDownloadForTesting()
 
         XCTAssertEqual(
             viewModel.cancelActionAccessibilityLabel,
@@ -157,7 +157,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         AppSettings.shared.selectedModelID = "base"
         viewModel = MainWindowViewModel()
         viewModel.uiState = .transcribing
-        viewModel.isDownloadingModel = false
+        
 
         XCTAssertEqual(
             viewModel.cancelActionAccessibilityLabel,

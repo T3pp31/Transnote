@@ -96,7 +96,6 @@ final class MainWindowViewModel: ObservableObject {
     @Published var criticalErrorTitle: String?
     @Published var criticalErrorMessage: String?
     @Published var downloadedModelIDs: Set<String> = []
-    @Published var isDownloadingModel = false
     @Published var toast: ToastMessage?
 
     private enum RecoverableAction: Equatable {
@@ -185,6 +184,18 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     private let operationCoordinator = OperationCoordinator()
+
+    /// モデルダウンロード中かどうか。uiState + progressDisplay から導出する単一の状態。
+    var isDownloadingModel: Bool {
+        uiState == .preparing && progressDisplay.phase == .downloadingModel
+    }
+
+    /// テスト専用: モデルダウンロード中の状態をシミュレートする。
+    /// 本番コードでは使用しない（状態機械の整合性を保つため）。
+    func simulateModelDownloadForTesting() {
+        uiState = .preparing
+        progressDisplay = TranscriptionProgressDisplay.from(update: .make(phase: .downloadingModel, fraction: 0))
+    }
 
     var isBusy: Bool {
         operationCoordinator.activeOperation != nil || isDownloadingModel
@@ -399,7 +410,6 @@ final class MainWindowViewModel: ObservableObject {
 
             if activeModelDownloadID == downloadID {
                 activeModelDownloadID = nil
-                isDownloadingModel = false
                 modelDownloadTask = nil
             }
         }
@@ -637,7 +647,6 @@ final class MainWindowViewModel: ObservableObject {
         modelDownloadTask?.cancel()
         modelDownloadTask = nil
         activeModelDownloadID = nil
-        isDownloadingModel = false
         uiState = .idle
         progressDisplay = .idle()
         lastAnnouncedPhase = nil
