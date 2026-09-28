@@ -80,6 +80,54 @@
 			<key>displayName</key>
 			<string>English</string>
 		</dict>
+		<dict>
+			<key>id</key>
+			<string>zh</string>
+			<key>displayName</key>
+			<string>Chinese</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>ko</string>
+			<key>displayName</key>
+			<string>Korean</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>fr</string>
+			<key>displayName</key>
+			<string>French</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>de</string>
+			<key>displayName</key>
+			<string>German</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>es</string>
+			<key>displayName</key>
+			<string>Spanish</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>it</string>
+			<key>displayName</key>
+			<string>Italian</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>pt</string>
+			<key>displayName</key>
+			<string>Portuguese</string>
+		</dict>
+		<dict>
+			<key>id</key>
+			<string>ru</string>
+			<key>displayName</key>
+			<string>Russian</string>
+		</dict>
 	</array>
 	<key>UpdateCheckEnabled</key>
 	<true/>
