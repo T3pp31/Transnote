@@ -21,5 +21,5 @@ if [ ! -f "$project" ]; then
   exit 1
 fi
 
-sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = ${version};/g" "$project"
+perl -pi -e "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = ${version};/g" "$project"
 echo "Set MARKETING_VERSION to ${version} in ${project}"
