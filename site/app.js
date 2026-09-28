@@ -34,8 +34,24 @@
       if (url.protocol !== 'https:' || url.hostname.toLowerCase() !== 'github.com') {
         return false;
       }
-      var pathPrefix = '/' + expectedRepository + '/releases/';
-      return url.pathname.indexOf(pathPrefix) === 0;
+      // path component 単位で検証し、類似リポジトリ名（例: Transnote2）や
+      // クエリへのパス埋め込みによる誤マッチを防ぐ。
+      var components = url.pathname.split('/').filter(function (part) {
+        return part.length > 0;
+      });
+      if (components.length < 5) {
+        return false;
+      }
+      var repository = components[0] + '/' + components[1];
+      if (repository !== expectedRepository) {
+        return false;
+      }
+      if (components[2] !== 'releases' || components[3] !== 'tag') {
+        return false;
+      }
+      // releases/tag/ 以降はタグ名（/ を含み得る）として扱う。
+      var tag = components.slice(4).join('/');
+      return tag.length > 0;
     } catch (error) {
       return false;
     }
