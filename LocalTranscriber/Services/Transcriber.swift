@@ -6,5 +6,5 @@ protocol Transcriber: Sendable {
         progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
     ) async throws -> Transcript
 
-    func cancel(jobID: UUID)
+    func cancel(jobID: UUID) async
 }

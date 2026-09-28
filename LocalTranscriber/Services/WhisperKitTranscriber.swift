@@ -1,8 +1,7 @@
 import Foundation
 import WhisperKit
 
-final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
-    private let lock = NSLock()
+actor WhisperKitTranscriber: Transcriber {
     private var activeTasks: [UUID: Task<Transcript, Error>] = [:]
     private var whisperKit: WhisperKit?
     private var currentModelName: String?
@@ -20,24 +19,17 @@ final class WhisperKitTranscriber: Transcriber, @unchecked Sendable {
             try await self.performTranscription(job: job, progressHandler: progressHandler)
         }
 
-        lock.lock()
         activeTasks[job.id] = task
-        lock.unlock()
 
         defer {
-            lock.lock()
             activeTasks.removeValue(forKey: job.id)
-            lock.unlock()
         }
 
         return try await task.value
     }
 
-    func cancel(jobID: UUID) {
-        lock.lock()
-        let task = activeTasks[jobID]
-        lock.unlock()
-        task?.cancel()
+    func cancel(jobID: UUID) async {
+        activeTasks[jobID]?.cancel()
     }
 
     private func performTranscription(
