@@ -7,13 +7,15 @@ struct TranscriptionProgressUpdate: Sendable, Equatable {
     let totalUnitCount: Int64?
     let modelDisplayName: String?
     let partialText: String?
+    let resumeState: String?
 
     static func make(
         phase: TranscriptionProgressPhase,
         fraction: Double,
         progress: Progress? = nil,
         modelDisplayName: String? = nil,
-        partialText: String? = nil
+        partialText: String? = nil,
+        resumeState: String? = nil
     ) -> TranscriptionProgressUpdate {
         let completed = progress.map { $0.completedUnitCount }
         let total = progress.map { $0.totalUnitCount }
@@ -25,7 +27,8 @@ struct TranscriptionProgressUpdate: Sendable, Equatable {
             completedUnitCount: hasByteProgress ? completed : nil,
             totalUnitCount: hasByteProgress ? total : nil,
             modelDisplayName: modelDisplayName,
-            partialText: partialText
+            partialText: partialText,
+            resumeState: resumeState
         )
     }
 }
