@@ -131,7 +131,8 @@ struct MainWindowView: View {
                 supportedExtensions: settings.supportedExtensions,
                 selectedFile: viewModel.selectedFile,
                 onFileSelected: viewModel.selectFile(url:preferredFileName:),
-                audioImportService: AudioImportService()
+                audioImportService: AudioImportService(),
+                isBusy: viewModel.isBusy
             )
             if let guidance = viewModel.modelDownloadGuidance {
                 ModelDownloadGuidanceBanner(

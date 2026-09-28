@@ -5,6 +5,7 @@ struct FileDropView: View {
     let selectedFile: AudioFileInfo?
     let onFileSelected: (URL, String?) -> Void
     let audioImportService: AudioImportService
+    var isBusy: Bool = false
 
     @State private var isTargeted = false
     @State private var isHovered = false
@@ -37,6 +38,7 @@ struct FileDropView: View {
             Button("ファイルを開く…") {
                 openFilePanel()
             }
+            .disabled(isBusy)
             .keyboardShortcut("o", modifiers: [.command])
             .help("音声ファイルを開く（⌘O）")
             .accessibilityLabel("音声ファイルを開く")
@@ -73,7 +75,8 @@ struct FileDropView: View {
             isHovered = hovering
         }
         .onDrop(of: acceptedDropTypes, isTargeted: $isTargeted) { providers in
-            handleDrop(providers: providers)
+            guard !isBusy else { return false }
+            return handleDrop(providers: providers)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(dropZoneAccessibilityLabel)
