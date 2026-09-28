@@ -49,6 +49,19 @@ struct HistoryStore: Sendable {
             .map { $0 }
     }
 
+    /// 全文・ファイル名を対象に履歴を検索する。
+    func search(query: String, limit: Int = 50) -> [Transcript] {
+        let normalized = query.lowercased()
+        guard !normalized.isEmpty else { return recent(limit: limit) }
+        return recent(limit: 500)
+            .filter { item in
+                item.fullText.lowercased().contains(normalized)
+                    || item.sourceFileName.lowercased().contains(normalized)
+            }
+            .prefix(limit)
+            .map { item in item }
+    }
+
     func delete(_ transcript: Transcript) {
         let url = historyRoot.appendingPathComponent("\(transcript.id.uuidString).json")
         try? fileManager.removeItem(at: url)
