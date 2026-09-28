@@ -145,6 +145,7 @@ struct MainWindowView: View {
             isBusy: viewModel.isBusy,
             segments: viewModel.currentTranscript?.segments,
             playingSegmentID: viewModel.playingSegmentID,
+            playbackPositionText: viewModel.playbackPositionText,
             isEditing: $viewModel.isEditingTranscript,
             onSegmentTap: viewModel.playSegment,
             onCopy: viewModel.copyTranscript,

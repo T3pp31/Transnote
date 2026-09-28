@@ -6,6 +6,7 @@ struct TranscriptEditorView: View {
     let isBusy: Bool
     let segments: [TranscriptSegment]?
     let playingSegmentID: UUID?
+    let playbackPositionText: String
     @Binding var isEditing: Bool
     let onSegmentTap: (TranscriptSegment) -> Void
     let onCopy: () -> Void
@@ -209,6 +210,7 @@ struct TranscriptEditorView: View {
                     SegmentPlaybackRow(
                         segment: segment,
                         isPlaying: playingSegmentID == segment.id,
+                        playbackPositionText: playbackPositionText,
                         onTap: { onSegmentTap(segment) }
                     )
                 }
@@ -230,6 +232,7 @@ struct TranscriptEditorView: View {
 private struct SegmentPlaybackRow: View {
     let segment: TranscriptSegment
     let isPlaying: Bool
+    let playbackPositionText: String
     let onTap: () -> Void
 
     @State private var isHovered = false
@@ -248,6 +251,13 @@ private struct SegmentPlaybackRow: View {
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
                     .frame(width: 88, alignment: .leading)
+
+                if isPlaying, !playbackPositionText.isEmpty {
+                    Text("残り \(playbackPositionText)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(Color.accentColor)
+                        .accessibilityLabel("残り時間 \(playbackPositionText)")
+                }
 
                 Text(segment.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
