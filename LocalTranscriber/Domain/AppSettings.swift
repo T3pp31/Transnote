@@ -41,6 +41,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     @Published var selectedModelID: String
     @Published var selectedLanguageID: String
     @Published var updateCheckEnabled: Bool
+    @Published var defaultExportFormat: ExportFormat
 
     let models: [ModelOption]
     let languages: [LanguageOption]
@@ -50,6 +51,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     private let modelKey = "selectedModelID"
     private let languageKey = "selectedLanguageID"
     private let updateCheckKey = "updateCheckEnabled"
+    private let defaultExportFormatKey = "defaultExportFormat"
 
     private init() {
         let config = AppConfig.shared
@@ -63,6 +65,12 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
         selectedModelID = defaults.string(forKey: modelKey) ?? defaultModel
         selectedLanguageID = defaults.string(forKey: languageKey) ?? defaultLanguage
         updateCheckEnabled = defaults.object(forKey: updateCheckKey) as? Bool ?? config.updateCheckEnabled
+        if let raw = defaults.string(forKey: defaultExportFormatKey),
+           let format = ExportFormat(rawValue: raw) {
+            defaultExportFormat = format
+        } else {
+            defaultExportFormat = .txt
+        }
 
         if !models.contains(where: { $0.id == selectedModelID }) {
             selectedModelID = defaultModel
@@ -104,6 +112,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
         defaults.set(selectedModelID, forKey: modelKey)
         defaults.set(selectedLanguageID, forKey: languageKey)
         defaults.set(updateCheckEnabled, forKey: updateCheckKey)
+        defaults.set(defaultExportFormat.rawValue, forKey: defaultExportFormatKey)
     }
 }
 

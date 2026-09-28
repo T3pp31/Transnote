@@ -128,6 +128,24 @@ struct SettingsView: View {
                 settings.persist()
             }
 
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.compactSpacing) {
+                    Text("既定のエクスポート形式")
+                        .font(.headline)
+                    Picker("形式", selection: $settings.defaultExportFormat) {
+                        ForEach(ExportFormat.allCases) { format in
+                            Text(format.displayName).tag(format)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 200)
+                    .onChange(of: settings.defaultExportFormat) { _ in
+                        settings.persist()
+                    }
+                    Text("エクスポートメニューの初期表示に使用します。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
             Spacer()
 
             HStack {
