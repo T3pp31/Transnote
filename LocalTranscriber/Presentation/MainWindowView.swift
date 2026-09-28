@@ -135,7 +135,8 @@ struct MainWindowView: View {
             canCopy: viewModel.canCopyTranscript,
             copyTranscript: viewModel.copyTranscript,
             canOpenFile: !viewModel.isBusy,
-            openFile: openFilePanel
+            openFile: openFilePanel,
+            checkForUpdate: updateChecker.checkNow
         ))
     }
 
