@@ -7,17 +7,26 @@ struct ModelOption: Identifiable, Sendable, Equatable {
 
     /// ダウンロードサイズ（バイト）。未設定の場合は nil。
     let downloadSizeBytes: Int64?
+    let license: String?
+    let distributionSource: String?
+    let modelVersion: String?
 
     init(
         id: String,
         displayName: String,
         whisperKitModelName: String,
-        downloadSizeBytes: Int64? = nil
+        downloadSizeBytes: Int64? = nil,
+        license: String? = nil,
+        distributionSource: String? = nil,
+        modelVersion: String? = nil
     ) {
         self.id = id
         self.displayName = displayName
         self.whisperKitModelName = whisperKitModelName
         self.downloadSizeBytes = downloadSizeBytes
+        self.license = license
+        self.distributionSource = distributionSource
+        self.modelVersion = modelVersion
     }
 
     /// Localizable.xcstrings から取得するローカライズ済み表示名。
@@ -266,7 +275,18 @@ struct AppConfig {
                 return nil
             }
             let size = (item["downloadSizeBytes"] as? NSNumber)?.int64Value
-            return ModelOption(id: id, displayName: displayName, whisperKitModelName: whisperKitModelName, downloadSizeBytes: size)
+            let license = item["license"] as? String
+            let source = item["distributionSource"] as? String
+            let version = item["modelVersion"] as? String
+            return ModelOption(
+                id: id,
+                displayName: displayName,
+                whisperKitModelName: whisperKitModelName,
+                downloadSizeBytes: size,
+                license: license,
+                distributionSource: source,
+                modelVersion: version
+            )
         }
     }
 
