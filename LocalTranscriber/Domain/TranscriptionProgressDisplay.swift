@@ -47,9 +47,18 @@ struct TranscriptionProgressDisplay: Equatable {
         let fraction: Double?
 
         switch update.phase {
-        case .downloadingModel, .transcribing:
+        case .downloadingModel:
             style = .determinate
             fraction = min(1.0, max(0.0, update.fraction))
+        case .transcribing:
+            if update.fraction > 0 {
+                style = .determinate
+                fraction = min(1.0, max(0.0, update.fraction))
+            } else {
+                // 実進捗が不明な場合は indeterminate 表示
+                style = .indeterminate
+                fraction = nil
+            }
         case .loadingModel, .convertingAudio, .initializing:
             style = .indeterminate
             fraction = nil
