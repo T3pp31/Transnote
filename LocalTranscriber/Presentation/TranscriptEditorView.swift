@@ -9,6 +9,7 @@ struct TranscriptEditorView: View {
     let playbackPositionText: String
     @Binding var isEditing: Bool
     let onSegmentTap: (TranscriptSegment) -> Void
+    let onSegmentTextChange: (UUID, String) -> Void
     let onCopy: () -> Void
     let onSegmentPause: () -> Void
     let onSegmentResume: () -> Void
@@ -225,7 +226,8 @@ struct TranscriptEditorView: View {
                         onTap: { onSegmentTap(segment) },
                         onPause: onSegmentPause,
                         onResume: onSegmentResume,
-                        onStop: onStopPlayback
+                        onStop: onStopPlayback,
+                        onTextChange: { newText in onSegmentTextChange(segment.id, newText) }
                     )
                 }
             }
@@ -271,6 +273,7 @@ private struct SegmentPlaybackRow: View {
     let onPause: () -> Void
     let onResume: () -> Void
     let onStop: () -> Void
+    let onTextChange: (String) -> Void
 
     @State private var isHovered = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -309,7 +312,11 @@ private struct SegmentPlaybackRow: View {
                         .accessibilityLabel("残り時間 \(playbackPositionText)")
                 }
 
-                Text(segment.text)
+                TextField("", text: Binding(
+                    get: { segment.text },
+                    set: { onTextChange($0) }
+                ))
+                    .textFieldStyle(.plain)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .multilineTextAlignment(.leading)
             }
