@@ -103,28 +103,42 @@ actor WhisperKitTranscriber: Transcriber {
                 whisperKit.segmentDiscoveryCallback = nil
             }
 
-            let results = try await whisperKit.transcribe(
-                audioPath: job.audioFileURL.path,
-                decodeOptions: decodeOptions,
-                callback: { progress in
-                    let fraction = whisperKit.progress.fractionCompleted
-                    // windowId ベースの擬似進捗は廃止し、実進捗が不明な場合は 0 を渡す
-                    // （TranscriptionProgressDisplay 側で indeterminate として表示する）
-                    progressHandler?(
-                        .make(
-                            phase: .transcribing,
-                            fraction: fraction > 0 ? fraction : 0,
-                            modelDisplayName: job.modelDisplayName
+            // 長時間音声はチャンク単位で処理する（WhisperKit への一度の投入を避ける）。
+            let chunks = await splitAudioIntoChunks(url: job.audioFileURL, chunkDuration: job.chunkDuration)
+            var allResults: [TranscriptionResult] = []
+            var processedSeconds: TimeInterval = 0
+            var totalSeconds: TimeInterval = chunks.count > 1
+                ? (try? await AVURLAsset(url: job.audioFileURL).load(.duration).seconds) ?? Double(chunks.count)
+                : Double(chunks.count)
+
+            for (index, chunkURL) in chunks.enumerated() {
+                try Task.checkCancellation()
+                let results = try await whisperKit.transcribe(
+                    audioPath: chunkURL.path,
+                    decodeOptions: decodeOptions,
+                    callback: { progress in
+                        let localFraction = whisperKit.progress.fractionCompleted
+                        let overall = totalSeconds > 0
+                            ? min(1.0, (Double(index) + max(0, localFraction)) / Double(chunks.count))
+                            : 0
+                        progressHandler?(
+                            .make(
+                                phase: .transcribing,
+                                fraction: overall,
+                                modelDisplayName: job.modelDisplayName
+                            )
                         )
-                    )
-                    // キャンセル時は false を返し、WhisperKit の内部処理を即時停止させる。
-                    return !Task.isCancelled
-                }
-            )
+                        // キャンセル時は false を返し、WhisperKit の内部処理を即時停止させる。
+                        return !Task.isCancelled
+                    }
+                )
+                allResults.append(contentsOf: results)
+                processedSeconds += (try? await AVURLAsset(url: chunkURL).load(.duration).seconds) ?? 0
+            }
 
             try Task.checkCancellation()
 
-            let merged = TranscriptionUtilities.mergeTranscriptionResults(results)
+            let merged = TranscriptionUtilities.mergeTranscriptionResults(allResults)
             progressHandler?(
                 .make(phase: .finished, fraction: 1.0, modelDisplayName: job.modelDisplayName)
             )
@@ -257,6 +271,41 @@ actor WhisperKitTranscriber: Transcriber {
         if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted]) {
             try? data.write(to: url, options: .atomic)
         }
+    }
+
+
+    /// 長時間音声を指定チャンク長で分割して一時ファイルを返す。
+    /// 分割不要（既にチャンク長以下）の場合は元ファイルを返す。
+    private func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async -> [URL] {
+        guard chunkDuration > 0 else { return [url] }
+        let asset = AVURLAsset(url: url)
+        guard let duration = try? await asset.load(.duration).seconds, duration > chunkDuration else {
+            return [url]
+        }
+
+        let chunkCount = Int(ceil(duration / chunkDuration))
+        var outputURLs: [URL] = []
+        for index in 0..<chunkCount {
+            let start = Double(index) * chunkDuration
+            let end = min(start + chunkDuration, duration)
+            let outputURL = AppDirectories.checkpointDirectory
+                .appendingPathComponent("chunk-\(index).m4a")
+            try? FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.removeItem(at: outputURL)
+
+            let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough)
+            export?.outputURL = outputURL
+            export?.outputFileType = .m4a
+            export?.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), end: CMTime(seconds: end, preferredTimescale: 600))
+
+            let semaphore = DispatchSemaphore(value: 0)
+            export?.exportAsynchronously { semaphore.signal() }
+            semaphore.wait()
+            if export?.status == .completed {
+                outputURLs.append(outputURL)
+            }
+        }
+        return outputURLs.isEmpty ? [url] : outputURLs
     }
 
     private func makeDecodingOptions(languageID: String, vadEnabled: Bool = false) -> DecodingOptions {

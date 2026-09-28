@@ -65,7 +65,6 @@ enum AppDirectories {
 
     static func ensureDirectoriesExist() {
         let directories = [applicationSupport, modelsDirectory, exportsDirectory, importsDirectory, dropStagingDirectory, historyDirectory, tempTranscriptsDirectory, checkpointDirectory]
-
         for directory in directories {
             try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         }
