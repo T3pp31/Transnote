@@ -114,7 +114,33 @@ eject_installer_volume() {
 osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
 sleep 1
 
-remove_installed_apps "$APP_NAME"
+# --- transactional install ---
+# 新バージョンを一時ディレクトリへコピーし、成功を確認してから旧バージョンを退避・置換する。
+# 途中で失敗した場合は旧バージョンを復元する。
+TMP_STAGE="${TMPDIR:-/tmp}/transnote-install-$$";
+BACKUP_DIR="${TMPDIR:-/tmp}/transnote-backup-$$";
+mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
+
+rollback() {
+  local code=$1
+  rm -rf "$TMP_STAGE"
+  if [[ -d "${BACKUP_DIR}/${APP_NAME}.app" ]]; then
+    rm -rf "$TARGET_APP"
+    mv "${BACKUP_DIR}/${APP_NAME}.app" "$TARGET_APP"
+  fi
+  rm -rf "$BACKUP_DIR"
+  exit "$code"
+}
+
+trap 'rollback $?' EXIT
+
+if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
+  fail "新バージョンのコピーに失敗しました。"
+fi
+
+if [[ -d "$TARGET_APP" ]]; then
+  mv "$TARGET_APP" "${BACKUP_DIR}/${APP_NAME}.app"
+fi
 
 legacy_index=0
 while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_index}" "$PLIST" 2>/dev/null)"; do
@@ -122,8 +148,13 @@ while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_
   legacy_index=$((legacy_index + 1))
 done
 
-ditto "$SOURCE_APP" "$TARGET_APP"
-xattr -cr "$TARGET_APP" 2>/dev/null || true
+if ! ditto "${TMP_STAGE}/${APP_NAME}.app" "$TARGET_APP"; then
+  fail "新バージョンの配置に失敗しました。旧バージョンを復元します。"
+fi
+
+# 成功時はバックアップを破棄
+rm -rf "$BACKUP_DIR" "$TMP_STAGE"
+trap - EXIT
 
 eject_installer_volume
 
