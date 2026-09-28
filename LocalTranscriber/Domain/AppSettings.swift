@@ -40,6 +40,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
 
     @Published var selectedModelID: String
     @Published var selectedLanguageID: String
+    @Published var updateCheckEnabled: Bool
 
     let models: [ModelOption]
     let languages: [LanguageOption]
@@ -48,6 +49,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     private let defaults = UserDefaults.standard
     private let modelKey = "selectedModelID"
     private let languageKey = "selectedLanguageID"
+    private let updateCheckKey = "updateCheckEnabled"
 
     private init() {
         let config = AppConfig.shared
@@ -60,6 +62,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
 
         selectedModelID = defaults.string(forKey: modelKey) ?? defaultModel
         selectedLanguageID = defaults.string(forKey: languageKey) ?? defaultLanguage
+        updateCheckEnabled = defaults.object(forKey: updateCheckKey) as? Bool ?? config.updateCheckEnabled
 
         if !models.contains(where: { $0.id == selectedModelID }) {
             selectedModelID = defaultModel
@@ -100,6 +103,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     func persist() {
         defaults.set(selectedModelID, forKey: modelKey)
         defaults.set(selectedLanguageID, forKey: languageKey)
+        defaults.set(updateCheckEnabled, forKey: updateCheckKey)
     }
 }
 
