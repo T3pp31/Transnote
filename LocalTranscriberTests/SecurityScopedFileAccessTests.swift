@@ -25,6 +25,20 @@ final class SecurityScopedFileAccessTests: XCTestCase {
         }
     }
 
+    func testLastExportDirectoryBookmarkRoundTrip() throws {
+        let directory = tempRoot.appendingPathComponent("Exports", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        UserDefaults.standard.removeObject(forKey: "lastExportDirectoryBookmark")
+        defer { UserDefaults.standard.removeObject(forKey: "lastExportDirectoryBookmark") }
+
+        access.saveLastExportDirectoryBookmark(for: directory)
+
+        XCTAssertEqual(
+            access.loadLastExportDirectory()?.standardizedFileURL,
+            directory.standardizedFileURL
+        )
+    }
+
     func testEndAccessIsNoOpForUnknownURL() {
         // 開始していないURLへの endAccess はクラッシュせず何もしない
         let url = tempRoot.appendingPathComponent("not-started.wav")

@@ -72,18 +72,18 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
   /// 最後にエクスポートしたディレクトリの security-scoped bookmark を保存する。
   func saveLastExportDirectoryBookmark(for url: URL) {
     do {
-      let data = try url.bookmarkData(
-        options: .withSecurityScope,
-        includingResourceValuesForKeys: nil,
-        relativeTo: nil
-      )
+      let data = try createBookmark(for: url)
       UserDefaults.standard.set(data, forKey: Self.lastExportDirectoryKey)
     } catch {
-      AppLogger.error("Failed to save last export directory bookmark: \(error)", logger: AppLogger.fileAccess)
+      AppLogger.error(
+        "Failed to save last export directory bookmark: \(error)",
+        logger: AppLogger.fileAccess
+      )
     }
   }
 
   /// 保存済みの最後のエクスポートディレクトリを解決する。
+  /// 呼び出し元は beginAccess(url:) で security-scoped access を開始してから利用する。
   func loadLastExportDirectory() -> URL? {
     guard let data = UserDefaults.standard.data(forKey: Self.lastExportDirectoryKey) else {
       return nil
@@ -91,7 +91,10 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
     do {
       return try resolveBookmark(data)
     } catch {
-      AppLogger.error("Failed to resolve last export directory bookmark: \(error)", logger: AppLogger.fileAccess)
+      AppLogger.error(
+        "Failed to resolve last export directory bookmark: \(error)",
+        logger: AppLogger.fileAccess
+      )
       return nil
     }
   }
