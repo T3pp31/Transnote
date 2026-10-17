@@ -763,10 +763,31 @@ final class MainWindowViewModel: ObservableObject {
         transcript.updatedAt = Date()
         currentTranscript = transcript
 
+        let savedExportDirectory = fileAccess.loadLastExportDirectory()
+        var didBeginSavedDirectoryAccess = false
+
+        if let savedDirectory = savedExportDirectory {
+            do {
+                try fileAccess.beginAccess(url: savedDirectory)
+                didBeginSavedDirectoryAccess = true
+            } catch {
+                AppLogger.info(
+                    "Skipped last export directory restore: \(error.localizedDescription)",
+                    logger: AppLogger.fileAccess
+                )
+            }
+        }
+
+        defer {
+            if didBeginSavedDirectoryAccess, let savedDirectory = savedExportDirectory {
+                fileAccess.endAccess(url: savedDirectory)
+            }
+        }
+
         let url = savePanelPresenter.presentSavePanel(
             defaultFileName: defaultExportFilename(for: transcript, format: format),
             allowedContentTypes: [UTType(filenameExtension: format.fileExtension) ?? .plainText],
-            initialDirectoryURL: fileAccess.loadLastExportDirectory()
+            initialDirectoryURL: didBeginSavedDirectoryAccess ? savedExportDirectory : nil
         )
         guard let url else { return }
 

@@ -17,9 +17,53 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("設定")
-                .font(.title2.bold())
+            HStack {
+                Text("設定")
+                    .font(.title2.bold())
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("設定を閉じる")
+            }
+            Text("各項目を選択した時点で自動保存されます。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
+            ScrollView {
+                settingsContent
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack {
+                Button("診断情報をコピー") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(AppDiagnostics.summary, forType: .string)
+                }
+                .buttonStyle(.bordered)
+                Spacer()
+                Button("閉じる") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(24)
+        .frame(
+            minWidth: 420,
+            maxWidth: .infinity,
+            minHeight: 300,
+            idealHeight: DesignTokens.Layout.windowMinHeight,
+            maxHeight: DesignTokens.Layout.windowMinHeight
+        )
+    }
+
+    private var settingsContent: some View {
+        VStack(alignment: .leading, spacing: 24) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionSpacing) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.compactSpacing) {
                     Text("文字起こしモデル")
@@ -202,24 +246,7 @@ struct SettingsView: View {
             .onChange(of: settings.vadEnabled) { _ in
                 settings.persist()
             }
-
-            Spacer()
-
-            HStack {
-                Button("診断情報をコピー") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(AppDiagnostics.summary, forType: .string)
-                }
-                .buttonStyle(.bordered)
-                Spacer()
-                Button("閉じる") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-            }
         }
-        .padding(24)
-        .frame(minWidth: 420, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
     }
 }
 private struct StorageRow: View {
