@@ -14,7 +14,7 @@ final class LocalTranscriberUITests: XCTestCase {
         app.launch()
 
         // エクスポートメニューが存在する（テキスト無しのため無効状態でも存在はする）
-        XCTAssertTrue(app.buttons["エクスポート"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.menuButtons["文字起こし結果をエクスポート"].waitForExistence(timeout: 10))
     }
 
     func testSettingsSheetOpensAndCloses() {
@@ -38,6 +38,20 @@ final class LocalTranscriberUITests: XCTestCase {
 
         // Then: 閉じるボタンで設定シートが閉じる
         app.buttons["設定を閉じる"].tap()
-        XCTAssertFalse(app.buttons["設定を閉じる"].waitForExistence(timeout: 3))
+        XCTAssertTrue(closeButton.waitForNonExistence(timeout: 3))
+
+        // 下部の閉じるボタンもスクロールせずに操作できる
+        app.buttons["設定"].firstMatch.tap()
+        let footerCloseButton = app.sheets.buttons["閉じる"]
+        XCTAssertTrue(footerCloseButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(footerCloseButton.isHittable)
+        footerCloseButton.tap()
+        XCTAssertTrue(closeButton.waitForNonExistence(timeout: 3))
+
+        // Escape キーでもシートを閉じられる
+        app.buttons["設定"].firstMatch.tap()
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 10))
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertTrue(closeButton.waitForNonExistence(timeout: 3))
     }
 }
