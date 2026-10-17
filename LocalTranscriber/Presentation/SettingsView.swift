@@ -17,8 +17,25 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            Text("設定")
-                .font(.title2.bold())
+            // シートのタイトルバー領域（safe area 上端）より下に配置する
+            HStack {
+                Text("設定")
+                    .font(.title2.bold())
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                .accessibilityLabel("設定を閉じる")
+            }
+            .padding(.top, 48)
+            Text("各項目を選択した時点で自動保存されます。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.sectionSpacing) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.compactSpacing) {

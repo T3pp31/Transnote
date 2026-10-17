@@ -16,4 +16,28 @@ final class LocalTranscriberUITests: XCTestCase {
         // エクスポートメニューが存在する（テキスト無しのため無効状態でも存在はする）
         XCTAssertTrue(app.buttons["エクスポート"].waitForExistence(timeout: 10))
     }
+
+    func testSettingsSheetOpensAndCloses() {
+        let app = XCUIApplication()
+        app.launch()
+
+        // Given: メイン画面が起動している（設定ボタンは常に表示される）
+        XCTAssertTrue(app.buttons["設定"].firstMatch.waitForExistence(timeout: 30))
+
+        // クラッシュ復旧アラートが出ていれば破棄して閉じる（環境の残データによる）
+        let discardButton = app.sheets.buttons["action-button-2"]
+        if discardButton.waitForExistence(timeout: 2) {
+            discardButton.tap()
+        }
+
+        // When: 設定シートを開く
+        app.buttons["設定"].firstMatch.tap()
+        let closeButton = app.buttons["設定を閉じる"]
+        XCTAssertTrue(closeButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(closeButton.isHittable)
+
+        // Then: 閉じるボタンで設定シートが閉じる
+        app.buttons["設定を閉じる"].tap()
+        XCTAssertFalse(app.buttons["設定を閉じる"].waitForExistence(timeout: 3))
+    }
 }

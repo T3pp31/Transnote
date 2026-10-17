@@ -644,6 +644,8 @@
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Transnote";
 			};
+			name = Debug;
+		};
 		F1F2F3F4F5F60718293E4F0A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -658,8 +660,6 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = LocalTranscriber;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/Contents/MacOS/Transnote";
-				BUNDLE_LOADER = "$(TEST_HOST)";
 			};
 			name = Debug;
 		};
@@ -677,13 +677,8 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_TARGET_NAME = LocalTranscriber;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Transnote.app/Contents/MacOS/Transnote";
-				BUNDLE_LOADER = "$(TEST_HOST)";
 			};
 			name = Release;
-		};
-
-			name = Debug;
 		};
 		1A4ECE5F738A4589874A2CFE /* Release */ = {
 			isa = XCBuildConfiguration;
