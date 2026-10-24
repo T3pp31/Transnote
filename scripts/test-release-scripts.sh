@@ -30,4 +30,18 @@ if (cd "$WORK" && bash scripts/set-marketing-version.sh bad-version >/dev/null 2
 fi
 echo "PASS: invalid version rejected"
 
+for option in --archive --output --sign --team; do
+  message_file="$WORK/missing-option-${option#--}.txt"
+  if bash "$ROOT/scripts/export-release-app.sh" "$option" > /dev/null 2> "$message_file"; then
+    echo "FAIL: $option without a value should fail" >&2
+    exit 1
+  fi
+  if ! grep -q "Missing value for ${option}" "$message_file"; then
+    echo "FAIL: $option without a value did not print a missing-value error" >&2
+    cat "$message_file" >&2
+    exit 1
+  fi
+done
+echo "PASS: missing option values rejected"
+
 echo "ALL RELEASE SCRIPT TESTS PASSED"

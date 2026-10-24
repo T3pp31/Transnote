@@ -29,18 +29,38 @@ VERIFY_ONLY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --archive)
+      if [[ -z "${2:-}" ]]; then
+        echo "Missing value for $1" >&2
+        usage >&2
+        exit 1
+      fi
       ARCHIVE_PATH="$2"
       shift 2
       ;;
     --output)
+      if [[ -z "${2:-}" ]]; then
+        echo "Missing value for $1" >&2
+        usage >&2
+        exit 1
+      fi
       OUTPUT_DIR="$2"
       shift 2
       ;;
     --sign)
+      if [[ -z "${2:-}" ]]; then
+        echo "Missing value for $1" >&2
+        usage >&2
+        exit 1
+      fi
       SIGN_IDENTITY="$2"
       shift 2
       ;;
     --team)
+      if [[ -z "${2:-}" ]]; then
+        echo "Missing value for $1" >&2
+        usage >&2
+        exit 1
+      fi
       TEAM_ID="$2"
       shift 2
       ;;
