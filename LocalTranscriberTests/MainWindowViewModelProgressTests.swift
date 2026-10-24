@@ -262,6 +262,25 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(MainWindowViewModel.hasPlayableSegments(in: transcript))
     }
 
+    func testUpdateSegmentTextRebuildsFullText() {
+        viewModel = MainWindowViewModel()
+        let segmentIDs = [UUID(), UUID()]
+        viewModel.currentTranscript = Transcript(
+            sourceFileName: "test.wav",
+            fullText: "old first\nold second",
+            segments: [
+                TranscriptSegment(id: segmentIDs[0], startTime: 0, endTime: 1, text: "old first"),
+                TranscriptSegment(id: segmentIDs[1], startTime: 1, endTime: 2, text: "old second")
+            ]
+        )
+
+        viewModel.updateSegmentText(id: segmentIDs[1], text: "new second")
+
+        XCTAssertEqual(viewModel.transcriptText, "old first\nnew second")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "old first\nnew second")
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
