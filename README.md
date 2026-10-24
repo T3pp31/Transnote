@@ -33,7 +33,7 @@ bash "/Volumes/Transnote/インストール.command"
 ```
 
 3. DMG を取り出す
-4. 初回起動時に Gatekeeper 警告が出た場合は、右クリック → 開く
+4. 初回起動時に Gatekeeper 警告が出た場合は、macOS 15ではシステム設定 → プライバシーとセキュリティ の **このまま開く**、macOS 14までは右クリック → 開く
 5. 初回利用時に Whisper モデルをダウンロードする
 
 詳細は [docs/install.md](docs/install.md) を参照。
