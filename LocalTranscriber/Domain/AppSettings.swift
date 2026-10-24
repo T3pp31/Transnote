@@ -223,7 +223,7 @@ struct AppConfig {
         )
         updateDMGAssetName = data["UpdateDMGAssetName"] as? String ?? "Transnote.dmg"
         allowedUpdateDownloadHosts = data["AllowedUpdateDownloadHosts"] as? [String]
-            ?? ["github.com", "objects.githubusercontent.com"]
+            ?? ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"]
         maxImportFileSizeBytes = Self.int64(from: data["MaxImportFileSizeBytes"], fallback: 524_288_000)
     }
 
@@ -239,7 +239,7 @@ struct AppConfig {
         githubReleasesAPIURL: URL,
         updateDownloadFallbackURL: URL,
         updateDMGAssetName: String,
-        allowedUpdateDownloadHosts: [String] = ["github.com", "objects.githubusercontent.com"],
+        allowedUpdateDownloadHosts: [String] = ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"],
         maxImportFileSizeBytes: Int64 = 524_288_000
     ) {
         self.supportedExtensions = supportedExtensions
