@@ -622,8 +622,8 @@ final class MainWindowViewModel: ObservableObject {
             if activeJobID == job.id {
                 activeJobID = nil
                 transcriptionTask = nil
+                operationCoordinator.end(.transcription)
             }
-            operationCoordinator.end(.transcription)
         }
     }
 
