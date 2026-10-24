@@ -155,7 +155,7 @@ WhisperKit は VAD を機能として案内している。([Mintlify][2]) ただ
 - 未署名配布時は GitHub Secrets なしで workflow が動作する
 ```
 
-現状は未署名 DMG を配布している。初回起動時に Gatekeeper の警告が出るため、インストール手順で右クリック → 開く を案内する。
+現状は未署名 DMG を配布している。初回起動時に Gatekeeper の警告が出るため、ターミナル実行やシステム設定の「このまま開く」を案内する。macOS 15では右クリック → 開くは使えない。
 
 将来、スムーズなインストール体験が必要になった場合は、Developer ID で署名し、Apple の Notarization に提出する流れを検討する。Apple は、Mac App Store 外で配布する Developer ID 署名ソフトウェアについて、公証により Gatekeeper がソフトウェアの改ざんや既知マルウェアでないことを確認できると説明している。([Apple Developer][4])
 
