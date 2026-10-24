@@ -182,9 +182,8 @@ jobs:
       # that exact key (a cache-hit on the primary key means the entry already exists).
       - name: Swift format check
         run: |
-          SF="$(xcrun -f swift-format)"
-          echo "Swifformat version: $($SF --version 2>&1 || true)"
-          $SF lint --recursive LocalTranscriber LocalTranscriberTests || echo "swift-format warnings (non-blocking)"
+          chmod +x ./scripts/check-swift-format.sh
+          ./scripts/check-swift-format.sh
 
       - name: Save DerivedData cache
         if: always() && steps.derived_data_cache.outputs.cache-hit != 'true'
