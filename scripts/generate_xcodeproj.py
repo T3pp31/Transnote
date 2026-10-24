@@ -93,7 +93,9 @@ EXTRA_FILES = [
 def uid(seed: str):
     """ファイルパス等を seed に、決定的な PBX ID を生成する。
     PBX の再生成で既存 ID が毎回変わらないようにする。"""
-    return hashlib.sha256(seed.encode()).hexdigest()[:24].upper()
+    value = hashlib.sha256(seed.encode()).hexdigest()[:24].upper()
+    assert len(value) == 24
+    return value
 
 
 def pbx_file_ref(path):
