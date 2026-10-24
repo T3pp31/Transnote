@@ -30,4 +30,38 @@ if (cd "$WORK" && bash scripts/set-marketing-version.sh bad-version >/dev/null 2
 fi
 echo "PASS: invalid version rejected"
 
+cp "$ROOT/scripts/verify-xcode-project.py" "$WORK/scripts/"
+
+if ! (cd "$ROOT" && python3 scripts/verify-xcode-project.py); then
+  echo "FAIL: Xcode project build phase references should resolve" >&2
+  exit 1
+fi
+echo "PASS: Xcode project build phase references resolve"
+
+awk '
+  BEGIN {
+    target = "\t\tB96466D6AF9543009AF761B9 /* Frameworks */ = {"
+    replacement = "\t\tB96466D6AF9543009AF761B90 /* Frameworks */ = {"
+  }
+  !replaced && $0 == target {
+    print replacement
+    replaced = 1
+    next
+  }
+  { print }
+' "$ROOT/LocalTranscriber.xcodeproj/project.pbxproj" \
+  > "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"
+
+if ! grep -q 'B96466D6AF9543009AF761B90 /\* Frameworks \*/ = {' \
+  "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
+  echo "FAIL: could not create unresolved Frameworks phase fixture" >&2
+  exit 1
+fi
+
+if (cd "$WORK" && python3 scripts/verify-xcode-project.py >/dev/null 2>&1); then
+  echo "FAIL: unresolved Frameworks phase should fail validation" >&2
+  exit 1
+fi
+echo "PASS: unresolved Frameworks phase rejected"
+
 echo "ALL RELEASE SCRIPT TESTS PASSED"

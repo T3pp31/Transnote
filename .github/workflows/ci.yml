@@ -67,7 +67,11 @@ jobs:
 
       - name: Python syntax check
         run: |
-          python3 -m py_compile scripts/generate_xcodeproj.py
+          python3 -m py_compile scripts/generate_xcodeproj.py scripts/verify-xcode-project.py
+
+      - name: Verify Xcode project structure
+        run: |
+          python3 scripts/verify-xcode-project.py
 
   readme-version:
     runs-on: ubuntu-latest
