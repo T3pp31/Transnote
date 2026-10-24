@@ -1,5 +1,6 @@
-import XCTest
+import AVFoundation
 import WhisperKit
+import XCTest
 @testable import LocalTranscriber
 
 /// 調査用の速度計測プローブ（回帰テスト／閾値アサーションではない）。
@@ -35,8 +36,8 @@ final class PerformanceBaselineTests: XCTestCase {
             throw XCTSkip("no whisper test wav")
         }
 
-        // 約3分の音声に加工（発話+無音でリアルな会議を模す）
-        longAudioURL = try Self.makeLongAudio(from: whisperWAV, targetSeconds: 180)
+        // 約3分の音声に加工（同一クリップの実長から反復数を決める）
+        longAudioURL = try await Self.makeLongAudio(from: whisperWAV, targetSeconds: 180)
 
         let transcriber = WhisperKitTranscriber()
 
@@ -61,10 +62,18 @@ final class PerformanceBaselineTests: XCTestCase {
         XCTAssertFalse(transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
-    private static func makeLongAudio(from sourceURL: URL, targetSeconds: Int) throws -> URL {
+    static func requiredRepeats(sourceDuration: TimeInterval, targetSeconds: Int) -> Int {
+        guard sourceDuration.isFinite, sourceDuration > 0 else {
+            return 1
+        }
+        return max(1, Int((Double(targetSeconds) / sourceDuration).rounded(.up)))
+    }
+
+    private static func makeLongAudio(from sourceURL: URL, targetSeconds: Int) async throws -> URL {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("transnote-bench-\(UUID().uuidString).wav")
-        let repeats = max(1, targetSeconds / 4)
+        let sourceDuration = CMTimeGetSeconds(try await AVURLAsset(url: sourceURL).load(.duration))
+        let repeats = requiredRepeats(sourceDuration: sourceDuration, targetSeconds: targetSeconds)
         var args: [String] = []
         for _ in 0..<repeats {
             args.append("-i")
@@ -89,5 +98,13 @@ final class PerformanceBaselineTests: XCTestCase {
             throw NSError(domain: "bench", code: 1, userInfo: [NSLocalizedDescriptionKey: "ffmpeg failed"])
         }
         return tmp
+    }
+
+    func testRequiredRepeatsUsesMeasuredSourceDuration() {
+        XCTAssertEqual(Self.requiredRepeats(sourceDuration: 4, targetSeconds: 180), 45)
+        XCTAssertEqual(Self.requiredRepeats(sourceDuration: 2, targetSeconds: 180), 90)
+        XCTAssertEqual(Self.requiredRepeats(sourceDuration: 8, targetSeconds: 180), 23)
+        XCTAssertEqual(Self.requiredRepeats(sourceDuration: .infinity, targetSeconds: 180), 1)
+        XCTAssertEqual(Self.requiredRepeats(sourceDuration: 0, targetSeconds: 180), 1)
     }
 }
