@@ -48,6 +48,41 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertNotNil(segment.id)
     }
 
+    func testTranscriptSegmentTimestampFormatting() {
+        let segment = TranscriptSegment(startTime: 3_723.456, endTime: 3_724, text: "test")
+
+        XCTAssertEqual(segment.formattedStartTime, "01:02:03.456")
+        XCTAssertEqual(segment.accessibilityStartTimestamp, "1時間2分3秒")
+    }
+
+    func testTranscriptSegmentTimestampFormattingClampsInvalidValues() {
+        let invalidValues: [TimeInterval] = [
+            .nan,
+            .infinity,
+            -.infinity,
+            -1,
+            Double(Int.max) / 1000 + 1
+        ]
+
+        for value in invalidValues {
+            let segment = TranscriptSegment(startTime: value, endTime: value + 1, text: "test")
+
+            XCTAssertFalse(segment.formattedStartTime.isEmpty)
+            XCTAssertFalse(segment.accessibilityStartTimestamp.isEmpty)
+        }
+    }
+
+    func testTranscriptSegmentTimestampFormattingClampsNonFiniteValuesToZero() {
+        let invalidValues: [TimeInterval] = [.nan, .infinity, -.infinity, -1]
+
+        for value in invalidValues {
+            let segment = TranscriptSegment(startTime: value, endTime: 1, text: "test")
+
+            XCTAssertEqual(segment.formattedStartTime, "00:00:00.000")
+            XCTAssertEqual(segment.accessibilityStartTimestamp, "0秒")
+        }
+    }
+
     func testExportFormatFileExtensions() {
         XCTAssertEqual(ExportFormat.markdown.fileExtension, "md")
         XCTAssertEqual(ExportFormat.srt.fileExtension, "srt")
