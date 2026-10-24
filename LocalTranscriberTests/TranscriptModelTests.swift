@@ -53,6 +53,22 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(ExportFormat.srt.fileExtension, "srt")
         XCTAssertEqual(ExportFormat.vtt.fileExtension, "vtt")
     }
+
+    func testAppDirectoriesDirectorySizeSumsRegularFiles() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+
+        let first = root.appendingPathComponent("first.bin")
+        let second = nested.appendingPathComponent("second.bin")
+        FileManager.default.createFile(atPath: first.path, contents: Data(repeating: 1, count: 12))
+        FileManager.default.createFile(atPath: second.path, contents: Data(repeating: 2, count: 8))
+
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 20)
+    }
     // MARK: - AppConfig / AppSettings (#245)
 
     func testAppConfigDefaultValues() {

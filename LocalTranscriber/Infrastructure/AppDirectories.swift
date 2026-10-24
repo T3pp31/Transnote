@@ -37,8 +37,9 @@ enum AppDirectories {
 
         var total: Int64 = 0
         for case let url as URL in enumerator {
-            guard (try? url.resourceValues(forKeys: keys))?.isRegularFile == true else { continue }
-            total += Int64((try? url.resourceValues(forKeys: keys))?.fileSize ?? 0)
+            let values = try? url.resourceValues(forKeys: keys)
+            guard values?.isRegularFile == true else { continue }
+            total += Int64(values?.fileSize ?? 0)
         }
         return total
     }
