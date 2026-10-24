@@ -86,7 +86,7 @@ bash "/Volumes/Transnote/インストール.command"
 | 文字起こし | [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) 0.18.0（Package.resolved で固定） |
 | 音声処理 | AVFoundation |
 | 設定 | `Config/Defaults.plist` + UserDefaults |
-| データ永続化 | ファイルシステム（`~/Library/Application Support/LocalTranscriber/`） |
+| データ永続化 | ファイルシステム（`~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/`） |
 | テスト | XCTest |
 | CI/CD | GitHub Actions（macOS 15, Xcode 16.4） |
 | 配布 | 未署名 DMG + `インストール.command` |

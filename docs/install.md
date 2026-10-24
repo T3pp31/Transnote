@@ -131,7 +131,7 @@ bash "/Volumes/Transnote 1/インストール.command"
 
 ## 更新
 
-新しいバージョンがリリースされたら、最新の DMG をダウンロードし、**インストール.command** をターミナルから実行してください（上記 方法 A）。旧バージョンは自動的に置き換えられます。ユーザーデータ（`~/Library/Application Support/LocalTranscriber/`）は保持されます。
+新しいバージョンがリリースされたら、最新の DMG をダウンロードし、**インストール.command** をターミナルから実行してください（上記 方法 A）。旧バージョンは自動的に置き換えられます。ユーザーデータ（`~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/`）は保持されます。
 
 ## ファイルアクセス
 
@@ -140,7 +140,7 @@ Transnote は App Sandbox 上で動作します。音声ファイルの読み込
 ## アンインストール
 
 1. Applications から Transnote をゴミ箱へ移動します。
-2. 必要に応じて `~/Library/Application Support/LocalTranscriber/` 以下のデータを削除します。
+2. 必要に応じて `~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/` 以下のデータを削除します。
 
 ## トラブルシューティング
 
