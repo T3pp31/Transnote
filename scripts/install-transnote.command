@@ -7,6 +7,7 @@ PLIST="${SCRIPT_DIR}/distribution.plist"
 APPLICATIONS_DIR="${TRANSNOTE_INSTALL_DIR:-/Applications}"
 
 fail() {
+  echo "${1}" >&2
   osascript -e "display alert \"Transnote インストールエラー\" message \"${1}\" as critical" >/dev/null 2>&1 || true
   exit 1
 }
@@ -103,6 +104,17 @@ if [[ ! -d "$SOURCE_APP" ]]; then
   fail "${APP_NAME}.app が DMG 内に見つかりません。"
 fi
 
+bundle_identifier_for() {
+  /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$1/Contents/Info.plist" 2>/dev/null || true
+}
+
+if [[ -d "$TARGET_APP" ]]; then
+  existing_id="$(bundle_identifier_for "$TARGET_APP")"
+  if [[ -z "$existing_id" || "$existing_id" != "$BUNDLE_IDENTIFIER" ]]; then
+    fail "既存の ${APP_NAME}.app は同名の別アプリの可能性があるため上書きしません。"
+  fi
+fi
+
 verify_dmg_checksum
 
 remove_installed_apps() {
@@ -115,7 +127,7 @@ remove_installed_apps() {
     if [[ -d "$candidate" ]]; then
       # 削除前に Bundle ID を検証し、同名の無関係アプリを誤って削除しない。
       local candidate_id
-      candidate_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${candidate}/Contents/Info.plist" 2>/dev/null || true)"
+      candidate_id="$(bundle_identifier_for "$candidate")"
       if [[ -z "$candidate_id" ]]; then
         continue
       fi
