@@ -46,6 +46,13 @@ test('isAllowedDownloadURL allows github.com', function () {
   );
 });
 
+test('isAllowedDownloadURL allows current GitHub release asset host', function () {
+  assert.strictEqual(
+    app.isAllowedDownloadURL('https://release-assets.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg'),
+    true
+  );
+});
+
 test('isAllowedDownloadURL rejects http', function () {
   assert.strictEqual(app.isAllowedDownloadURL('http://github.com/x'), false);
 });
