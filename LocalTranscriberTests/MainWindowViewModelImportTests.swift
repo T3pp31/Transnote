@@ -192,6 +192,25 @@ final class MainWindowViewModelImportTests: XCTestCase {
 
         XCTAssertEqual(vm.selectedFile?.url, before)
         gate.open()
+
+        try await waitUntil { !vm.isBusy }
+        XCTAssertEqual(vm.currentTranscript?.fullText, "done")
+        XCTAssertEqual(vm.transcriptText, "done")
+    }
+
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 5_000_000_000,
+        pollNanoseconds: UInt64 = 10_000_000,
+        condition: @escaping () -> Bool
+    ) async throws {
+        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            if condition() {
+                return
+            }
+            try await Task.sleep(nanoseconds: pollNanoseconds)
+        }
+        XCTFail("Condition not met within timeout")
     }
 
     func testAsyncGateOpenBeforeWaitResumesLaterWaiter() async {
