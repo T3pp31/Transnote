@@ -172,8 +172,8 @@ jobs:
           latest_dmg="${{ steps.dmg.outputs.latest_dmg_path }}"
           versioned_sha256="${versioned_dmg}.sha256"
           latest_sha256="${latest_dmg}.sha256"
-          shasum -a 256 "$versioned_dmg" > "$versioned_sha256"
-          shasum -a 256 "$latest_dmg" > "$latest_sha256"
+          (cd "$(dirname "$versioned_dmg")" && shasum -a 256 "$(basename "$versioned_dmg")" > "$(basename "$versioned_sha256")")
+          (cd "$(dirname "$latest_dmg")" && shasum -a 256 "$(basename "$latest_dmg")" > "$(basename "$latest_sha256")")
           versioned_hash="$(awk '{print $1}' "$versioned_sha256")"
           latest_hash="$(awk '{print $1}' "$latest_sha256")"
           echo "versioned_sha256_path=$versioned_sha256" >> "$GITHUB_OUTPUT"
