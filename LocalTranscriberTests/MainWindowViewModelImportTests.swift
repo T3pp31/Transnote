@@ -193,6 +193,56 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertEqual(vm.selectedFile?.url, before)
         gate.open()
     }
+
+    func testStaleTranscriptionTaskDoesNotClearNewOperation() async throws {
+        let oldGate = AsyncTestGate()
+        let newGate = AsyncTestGate()
+        let transcriber = SequentialGateTranscriber(gates: [oldGate, newGate])
+        let vm = MainWindowViewModel(
+            transcriber: transcriber,
+            audioImportService: AudioImportService(importsRoot: importsRoot)
+        )
+
+        AppSettings.shared.selectedModelID = "base"
+        vm.downloadedModelIDs = ["base"]
+        let sourceURL = sourceRoot.appendingPathComponent("stale-task.wav")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
+        vm.selectFile(url: sourceURL)
+
+        vm.startTranscription()
+        try await waitUntil { oldGate.hasWaiter }
+
+        vm.cancelTranscription()
+        XCTAssertFalse(vm.isBusy)
+
+        vm.startTranscription()
+        XCTAssertTrue(vm.isBusy)
+        try await waitUntil { newGate.hasWaiter }
+
+        oldGate.open()
+        await Task.yield()
+        await Task.yield()
+        XCTAssertTrue(vm.isBusy)
+
+        newGate.open()
+        try await waitUntil { !vm.isBusy }
+        XCTAssertEqual(vm.currentTranscript?.fullText, "done")
+    }
+
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 5_000_000_000,
+        pollNanoseconds: UInt64 = 10_000_000,
+        condition: @escaping () -> Bool
+    ) async throws {
+        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            if condition() {
+                return
+            }
+            try await Task.sleep(nanoseconds: pollNanoseconds)
+        }
+        XCTFail("Condition not met within timeout")
+    }
 }
 
 // 完了を待機できる非同期ゲート
@@ -226,6 +276,69 @@ final class MockTranscriber: Transcriber, @unchecked Sendable {
         await gate.wait()
         return Transcript(sourceFileName: job.sourceFileName, fullText: "done")
     }
+    func cancel(jobID: UUID) {}
+}
+
+private final class AsyncTestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+    private var opened = false
+    private var waiterCount = 0
+
+    var hasWaiter: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return waiterCount > 0
+    }
+
+    func wait() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            waiterCount += 1
+            if opened {
+                continuation.resume()
+            } else {
+                continuations.append(continuation)
+            }
+            lock.unlock()
+        }
+    }
+
+    func open() {
+        lock.lock()
+        opened = true
+        let waiters = continuations
+        continuations = []
+        lock.unlock()
+
+        for continuation in waiters {
+            continuation.resume()
+        }
+    }
+}
+
+private final class SequentialGateTranscriber: Transcriber, @unchecked Sendable {
+    private let gates: [AsyncTestGate]
+    private let lock = NSLock()
+    private var nextGateIndex = 0
+
+    init(gates: [AsyncTestGate]) {
+        self.gates = gates
+    }
+
+    func transcribe(
+        _ job: TranscriptionJob,
+        progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
+    ) async throws -> Transcript {
+        lock.lock()
+        let gate = gates[nextGateIndex]
+        nextGateIndex += 1
+        lock.unlock()
+
+        await gate.wait()
+        return Transcript(sourceFileName: job.sourceFileName, fullText: "done")
+    }
+
     func cancel(jobID: UUID) {}
 }
 
