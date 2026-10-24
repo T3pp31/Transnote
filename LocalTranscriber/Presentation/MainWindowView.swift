@@ -121,6 +121,9 @@ struct MainWindowView: View {
                 onDiskUsage: viewModel.modelDiskUsageText
             )
         }
+        .sheet(isPresented: $showingHistory) {
+            HistorySheet()
+        }
         .overlay(alignment: .top) {
             if let toast = viewModel.toast {
                 ToastView(message: toast)
