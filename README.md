@@ -28,7 +28,6 @@ macOS 向けのオンデバイス文字起こしアプリ。ローカルの音�
 2. ターミナルで次を1行ずつ実行する:
 
 ```bash
-xattr -cr "/Volumes/Transnote/"
 bash "/Volumes/Transnote/インストール.command"
 ```
 
