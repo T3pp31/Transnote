@@ -9,6 +9,10 @@ struct SettingsView: View {
     let onDownloadSelectedModel: () -> Void
     let onDeleteSelectedModel: () -> Void
     let onDiskUsage: (ModelOption) -> String?
+    let modelsRevision: Int
+    let onModelsCleared: () -> Void
+
+    @State private var isConfirmingModelDelete = false
 
     private func modelSizeSuffix(_ model: ModelOption) -> String {
         guard let bytes = model.downloadSizeBytes else { return "" }
@@ -60,6 +64,26 @@ struct SettingsView: View {
             idealHeight: DesignTokens.Layout.windowMinHeight,
             maxHeight: DesignTokens.Layout.windowMinHeight
         )
+        .confirmationDialog(
+            NSLocalizedString("モデルを削除しますか？", comment: "Delete model confirmation title"),
+            isPresented: $isConfirmingModelDelete,
+            titleVisibility: .visible
+        ) {
+            Button(
+                NSLocalizedString("削除する", comment: "Delete model confirmation action"),
+                role: .destructive
+            ) {
+                onDeleteSelectedModel()
+            }
+            Button(NSLocalizedString("キャンセル", comment: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(
+                NSLocalizedString(
+                    "選択中のモデルファイルを削除します。必要な場合は再ダウンロードが必要です。",
+                    comment: "Delete model confirmation message"
+                )
+            )
+        }
     }
 
     private var settingsContent: some View {
@@ -154,11 +178,12 @@ struct SettingsView: View {
                     if let selected = settings.selectedModel,
                        isModelDownloaded(selected) {
                         Button {
-                            onDeleteSelectedModel()
+                            isConfirmingModelDelete = true
                         } label: {
                             Label("このモデルを削除", systemImage: "trash")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isBusy)
                         .accessibilityLabel("選択中のモデルを削除")
                     }
                 }
@@ -189,12 +214,15 @@ struct SettingsView: View {
                 StorageRow(
                     title: "Imports",
                     directory: AppDirectories.importsDirectory,
-                    icon: "tray"
+                    icon: "tray",
+                    onCleared: nil
                 )
                 StorageRow(
                     title: "Models",
                     directory: AppDirectories.modelsDirectory,
-                    icon: "internaldrive"
+                    icon: "internaldrive",
+                    modelsRevision: modelsRevision,
+                    onCleared: onModelsCleared
                 )
             }
 
@@ -253,6 +281,8 @@ private struct StorageRow: View {
     let title: String
     let directory: URL
     let icon: String
+    var modelsRevision: Int = 0
+    let onCleared: (() -> Void)?
 
     @State private var sizeText: String = "計算中…"
 
@@ -267,15 +297,28 @@ private struct StorageRow: View {
                 .foregroundStyle(.secondary)
             Button("クリア") {
                 AppDirectories.clearDirectory(directory)
-                sizeText = "0 KB"
+                sizeText = "計算中…"
+                refreshSize()
+                onCleared?()
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(sizeText == "計算中…")
         }
         .onAppear {
+            refreshSize()
+        }
+        .onChange(of: modelsRevision) { _ in
+            refreshSize()
+        }
+    }
+
+    private func refreshSize() {
+        Task.detached(priority: .utility) { [directory] in
             let bytes = AppDirectories.directorySize(of: directory)
-            sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            await MainActor.run {
+                sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            }
         }
     }
 }

@@ -38,7 +38,9 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(decoded.sourceFileName, original.sourceFileName)
         XCTAssertEqual(decoded.language, original.language)
         XCTAssertEqual(decoded.fullText, original.fullText)
-        XCTAssertEqual(decoded.segments.count, original.segments.count)
+        guard decoded.segments.count == original.segments.count else {
+            return XCTFail("segments count mismatch: \(decoded.segments.count)")
+        }
         XCTAssertEqual(decoded.segments[0].text, "Hello")
         XCTAssertEqual(decoded.segments[1].endTime, 2.4)
     }
@@ -46,6 +48,41 @@ final class TranscriptModelTests: XCTestCase {
     func testTranscriptSegmentIdentifiable() {
         let segment = TranscriptSegment(startTime: 0, endTime: 1, text: "test")
         XCTAssertNotNil(segment.id)
+    }
+
+    func testTranscriptSegmentTimestampFormatting() {
+        let segment = TranscriptSegment(startTime: 3_723.456, endTime: 3_724, text: "test")
+
+        XCTAssertEqual(segment.formattedStartTime, "01:02:03.456")
+        XCTAssertEqual(segment.accessibilityStartTimestamp, "1時間2分3秒")
+    }
+
+    func testTranscriptSegmentTimestampFormattingClampsInvalidValues() {
+        let invalidValues: [TimeInterval] = [
+            .nan,
+            .infinity,
+            -.infinity,
+            -1,
+            Double(Int.max) / 1000 + 1
+        ]
+
+        for value in invalidValues {
+            let segment = TranscriptSegment(startTime: value, endTime: value + 1, text: "test")
+
+            XCTAssertFalse(segment.formattedStartTime.isEmpty)
+            XCTAssertFalse(segment.accessibilityStartTimestamp.isEmpty)
+        }
+    }
+
+    func testTranscriptSegmentTimestampFormattingClampsNonFiniteValuesToZero() {
+        let invalidValues: [TimeInterval] = [.nan, .infinity, -.infinity, -1]
+
+        for value in invalidValues {
+            let segment = TranscriptSegment(startTime: value, endTime: 1, text: "test")
+
+            XCTAssertEqual(segment.formattedStartTime, "00:00:00.000")
+            XCTAssertEqual(segment.accessibilityStartTimestamp, "0秒")
+        }
     }
 
     func testExportFormatFileExtensions() {
@@ -68,6 +105,24 @@ final class TranscriptModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
 
         XCTAssertEqual(AppDirectories.directorySize(of: root), 20)
+    }
+
+    func testTranscriptRejectsUnsupportedSchemaVersion() throws {
+        let json = """
+        {
+          "id": "\(UUID().uuidString)",
+          "sourceFileName": "sample.wav",
+          "createdAt": "2026-01-01T00:00:00Z",
+          "fullText": "hello",
+          "segments": [],
+          "schemaVersion": 999
+        }
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertThrowsError(try decoder.decode(Transcript.self, from: data))
+    }
     }
     // MARK: - AppConfig / AppSettings (#245)
 

@@ -101,6 +101,17 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         XCTAssertTrue(display.detailLabel?.contains("50%") == true)
     }
 
+    func testProgressLabelsClampOutOfRangeFraction() {
+        let update = TranscriptionProgressUpdate.make(
+            phase: .downloadingModel,
+            fraction: 1.2
+        )
+        let display = TranscriptionProgressDisplay.from(update: update)
+
+        XCTAssertEqual(display.fraction, 1.0)
+        XCTAssertEqual(display.detailLabel, "100%")
+    }
+
     func testIdleDisplayUsesWaitingLabel() {
         let display = TranscriptionProgressDisplay.idle()
 
