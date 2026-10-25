@@ -82,18 +82,17 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         // When
         viewModel.startTranscription()
-        if viewModel.confirmFileImport {
-            viewModel.confirmFileImport = false
-            viewModel.pendingFileImport = nil
-        }
+        // 既存結果がある場合は確認が表示され、完了するまで結果を保持する。
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertEqual(viewModel.transcriptText, "previous result")
+        XCTAssertNotNil(viewModel.currentTranscript)
+
+        viewModel.cancelPendingFileImport()
+        XCTAssertFalse(viewModel.confirmFileImport)
 
         // Then: 開始直後に前回結果がクリアされる
-        XCTAssertEqual(viewModel.transcriptText, "")
-        XCTAssertNil(viewModel.currentTranscript)
-        XCTAssertFalse(viewModel.canExport)
-
-        try await waitUntil { self.viewModel.uiState == .done }
-        XCTAssertEqual(viewModel.transcriptText, "new result")
+        XCTAssertEqual(viewModel.transcriptText, "previous result")
+        XCTAssertNotNil(viewModel.currentTranscript)
     }
 
     func testModelDownloadButtonIsShownForModelThatIsNotDownloaded() {
