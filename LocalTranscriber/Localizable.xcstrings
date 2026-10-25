@@ -166,7 +166,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %@ is available (current: %@).\nAfter downloading, run “Install.command” in the DMG.\nThe previous version will be replaced automatically."
+            "value": "Version %@ is available (current: %@).\nAfter downloading, run “インストール.command” in the DMG.\nThe previous version will be replaced automatically."
           }
         }
       }
@@ -176,7 +176,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %@ is available (current: %@).\nAfter obtaining the update file, run “Install.command” in the DMG.\nThe previous version will be replaced automatically."
+            "value": "Version %@ is available (current: %@).\nAfter obtaining the update file, run “インストール.command” in the DMG.\nThe previous version will be replaced automatically."
           }
         }
       }
@@ -811,12 +811,12 @@
         }
       }
     },
-    "音声は端末内で処理されます。通信はモデルダウンロード時のみです。": {
+    "音声は端末内で処理されます。通信はモデルダウンロードおよびアップデート確認時のみです。": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Audio is processed on your device. Network is used only when downloading models."
+            "value": "Audio is processed on your device. Network is used only for model downloads and update checks."
           }
         }
       }
