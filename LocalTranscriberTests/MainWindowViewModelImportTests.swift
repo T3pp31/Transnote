@@ -5,9 +5,11 @@ import XCTest
 final class MainWindowViewModelImportTests: XCTestCase {
     private var importsRoot: URL!
     private var sourceRoot: URL!
+    private var originalSelectedModelID: String!
     private var viewModel: MainWindowViewModel!
 
     override func setUpWithError() throws {
+        originalSelectedModelID = AppSettings.shared.selectedModelID
         importsRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         sourceRoot = FileManager.default.temporaryDirectory
@@ -21,6 +23,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        AppSettings.shared.selectedModelID = originalSelectedModelID
         try? FileManager.default.removeItem(at: importsRoot)
         try? FileManager.default.removeItem(at: sourceRoot)
     }
