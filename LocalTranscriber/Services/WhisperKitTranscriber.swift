@@ -74,6 +74,17 @@ actor WhisperKitTranscriber: Transcriber {
 
             let decodeOptions = makeDecodingOptions(languageID: job.languageID, vadEnabled: job.vadEnabled)
 
+            // チャンク全体の進捗を正規化するため、セグメント検出コールバックと
+            // transcribe コールバックのどちらでも同一スケールを使う。
+            let duration = (try? await AVURLAsset(url: job.audioFileURL).load(.duration).seconds) ?? 0
+            let chunkCount = max(1, Int((duration / max(job.chunkDuration, 1)).rounded(.up)))
+            let totalChunkCount = max(1, chunkCount)
+            var currentChunkIndex = 0
+            let normalizedOverallProgress: () -> Double = {
+                min(1.0, (Double(currentChunkIndex) + max(0, whisperKit.progress.fractionCompleted))
+                    / Double(totalChunkCount))
+            }
+
             progressHandler?(
                 .make(phase: .convertingAudio, fraction: 0, modelDisplayName: job.modelDisplayName)
             )
@@ -87,7 +98,7 @@ actor WhisperKitTranscriber: Transcriber {
                     return
                 }
 
-                let fraction = whisperKit.progress.fractionCompleted
+                let fraction = normalizedOverallProgress()
                 progressHandler?(
                     .make(
                         phase: .transcribing,
@@ -112,15 +123,13 @@ actor WhisperKitTranscriber: Transcriber {
                 : Double(chunks.count)
 
             for (index, chunkURL) in chunks.enumerated() {
+                currentChunkIndex = index
                 try Task.checkCancellation()
                 let results = try await whisperKit.transcribe(
                     audioPath: chunkURL.path,
                     decodeOptions: decodeOptions,
                     callback: { progress in
-                        let localFraction = whisperKit.progress.fractionCompleted
-                        let overall = totalSeconds > 0
-                            ? min(1.0, (Double(index) + max(0, localFraction)) / Double(chunks.count))
-                            : 0
+                        let overall = totalSeconds > 0 ? normalizedOverallProgress() : 0
                         progressHandler?(
                             .make(
                                 phase: .transcribing,
@@ -283,20 +292,29 @@ actor WhisperKitTranscriber: Transcriber {
             return [url]
         }
 
-        let chunkCount = Int(ceil(duration / chunkDuration))
+        // チャンク境界をまたぐ発話を失わないよう、隣接チャンクに1秒のオーバーラップを持たせる。
+        let overlap = min(1.0, max(0.0, chunkDuration / 4))
+        let stride = max(0.1, chunkDuration - overlap)
         var outputURLs: [URL] = []
-        for index in 0..<chunkCount {
-            let start = Double(index) * chunkDuration
+        var start: TimeInterval = 0
+        var index = 0
+        while start < duration {
             let end = min(start + chunkDuration, duration)
             let outputURL = AppDirectories.checkpointDirectory
                 .appendingPathComponent("chunk-\(index).m4a")
             try? FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? FileManager.default.removeItem(at: outputURL)
 
-            let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough)
-            export?.outputURL = outputURL
-            export?.outputFileType = .m4a
-            export?.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), end: CMTime(seconds: end, preferredTimescale: 600))
+            guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
+                AppLogger.error(
+                    "Chunk export session could not be created for chunk \(index).",
+                    logger: AppLogger.transcription
+                )
+                continue
+            }
+            export.outputURL = outputURL
+            export.outputFileType = .m4a
+            export.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), end: CMTime(seconds: end, preferredTimescale: 600))
 
             await withCheckedContinuation { continuation in
                 export?.exportAsynchronously {
@@ -306,6 +324,8 @@ actor WhisperKitTranscriber: Transcriber {
             if export?.status == .completed {
                 outputURLs.append(outputURL)
             }
+            index += 1
+            start += stride
         }
         return outputURLs.isEmpty ? [url] : outputURLs
     }
@@ -318,14 +338,16 @@ actor WhisperKitTranscriber: Transcriber {
                 language: languageID,
                 usePrefillPrompt: true,
                 detectLanguage: false,
-                skipSpecialTokens: true
+                skipSpecialTokens: true,
+                chunkingStrategy: vadEnabled ? .vad : nil
             )
         }
         return DecodingOptions(
             language: nil,
             usePrefillPrompt: false,
             detectLanguage: true,
-            skipSpecialTokens: true
+            skipSpecialTokens: true,
+            chunkingStrategy: vadEnabled ? .vad : nil
         )
     }
 
