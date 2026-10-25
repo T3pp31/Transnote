@@ -229,6 +229,23 @@ final class AudioImportServiceTests: XCTestCase {
         // importsRoot が存在しない場合でも throw しない
         XCTAssertNoThrow(try service.cleanupExpiredImports())
     }
+
+    func testImportedOldSourceIsNotImmediatelyExpired() throws {
+        let sourceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceRoot) }
+
+        let sourceURL = sourceRoot.appendingPathComponent("old-recording.wav")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
+        let oldDate = Date(timeIntervalSinceNow: -40 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: sourceURL.path)
+
+        let importedURL = try service.importFile(from: sourceURL)
+        try service.cleanupExpiredImports(maxAge: 30 * 24 * 60 * 60, now: Date())
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path))
+    }
 }
 
 /// copyItem が常に失敗し、その際に destination へ部分的なファイルを残す FileManager。
