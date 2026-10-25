@@ -2,7 +2,11 @@ import XCTest
 @testable import LocalTranscriber
 
 final class UpdateURLValidatorTests: XCTestCase {
-    private let allowedHosts = ["github.com", "objects.githubusercontent.com"]
+    private let allowedHosts = [
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com"
+    ]
 
     // Given: 許可ホストと完全一致する HTTPS URL
     // When: isAllowedDownloadURL を実行
@@ -17,6 +21,12 @@ final class UpdateURLValidatorTests: XCTestCase {
         XCTAssertTrue(
             UpdateURLValidator.isAllowedDownloadURL(
                 URL(string: "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg")!,
+                allowedHosts: allowedHosts
+            )
+        )
+        XCTAssertTrue(
+            UpdateURLValidator.isAllowedDownloadURL(
+                URL(string: "https://release-assets.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg")!,
                 allowedHosts: allowedHosts
             )
         )
