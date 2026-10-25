@@ -17,8 +17,13 @@ PBX
 cp "$ROOT/scripts/set-marketing-version.sh" "$WORK/scripts/"
 (cd "$WORK" && bash scripts/set-marketing-version.sh 0.2.0)
 
-if ! grep -q 'MARKETING_VERSION = 0.2.0;' "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
+if [[ "$(grep -c 'MARKETING_VERSION = 0.2.0;' "$WORK/LocalTranscriber.xcodeproj/project.pbxproj")" -ne 2 ]]; then
   echo "FAIL: set-marketing-version.sh did not update MARKETING_VERSION" >&2
+  exit 1
+fi
+
+if grep -q 'MARKETING_VERSION = 0.1.5;' "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
+  echo "FAIL: old MARKETING_VERSION remains after update" >&2
   exit 1
 fi
 
