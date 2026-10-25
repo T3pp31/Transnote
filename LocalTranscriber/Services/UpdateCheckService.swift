@@ -50,9 +50,9 @@ struct UpdateCheckService: UpdateChecking {
         }
 
         do {
-            let release = try await fetchLatestRelease()
+            let (release, etag) = try await fetchLatestRelease()
             defaults.set(Date(), forKey: "lastUpdateCheckDate")
-            defaults.set(release.etag, forKey: "updateETag")
+            defaults.set(etag, forKey: "updateETag")
             let currentVersion = AppVersion.normalize(currentVersionProvider())
             let latestVersion = AppVersion.normalize(release.tagName)
 
@@ -89,7 +89,7 @@ struct UpdateCheckService: UpdateChecking {
         }
     }
 
-    private func fetchLatestRelease() async throws -> GitHubRelease {
+    private func fetchLatestRelease() async throws -> (GitHubRelease, String?) {
         var request = URLRequest(url: config.githubReleasesAPIURL)
         request.httpMethod = "GET"
         request.timeoutInterval = 10
@@ -120,7 +120,7 @@ struct UpdateCheckService: UpdateChecking {
         guard isValidRepository(release) else {
             throw UpdateCheckError.invalidResponse
         }
-        return release
+        return (release, httpResponse.value(forHTTPHeaderField: "ETag"))
     }
 
     /// `repository.full_name` がある場合は期待値と一致すること。欠落・一致いずれでも `html_url` は必ず検証する。
@@ -178,7 +178,6 @@ private struct GitHubRelease: Decodable {
     let assets: [GitHubReleaseAsset]
     let htmlURL: URL
     let repository: GitHubReleaseRepository?
-    let etag: String?
 
     enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
@@ -186,7 +185,6 @@ private struct GitHubRelease: Decodable {
         case assets
         case htmlURL = "html_url"
         case repository
-        case etag
     }
 }
 
