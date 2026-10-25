@@ -212,13 +212,13 @@ final class ModelAvailabilityService: @unchecked Sendable {
             let coreMLBinary = url.appendingPathComponent("coremldata.bin")
             let milFile = url.appendingPathComponent("model.mil")
             let packageMil = url.appendingPathComponent("Data").appendingPathComponent("com.apple.CoreML").appendingPathComponent("Model.mil")
-            let hasCoreMLPayload = fileManager.fileExists(atPath: coreMLBinary.path)
-                || fileManager.fileExists(atPath: milFile.path)
-                || fileManager.fileExists(atPath: packageMil.path)
+            let hasCoreMLPayload = isNonEmptyFile(at: coreMLBinary)
+                || isNonEmptyFile(at: milFile)
+                || isNonEmptyFile(at: packageMil)
 
             // Web 上の一般モデルは .mlpackage でなく .mlmodelc 中心だが、いずれの場合も
             // 中身の実体（128KB 以上）を持つことを要求する。
-            guard hasCoreMLPayload || directorySize(in: url) > 128 * 1024 else {
+            guard hasCoreMLPayload, directorySize(in: url) > 128 * 1024 else {
                 return false
             }
             return true
@@ -227,6 +227,15 @@ final class ModelAvailabilityService: @unchecked Sendable {
         guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
         let size = attributes[.size] as? NSNumber
         return (size?.intValue ?? -1) > 0
+    }
+
+    private func isNonEmptyFile(at url: URL) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirectory), !isDirectory.boolValue else {
+            return false
+        }
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return false }
+        return (attributes[.size] as? NSNumber)?.intValue ?? -1 > 0
     }
 
     /// ディレクトリ配下の合計サイズをバイトで返す（整合性検証の補助）。
