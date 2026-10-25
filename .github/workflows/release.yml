@@ -39,10 +39,12 @@ jobs:
 
       - name: Resolve release version
         id: version
+        env:
+          RELEASE_VERSION_INPUT: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            raw="${{ github.event.inputs.version }}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            raw="$RELEASE_VERSION_INPUT"
             if [ -z "$raw" ]; then
               echo "workflow_dispatch requires the version input (e.g. v0.1.0)." >&2
               exit 1
@@ -55,13 +57,19 @@ jobs:
             echo "Could not determine release version." >&2
             exit 1
           fi
+          if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+            echo "Release version contains unsupported characters." >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
       - name: Sync MARKETING_VERSION
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           chmod +x ./scripts/set-marketing-version.sh
-          ./scripts/set-marketing-version.sh "${{ steps.version.outputs.version }}"
+          ./scripts/set-marketing-version.sh "$RELEASE_VERSION"
 
       - name: Run tests
         run: |
@@ -145,28 +153,32 @@ jobs:
 
       - name: Generate SBOM
         id: sbom
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           chmod +x ./scripts/generate-sbom.sh
           sbom_path="$(./scripts/generate-sbom.sh \
             --mode release \
-            --version "${{ steps.version.outputs.version }}")"
+            --version "$RELEASE_VERSION")"
           echo "sbom_path=${sbom_path}" >> "$GITHUB_OUTPUT"
 
       - name: Create DMG
         id: dmg
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           ./scripts/create-dmg.sh \
             --app "${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app" \
-            --version "${{ steps.version.outputs.version }}" \
+            --version "$RELEASE_VERSION" \
             --output build/dist
-          versioned_dmg="build/dist/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg"
+          versioned_dmg="build/dist/${{ env.APP_NAME }}-$RELEASE_VERSION.dmg"
           latest_dmg="build/dist/${{ env.APP_NAME }}.dmg"
           cp "$versioned_dmg" "$latest_dmg"
           echo "dmg_path=$versioned_dmg" >> "$GITHUB_OUTPUT"
           echo "latest_dmg_path=$latest_dmg" >> "$GITHUB_OUTPUT"
-          echo "versioned_dmg_name=${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg" >> "$GITHUB_OUTPUT"
+          echo "versioned_dmg_name=${{ env.APP_NAME }}-$RELEASE_VERSION.dmg" >> "$GITHUB_OUTPUT"
           echo "latest_dmg_name=${{ env.APP_NAME }}.dmg" >> "$GITHUB_OUTPUT"
 
       - name: Compute SHA256 checksums
