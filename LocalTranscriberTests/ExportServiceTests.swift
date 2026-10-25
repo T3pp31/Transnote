@@ -143,6 +143,18 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertThrowsError(try exportService.content(for: transcript, format: .vtt))
     }
 
+    func testExportRejectsHugeFiniteTimestamp() throws {
+        let transcript = Transcript(
+            sourceFileName: "huge.wav",
+            fullText: "huge",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: Double(Int.max), text: "huge")
+            ]
+        )
+
+        XCTAssertThrowsError(try exportService.content(for: transcript, format: .srt))
+    }
+
     func testExportAcceptsValidSegments() throws {
         let transcript = Transcript(
             sourceFileName: "valid.wav",
