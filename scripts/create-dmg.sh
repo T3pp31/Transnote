@@ -89,7 +89,7 @@ fi
 
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 STAGING_DIR="$(mktemp -d)"
-DMG_RW="$(mktemp "${TMPDIR:-/tmp}/${APP_NAME}.XXXXXX.dmg")"
+DMG_RW="$(mktemp "${TMPDIR:-/tmp}/${APP_NAME}.XXXXXX")"
 trap 'rm -rf "$STAGING_DIR" "$DMG_RW"' EXIT
 
 cp -R "$APP_PATH" "${STAGING_DIR}/"
