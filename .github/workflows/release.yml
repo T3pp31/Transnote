@@ -211,14 +211,23 @@ jobs:
         id: notes
         run: |
           set -euo pipefail
+          if [[ "${NOTARIZED:-0}" == "1" ]]; then
+            security_notice="Developer ID で署名・公証済みのビルドです。"
+            signature_note="このビルドは Developer ID で署名・公証済みです。"
+          elif [[ "${SIGNED:-0}" == "1" ]]; then
+            security_notice="Developer ID で署名済みのビルドです。公証は行われていません。"
+            signature_note="このビルドは Developer ID で署名済みです。公証には Apple ID 等の secrets 設定が必要です。"
+          else
+            security_notice="**⚠️ 初回起動時に「マルウェア」という警告が出ても、これはマルウェアではありません。** Transnote は Apple の有料開発者認証（署名）をせずに配布しているため、macOS の Gatekeeper が「マルウェアでないことを確認できない」と表示します。未署名アプリ共通の安全確認の通知で、ウイルス検出ではありません。「完了」で閉じて進んでください（「ゴミ箱に入れる」は押さないでください）。"
+            signature_note="現時点では未署名ビルドを配布しています。Developer ID 署名と Notarization には [Apple Developer Program](https://developer.apple.com/programs/) への加入と CI 用証明書の設定が必要です（将来対応予定）。"
+          fi
+
           cat > release_body.md <<EOF
-          **⚠️ 初回起動時に「マルウェア」という警告が出ても、これはマルウェアではありません。** Transnote は Apple の有料開発者認証（署名）をせずに配布しているため、macOS の Gatekeeper が「マルウェアでないことを確認できない」と表示します。未署名アプリ共通の安全確認の通知で、ウイルス検出ではありません。「完了」で閉じて進んでください（「ゴミ箱に入れる」は押さないでください）。
+          $security_notice
 
           ※ この案内は **Transnote について**のものです。他のアプリで同様の警告が出たときは、そのアプリの配布元が信頼できるか必ず確認してください。
 
-          未署名ビルドです。DMG と **Transnote.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **インストール.command** を実行してください（旧バージョンは自動的に置き換えられます）。
-
-          初回起動時に Gatekeeper の警告が出る場合は、Finder でアプリを右クリックして「開く」を選んでください。
+          DMG と **Transnote.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **インストール.command** を実行してください（旧バージョンは自動的に置き換えられます）。
 
           ## SHA256 チェックサム
 
@@ -237,7 +246,7 @@ jobs:
 
           詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
 
-          > **コード署名について**: 現時点では未署名ビルドを配布しています。Developer ID 署名と Notarization には [Apple Developer Program](https://developer.apple.com/programs/) への加入と CI 用証明書の設定が必要です（将来対応予定）。
+          > **コード署名について**: $signature_note
           EOF
 
       - name: Attest build provenance
