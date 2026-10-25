@@ -134,6 +134,14 @@ final class AudioFileServiceTests: XCTestCase {
         XCTAssertFalse(service.probeDecodability(url: url))
     }
 
+    func testSHA256ReturnsNilForMissingFile() {
+        XCTAssertNil(
+            AudioFileService.sha256(
+                of: tempRoot.appendingPathComponent("missing.wav")
+            )
+        )
+    }
+
     // MARK: - drop services / supported audio types (#244)
 
     func testSupportedAudioTypesResolveExtension() {
