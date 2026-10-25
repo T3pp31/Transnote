@@ -143,6 +143,18 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertThrowsError(try exportService.content(for: transcript, format: .vtt))
     }
 
+    func testExportRejectsHugeFiniteTimestamp() throws {
+        let transcript = Transcript(
+            sourceFileName: "huge.wav",
+            fullText: "huge",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: Double(Int.max), text: "huge")
+            ]
+        )
+
+        XCTAssertThrowsError(try exportService.content(for: transcript, format: .srt))
+    }
+
     func testExportAcceptsValidSegments() throws {
         let transcript = Transcript(
             sourceFileName: "valid.wav",
@@ -159,8 +171,11 @@ final class ExportServiceTests: XCTestCase {
 
     func testJSONExportIncludesSchemaVersion() throws {
         let content = try exportService.content(for: sampleTranscript, format: .json)
-        XCTAssertTrue(content.contains("schemaVersion"))
-        XCTAssertTrue(content.contains("1"))
+        let data = try XCTUnwrap(content.data(using: .utf8))
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        XCTAssertEqual(json["schemaVersion"] as? Int, Transcript.currentSchemaVersion)
     }
 
     func testJSONDecodeWithoutSchemaVersionUsesDefault() throws {
@@ -196,13 +211,14 @@ final class ExportServiceTests: XCTestCase {
     func testMarkdownEscapesSpecialCharactersInSegmentText() throws {
         let transcript = Transcript(
             sourceFileName: "test.wav",
-            fullText: "text *italic* _under_ [link]",
+            fullText: "full text",
             segments: [
                 TranscriptSegment(startTime: 0, endTime: 1, text: "text *italic* _under_ [link]")
             ]
         )
         let content = try exportService.content(for: transcript, format: .markdown)
-        XCTAssertTrue(content.contains("text \\*italic\\* \\_under\\_ \\[link\\]"))
+        let segments = try XCTUnwrap(content.range(of: "## Segments")).upperBound
+        XCTAssertTrue(content[segments...].contains("- [00:00:00.000 --> 00:00:01.000] text \\*italic\\* \\_under\\_ \\[link\\]"))
     }
 
 }

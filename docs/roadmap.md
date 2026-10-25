@@ -108,7 +108,7 @@ WhisperKit には Hugging Face からの自動モデルダウンロードやカ�
 保存場所:
 
 ```text
-~/Library/Application Support/LocalTranscriber/
+~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/
 ├─ Models/
 ├─ Transcripts/
 ├─ Exports/

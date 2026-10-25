@@ -59,7 +59,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         viewModel.startTranscription()
 
         try await waitUntil { self.viewModel.uiState == .transcribing }
-        try await Task.sleep(nanoseconds: 100_000_000)
+        try await waitUntil { mock.partialTextCount == 1 }
         XCTAssertEqual(viewModel.transcriptText, "")
         try await waitUntil { self.viewModel.uiState == .done }
         XCTAssertEqual(viewModel.transcriptText, "final")
@@ -82,14 +82,17 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         // When
         viewModel.startTranscription()
+        // 既存結果がある場合は確認が表示され、完了するまで結果を保持する。
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertEqual(viewModel.transcriptText, "previous result")
+        XCTAssertNotNil(viewModel.currentTranscript)
+
+        viewModel.cancelPendingFileImport()
+        XCTAssertFalse(viewModel.confirmFileImport)
 
         // Then: 開始直後に前回結果がクリアされる
-        XCTAssertEqual(viewModel.transcriptText, "")
-        XCTAssertNil(viewModel.currentTranscript)
-        XCTAssertFalse(viewModel.canExport)
-
-        try await waitUntil { self.viewModel.uiState == .done }
-        XCTAssertEqual(viewModel.transcriptText, "new result")
+        XCTAssertEqual(viewModel.transcriptText, "previous result")
+        XCTAssertNotNil(viewModel.currentTranscript)
     }
 
     func testModelDownloadButtonIsShownForModelThatIsNotDownloaded() {
@@ -149,7 +152,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.cancelMenuTitle, viewModel.cancelActionAccessibilityLabel)
         XCTAssertEqual(
             viewModel.cancelActionHelp,
-            L("ダウンロードをキャンセル（Esc）", comment: "Cancel model download shortcut help")
+            L("ダウンロードをキャンセル（⌘.）", comment: "Cancel model download shortcut help")
         )
     }
 
@@ -166,7 +169,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.cancelMenuTitle, viewModel.cancelActionAccessibilityLabel)
         XCTAssertEqual(
             viewModel.cancelActionHelp,
-            L("文字起こしをキャンセル（Esc）", comment: "Cancel transcription shortcut help")
+            L("文字起こしをキャンセル（⌘.）", comment: "Cancel transcription shortcut help")
         )
     }
 
@@ -262,6 +265,25 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(MainWindowViewModel.hasPlayableSegments(in: transcript))
     }
 
+    func testUpdateSegmentTextRebuildsFullText() {
+        viewModel = MainWindowViewModel()
+        let segmentIDs = [UUID(), UUID()]
+        viewModel.currentTranscript = Transcript(
+            sourceFileName: "test.wav",
+            fullText: "old first\nold second",
+            segments: [
+                TranscriptSegment(id: segmentIDs[0], startTime: 0, endTime: 1, text: "old first"),
+                TranscriptSegment(id: segmentIDs[1], startTime: 1, endTime: 2, text: "old second")
+            ]
+        )
+
+        viewModel.updateSegmentText(id: segmentIDs[1], text: "new second")
+
+        XCTAssertEqual(viewModel.transcriptText, "old first\nnew second")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "old first\nnew second")
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
@@ -298,6 +320,7 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
     private var activeTasks: [UUID: Task<Transcript, Error>] = [:]
     private var cancelledJobIDs: Set<UUID> = []
     private let lock = NSLock()
+    private var emittedPartialTexts = 0
 
     init(
         partialTexts: [String],
@@ -311,19 +334,47 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
         self.finalDelayNanoseconds = finalDelayNanoseconds
     }
 
+    var partialTextCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return emittedPartialTexts
+    }
+
     func transcribe(
         _ job: TranscriptionJob,
         progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
     ) async throws -> Transcript {
-        lock.lock()
-        if cancelledJobIDs.contains(job.id) {
-            lock.unlock()
-            throw CancellationError()
-        }
-        lock.unlock()
+        try await withTaskCancellationHandler {
+            lock.lock()
+            if cancelledJobIDs.contains(job.id) {
+                lock.unlock()
+                throw CancellationError()
+            }
 
-        let task = Task<Transcript, Error> {
-            for (index, text) in partialTexts.enumerated() {
+            let task = Task<Transcript, Error> {
+                for (index, text) in partialTexts.enumerated() {
+                    try Task.checkCancellation()
+                    lock.lock()
+                    let isCancelled = cancelledJobIDs.contains(job.id)
+                    lock.unlock()
+                    if isCancelled {
+                        throw CancellationError()
+                    }
+                    progressHandler?(
+                        .make(
+                            phase: .transcribing,
+                            fraction: Double(index + 1) / Double(partialTexts.count + 1),
+                            modelDisplayName: job.modelDisplayName,
+                            partialText: text
+                        )
+                    )
+                    try await Task.sleep(nanoseconds: delayNanoseconds)
+                }
+
+                if finalDelayNanoseconds > 0 {
+                    try await Task.sleep(nanoseconds: finalDelayNanoseconds)
+                }
+
                 try Task.checkCancellation()
                 lock.lock()
                 let isCancelled = cancelledJobIDs.contains(job.id)
@@ -331,46 +382,27 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                 if isCancelled {
                     throw CancellationError()
                 }
-                progressHandler?(
-                    .make(
-                        phase: .transcribing,
-                        fraction: Double(index + 1) / Double(partialTexts.count + 1),
-                        modelDisplayName: job.modelDisplayName,
-                        partialText: text
-                    )
+                return Transcript(
+                    sourceFileName: job.sourceFileName,
+                    fullText: finalText
                 )
-                try await Task.sleep(nanoseconds: delayNanoseconds)
             }
 
-            if finalDelayNanoseconds > 0 {
-                try await Task.sleep(nanoseconds: finalDelayNanoseconds)
-            }
-
-            try Task.checkCancellation()
             lock.lock()
-            let isCancelled = cancelledJobIDs.contains(job.id)
+            activeTasks[job.id] = task
             lock.unlock()
-            if isCancelled {
-                throw CancellationError()
+
+            defer {
+                lock.lock()
+                activeTasks.removeValue(forKey: job.id)
+                cancelledJobIDs.remove(job.id)
+                lock.unlock()
             }
-            return Transcript(
-                sourceFileName: job.sourceFileName,
-                fullText: finalText
-            )
+
+            return try await task.value
+        } onCancel: {
+            cancel(jobID: job.id)
         }
-
-        lock.lock()
-        activeTasks[job.id] = task
-        lock.unlock()
-
-        defer {
-            lock.lock()
-            activeTasks.removeValue(forKey: job.id)
-            cancelledJobIDs.remove(job.id)
-            lock.unlock()
-        }
-
-        return try await task.value
     }
 
     func cancel(jobID: UUID) {
