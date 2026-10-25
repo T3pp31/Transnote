@@ -276,7 +276,7 @@ actor WhisperKitTranscriber: Transcriber {
 
     /// 長時間音声を指定チャンク長で分割して一時ファイルを返す。
     /// 分割不要（既にチャンク長以下）の場合は元ファイルを返す。
-    private func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async -> [URL] {
+    private nonisolated func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async -> [URL] {
         guard chunkDuration > 0 else { return [url] }
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration).seconds, duration > chunkDuration else {
@@ -298,9 +298,11 @@ actor WhisperKitTranscriber: Transcriber {
             export?.outputFileType = .m4a
             export?.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), end: CMTime(seconds: end, preferredTimescale: 600))
 
-            let semaphore = DispatchSemaphore(value: 0)
-            export?.exportAsynchronously { semaphore.signal() }
-            semaphore.wait()
+            await withCheckedContinuation { continuation in
+                export?.exportAsynchronously {
+                    continuation.resume()
+                }
+            }
             if export?.status == .completed {
                 outputURLs.append(outputURL)
             }
