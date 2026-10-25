@@ -76,11 +76,7 @@ CHECKSUM="<Release に記載の SHA256>" bash "/Volumes/Transnote/インスト�
 #### 方法 A: ターミナルから実行（推奨）
 
 1. **ターミナル** を開きます（Spotlight で「ターミナル」と検索）。
-2. 次の2行を **1行ずつ** 貼り付けて Enter を押します。
-
-```bash
-xattr -cr "/Volumes/Transnote/"
-```
+2. 次の1行を貼り付けて Enter を押します。
 
 ```bash
 bash "/Volumes/Transnote/インストール.command"
@@ -88,8 +84,6 @@ bash "/Volumes/Transnote/インストール.command"
 
 DMG のボリューム名が `Transnote 1` などの場合は、Finder 左サイドバーの表示名に合わせてパスを変更してください。
 
-```bash
-xattr -cr "/Volumes/Transnote 1/"
 bash "/Volumes/Transnote 1/インストール.command"
 ```
 
@@ -131,7 +125,7 @@ macOS 15 (Sequoia) では方法 B は使用できません。方法 C を使っ�
 
 ## 更新
 
-新しいバージョンがリリースされたら、最新の DMG をダウンロードし、**インストール.command** をターミナルから実行してください（上記 方法 A）。旧バージョンは自動的に置き換えられます。ユーザーデータ（`~/Library/Application Support/LocalTranscriber/`）は保持されます。
+新しいバージョンがリリースされたら、最新の DMG をダウンロードし、**インストール.command** をターミナルから実行してください（上記 方法 A）。旧バージョンは自動的に置き換えられます。ユーザーデータ（`~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/`）は保持されます。
 
 ## ファイルアクセス
 
@@ -140,7 +134,7 @@ Transnote は App Sandbox 上で動作します。音声ファイルの読み込
 ## アンインストール
 
 1. Applications から Transnote をゴミ箱へ移動します。
-2. 必要に応じて `~/Library/Application Support/LocalTranscriber/` 以下のデータを削除します。
+2. 必要に応じて `~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/` 以下のデータを削除します。
 
 ## トラブルシューティング
 

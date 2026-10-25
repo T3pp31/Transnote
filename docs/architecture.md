@@ -24,6 +24,8 @@ LocalTranscriber/
 │  ├─ TranscriptSegment.swift
 │  ├─ AppSettings.swift
 │  ├─ ExportFormat.swift
+│  ├─ TranscriptTextSanitizer.swift
+│  ├─ TranscriptPartialTextBuilder.swift
 │  └─ TranscriptionProgress*.swift
 │
 ├─ Services/
@@ -38,6 +40,11 @@ LocalTranscriber/
 │  ├─ DropURLParser.swift
 │  ├─ DropFileNameResolver.swift
 │  ├─ AudioFileNameResolver.swift
+│  ├─ HistoryStore.swift
+│  ├─ Transcriber.swift
+│  ├─ SupportedAudioTypes.swift
+│  ├─ UpdateCheckService.swift
+│  ├─ UpdateURLValidator.swift
 │  └─ SecurityScopedFileAccess.swift
 │
 ├─ Infrastructure/
@@ -51,6 +58,7 @@ LocalTranscriber/
    ├─ TranscriptModelTests.swift
    ├─ TranscriptionSmokeTests.swift
    └─ ...（単体テスト群）
+LocalTranscriberTests/  （別ターゲットの単体テスト群）
 ```
 
 ## 主要モジュール設計（実装済み）
@@ -186,7 +194,7 @@ struct TranscriptSegment: Codable, Identifiable {
 │ Toolbar: モデル / 言語 / 開始 / 保存          │
 ├──────────────────────────────────────────────┤
 │ 文字起こし結果エディタ（セグメント再生可）       │
-│（履歴・ファイルリストは未実装）               │
+│（ファイルリストは未実装）                     │
 ├──────────────────────────────────────────────┤
 │ 進捗バー / 状態 / キャンセル                  │
 └──────────────────────────────────────────────┘
@@ -202,7 +210,7 @@ struct TranscriptSegment: Codable, Identifiable {
 | 結果表示   | 編集可能なテキストビュー                 |
 | 進捗表示   | 初期化中、モデルDL中、文字起こし中、完了        |
 | 保存     | TXT / SRT / VTT / JSON       |
-| 履歴     | 過去の文字起こし結果（未実装）              |
+| 履歴     | 過去の文字起こし結果（HistoryStore で保存・表示可能） |
 
 macOS App Sandbox ではアプリのファイルアクセスが制限されるため、ユーザーが選択したファイルやフォルダを扱う設計にする。永続的にアクセスしたい出力先を保存する場合は、Security-scoped bookmark を使う前提で設計する。([Apple Developer][3])
 

@@ -10,12 +10,13 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
 
-    guard FileManager.default.fileExists(atPath: url.path) else {
-      throw AppError.fileNotFound
-    }
-
     guard url.startAccessingSecurityScopedResource() else {
       throw AppError.fileAccessDenied
+    }
+
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      url.stopAccessingSecurityScopedResource()
+      throw AppError.fileNotFound
     }
 
     activeURLs.append(url)
@@ -67,7 +68,7 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
 
   // MARK: - Last export directory
 
-  private static let lastExportDirectoryKey = "lastExportDirectoryBookmark"
+  static let lastExportDirectoryKey = "lastExportDirectoryBookmark"
 
   /// 最後にエクスポートしたディレクトリの security-scoped bookmark を保存する。
   func saveLastExportDirectoryBookmark(for url: URL) {

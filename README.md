@@ -1,6 +1,6 @@
 # Transnote
 
-macOS 向けのオンデバイス文字起こしアプリ。ローカルの音声ファイルを WhisperKit で処理し、結果を画面表示・エクスポートする。音声データは端末内で完結し、クラウドへ送信しない。Whisper モデルの初回ダウンロード時のみネットワークを使用する。
+macOS 向けのオンデバイス文字起こしアプリ。ローカルの音声ファイルを WhisperKit で処理し、結果を画面表示・エクスポートする。音声データは端末内で完結し、クラウドへ送信しない。ネットワークは Whisper モデルのダウンロードとアップデート確認時のみ使用する。
 
 内部アプリ名は LocalTranscriber、公開名は Transnote。現在のバージョンは **v0.1.5**。
 
@@ -28,12 +28,13 @@ macOS 向けのオンデバイス文字起こしアプリ。ローカルの音�
 2. ターミナルで次を1行ずつ実行する:
 
 ```bash
-xattr -cr "/Volumes/Transnote/"
 bash "/Volumes/Transnote/インストール.command"
 ```
 
 3. DMG を取り出す
-4. 初回起動時に Gatekeeper 警告が出た場合は、macOS 15ではシステム設定 → プライバシーとセキュリティ の **このまま開く**、macOS 14までは右クリック → 開く
+4. 初回起動時に Gatekeeper 警告が出た場合は:
+   - macOS 14 以前: Finderで Transnote を右クリック → **開く**
+   - macOS 15 以降: **システム設定 → プライバシーとセキュリティ** で Transnote を **このまま開く**
 5. 初回利用時に Whisper モデルをダウンロードする
 
 詳細は [docs/install.md](docs/install.md) を参照。
@@ -86,7 +87,7 @@ bash "/Volumes/Transnote/インストール.command"
 | 文字起こし | [WhisperKit](https://github.com/argmaxinc/argmax-oss-swift) 0.18.0（Package.resolved で固定） |
 | 音声処理 | AVFoundation |
 | 設定 | `Config/Defaults.plist` + UserDefaults |
-| データ永続化 | ファイルシステム（`~/Library/Application Support/LocalTranscriber/`） |
+| データ永続化 | ファイルシステム（`~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/`） |
 | テスト | XCTest |
 | CI/CD | GitHub Actions（macOS 15, Xcode 16.4） |
 | 配布 | 未署名 DMG + `インストール.command` |

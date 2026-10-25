@@ -2,7 +2,11 @@ import XCTest
 @testable import LocalTranscriber
 
 final class UpdateURLValidatorTests: XCTestCase {
-    private let allowedHosts = ["github.com", "objects.githubusercontent.com"]
+    private let allowedHosts = [
+        "github.com",
+        "objects.githubusercontent.com",
+        "release-assets.githubusercontent.com"
+    ]
 
     // Given: 許可ホストと完全一致する HTTPS URL
     // When: isAllowedDownloadURL を実行
@@ -17,6 +21,12 @@ final class UpdateURLValidatorTests: XCTestCase {
         XCTAssertTrue(
             UpdateURLValidator.isAllowedDownloadURL(
                 URL(string: "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg")!,
+                allowedHosts: allowedHosts
+            )
+        )
+        XCTAssertTrue(
+            UpdateURLValidator.isAllowedDownloadURL(
+                URL(string: "https://release-assets.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg")!,
                 allowedHosts: allowedHosts
             )
         )
@@ -89,6 +99,18 @@ final class UpdateURLValidatorTests: XCTestCase {
         XCTAssertFalse(
             UpdateRepositoryValidator.matchesReleaseHTMLURL(
                 URL(string: "https://github.com/evil/OtherApp/releases/tag/v0.2.0")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+    }
+
+    // Given: dot-segmentを含むhtml_url
+    // When: matchesReleaseHTMLURL を実行
+    // Then: ブラウザの解決先と乖離するため false を返す
+    func testMatchesReleaseHTMLURLRejectsDotSegments() {
+        XCTAssertFalse(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases/tag/../../attacker/evil/releases/tag/v1")!,
                 expectedRepository: "T3pp31/Transnote"
             )
         )
