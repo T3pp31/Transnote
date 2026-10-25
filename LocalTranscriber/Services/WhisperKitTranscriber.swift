@@ -74,6 +74,17 @@ actor WhisperKitTranscriber: Transcriber {
 
             let decodeOptions = makeDecodingOptions(languageID: job.languageID, vadEnabled: job.vadEnabled)
 
+            // チャンク全体の進捗を正規化するため、セグメント検出コールバックと
+            // transcribe コールバックのどちらでも同一スケールを使う。
+            let duration = (try? await AVURLAsset(url: job.audioFileURL).load(.duration).seconds) ?? 0
+            let chunkCount = max(1, Int((duration / max(job.chunkDuration, 1)).rounded(.up)))
+            let totalChunkCount = max(1, chunkCount)
+            var currentChunkIndex = 0
+            let normalizedOverallProgress: () -> Double = {
+                min(1.0, (Double(currentChunkIndex) + max(0, whisperKit.progress.fractionCompleted))
+                    / Double(totalChunkCount))
+            }
+
             progressHandler?(
                 .make(phase: .convertingAudio, fraction: 0, modelDisplayName: job.modelDisplayName)
             )
@@ -87,7 +98,7 @@ actor WhisperKitTranscriber: Transcriber {
                     return
                 }
 
-                let fraction = whisperKit.progress.fractionCompleted
+                let fraction = normalizedOverallProgress()
                 progressHandler?(
                     .make(
                         phase: .transcribing,
@@ -112,15 +123,13 @@ actor WhisperKitTranscriber: Transcriber {
                 : Double(chunks.count)
 
             for (index, chunkURL) in chunks.enumerated() {
+                currentChunkIndex = index
                 try Task.checkCancellation()
                 let results = try await whisperKit.transcribe(
                     audioPath: chunkURL.path,
                     decodeOptions: decodeOptions,
                     callback: { progress in
-                        let localFraction = whisperKit.progress.fractionCompleted
-                        let overall = totalSeconds > 0
-                            ? min(1.0, (Double(index) + max(0, localFraction)) / Double(chunks.count))
-                            : 0
+                        let overall = totalSeconds > 0 ? normalizedOverallProgress() : 0
                         progressHandler?(
                             .make(
                                 phase: .transcribing,
