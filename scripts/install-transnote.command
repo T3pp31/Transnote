@@ -142,11 +142,7 @@ eject_installer_volume() {
 remove_quarantine_attribute() {
   local target="$1"
   if command -v xattr >/dev/null 2>&1; then
-    find "$target" -type f -print0 2>/dev/null | while IFS= read -r -d '' path; do
-      if xattr -p com.apple.quarantine "$path" >/dev/null 2>&1; then
-        xattr -d com.apple.quarantine "$path" >/dev/null 2>&1 || true
-      fi
-    done
+    xattr -dr com.apple.quarantine "$target" >/dev/null 2>&1 || true
   fi
 }
 
