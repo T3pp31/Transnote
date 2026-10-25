@@ -131,9 +131,11 @@ final class AudioImportServiceTests: XCTestCase {
 
     // MARK: - partial import file cleanup (#140)
 
-    func testRemoveFileIfExistsIfFailedDeletesZeroByteFile() {
+    func testRemoveFileIfExistsIfFailedDeletesZeroByteFile() throws {
+        try FileManager.default.createDirectory(at: importsRoot, withIntermediateDirectories: true)
         let zeroByteURL = importsRoot.appendingPathComponent("partial-zero-byte.m4a")
-        FileManager.default.createFile(atPath: zeroByteURL.path, contents: nil)
+        XCTAssertTrue(FileManager.default.createFile(atPath: zeroByteURL.path, contents: nil))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: zeroByteURL.path))
 
         service.removeFileIfExistsIfFailed(zeroByteURL)
 
