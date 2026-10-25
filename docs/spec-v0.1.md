@@ -12,7 +12,7 @@ UI: SwiftUI
 言語: auto, ja, en
 モデル: tiny, base, small, large-v3系
 保存: ローカルのみ
-通信: モデルDL時のみ
+通信: モデルDL時、アプリ内更新確認時（GitHub API）
 ```
 
 ## スコープ外
@@ -34,13 +34,13 @@ WhisperKit は `argmaxinc/argmax-oss-swift` の Swift Package として提供さ
 ## MVP フロー
 
 ```text
-ローカル音声・動画ファイルを選択
+ローカル音声ファイルを選択
 ↓
 WhisperKitでオンデバイス文字起こし
 ↓
 結果を画面表示
 ↓
-TXT / SRT / VTT / JSONで保存
+TXT / MD / SRT / VTT / JSONで保存
 ```
 
 [1]: https://github.com/argmaxinc/argmax-oss-swift "GitHub - argmaxinc/argmax-oss-swift: On-device Speech AI for Apple Silicon · GitHub"

@@ -27,6 +27,15 @@ final class AppVersionTests: XCTestCase {
         XCTAssertEqual(AppVersion.normalize("V1.0.0"), "1.0.0")
     }
 
+    // Given: ハイフンのみの不正なバージョンタグ
+    // When: compare / isNewer を実行
+    // Then: 範囲外アクセスでクラッシュせず、安定版より古い扱いになる
+    func testCompareHandlesHyphenOnlyVersionWithoutCrashing() {
+        XCTAssertEqual(AppVersion.compare("-", to: "0.1.0"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("v-", to: "0.1.0"), .orderedAscending)
+        XCTAssertFalse(AppVersion.isNewer("-", than: "0.1.0"))
+    }
+
     // Given: 新版候補
     // When: isNewer を実行
     // Then: 期待どおり判定する

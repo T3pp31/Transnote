@@ -6,8 +6,12 @@ import XCTest
 /// 調査用の速度計測プローブ（回帰テスト／閾値アサーションではない）。
 /// - 結果は print するだけで、環境差に依存する閾値は設けない
 /// - テスト用 wav が無い環境（CI 含む）では XCTSkip する
-/// - ローカル絶対パスは開発マシン上の DerivedData 探索用のフォールバック
+/// - フィクスチャの追加候補は環境変数 TRANSNOTE_BENCH_FIXTURE で上書きできる
 final class PerformanceBaselineTests: XCTestCase {
+    private struct FFmpegUnavailableError: LocalizedError {
+        let errorDescription: String?
+    }
+
 
     private let modelsRoot = AppDirectories.modelsDirectory
 
@@ -16,10 +20,12 @@ final class PerformanceBaselineTests: XCTestCase {
 
     override func setUpWithError() throws {
         // WhisperKit リポジトリ内のテスト用 wav を探す（相対パス優先）
-        let candidates = [
+        var candidates = [
             URL(fileURLWithPath: "DerivedData/SourcePackages/checkouts/argmax-oss-swift/Tests/WhisperKitTests/Resources/ja_test_clip.wav"),
-            URL(fileURLWithPath: "/Users/fukutomiteppei/Documents/GitHub/Transnote/DerivedData/SourcePackages/checkouts/argmax-oss-swift/Tests/WhisperKitTests/Resources/ja_test_clip.wav"),
         ]
+        if let overridePath = ProcessInfo.processInfo.environment["TRANSNOTE_BENCH_FIXTURE"], !overridePath.isEmpty {
+            candidates.insert(URL(fileURLWithPath: overridePath), at: 0)
+        }
         fixtureWAVURL = candidates.first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
@@ -89,12 +95,22 @@ final class PerformanceBaselineTests: XCTestCase {
             "-map", "[out]",
             tmp.path,
         ]
+        let candidates = [
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+        ]
+        guard let ffmpegPath = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            throw FFmpegUnavailableError(errorDescription: "ffmpeg not found")
+        }
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg")
+        p.executableURL = URL(fileURLWithPath: ffmpegPath)
         p.arguments = filterArgs
         try p.run()
         p.waitUntilExit()
-        guard FileManager.default.fileExists(atPath: tmp.path) else {
+        guard p.terminationStatus == 0,
+              FileManager.default.fileExists(atPath: tmp.path) else {
+            try? FileManager.default.removeItem(at: tmp)
             throw NSError(domain: "bench", code: 1, userInfo: [NSLocalizedDescriptionKey: "ffmpeg failed"])
         }
         return tmp

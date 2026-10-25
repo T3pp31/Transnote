@@ -42,6 +42,6 @@ enum DropImportService {
 
     static func hasSupportedExtension(_ fileName: String, supportedExtensions: [String]) -> Bool {
         let ext = (fileName as NSString).pathExtension.lowercased()
-        return supportedExtensions.contains(ext)
+        return supportedExtensions.contains { $0.lowercased() == ext }
     }
 }
