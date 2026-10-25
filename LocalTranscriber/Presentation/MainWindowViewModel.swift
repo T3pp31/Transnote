@@ -417,6 +417,7 @@ final class MainWindowViewModel: ObservableObject {
 
     @Published var confirmFileImport = false
     @Published var pendingFileImport: (url: URL, preferredFileName: String?)?
+    private var isPendingTranscriptionRestart = false
 
     var hasExistingResult: Bool {
         (currentTranscript?.fullText ?? "")
@@ -452,15 +453,21 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func applyPendingFileImport() {
+        let shouldStartTranscription = isPendingTranscriptionRestart
+        isPendingTranscriptionRestart = false
         guard let pending = pendingFileImport else { return }
         confirmFileImport = false
         pendingFileImport = nil
         applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+        if shouldStartTranscription {
+            startTranscription()
+        }
     }
 
     func cancelPendingFileImport() {
         confirmFileImport = false
         pendingFileImport = nil
+        isPendingTranscriptionRestart = false
     }
 
     private func applyFileImport(url: URL, preferredFileName: String?) {
@@ -526,6 +533,12 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func startTranscription() {
+        if (hasExistingResult || hasUnsavedChanges) && !isPendingTranscriptionRestart {
+            isPendingTranscriptionRestart = true
+            confirmFileImport = true
+            return
+        }
+
         guard let file = selectedFile,
               let model = settings.selectedModel else {
             let message = AppError.invalidConfiguration.errorDescription
@@ -624,6 +637,7 @@ final class MainWindowViewModel: ObservableObject {
                 transcriptionTask = nil
             }
             operationCoordinator.end(.transcription)
+            isPendingTranscriptionRestart = false
         }
     }
 
