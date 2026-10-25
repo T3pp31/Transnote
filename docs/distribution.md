@@ -132,8 +132,9 @@ hdiutil verify Transnote-0.1.0.dmg
 ls -la build/release/Transnote.app/Contents/MacOS/Transnote
 
 # DMG 内容の確認
-hdiutil attach Transnote-0.1.0.dmg -mountpoint /tmp/transnote-dmg
-ls -la /tmp/transnote-dmg
+MOUNT_DIR="$(mktemp -d)"
+hdiutil attach Transnote-0.1.0.dmg -mountpoint "$MOUNT_DIR"
+ls -la "$MOUNT_DIR"
 # Transnote.app, インストール.command, 初めにお読みください.txt, distribution.plist, Applications があること
-hdiutil detach /tmp/transnote-dmg
+hdiutil detach "$MOUNT_DIR"
 ```
