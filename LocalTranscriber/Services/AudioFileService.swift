@@ -73,12 +73,18 @@ struct AudioFileService {
         }
         defer { try? handle.close() }
 
-        var hasher = SHA256()
-        while true {
-            let data = handle.readData(ofLength: 64 * 1024)
-            if data.isEmpty { break }
-            hasher.update(data: data)
+        do {
+            var hasher = SHA256()
+            while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+            return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        } catch {
+            AppLogger.error(
+                "Failed to compute SHA256 for \(url.lastPathComponent): \(error.localizedDescription)",
+                logger: AppLogger.fileAccess
+            )
+            return nil
         }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
