@@ -61,6 +61,11 @@ final class AudioFileServiceTests: XCTestCase {
         XCTAssertEqual(resolved, "imported-audio.m4a")
     }
 
+    func testDropURLParserDecodesUnencodedFileURLString() {
+        let parsed = DropURLParser.url(from: "file:///Users/taro/My 音声.wav" as NSString)
+        XCTAssertEqual(parsed?.path, "/Users/taro/My 音声.wav")
+    }
+
     func testDropFileNameResolverInfersM4AFromTypeIdentifier() {
         let tempURL = tempRoot.appendingPathComponent("CFNetworkDownload_tmp")
 
