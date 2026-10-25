@@ -73,11 +73,23 @@ struct AudioFileService {
         }
         defer { try? handle.close() }
 
+        guard let expectedSize = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize else {
+            return nil
+        }
+
         var hasher = SHA256()
-        while true {
-            let data = handle.readData(ofLength: 64 * 1024)
-            if data.isEmpty { break }
-            hasher.update(data: data)
+        var totalBytes = 0
+        do {
+            while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                totalBytes += chunk.count
+                hasher.update(data: chunk)
+            }
+        } catch {
+            return nil
+        }
+
+        guard totalBytes == expectedSize else {
+            return nil
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
