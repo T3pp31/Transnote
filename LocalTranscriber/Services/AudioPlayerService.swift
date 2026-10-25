@@ -118,6 +118,7 @@ final class AudioPlayerService {
         switch item.status {
         case .readyToPlay:
             cancelStatusObservation()
+            guard pendingPlaybackGeneration == playbackGeneration else { return }
             if let start = pendingStartTime {
                 beginPlayback(at: start, generation: pendingPlaybackGeneration)
             }
@@ -147,6 +148,8 @@ final class AudioPlayerService {
                     // seek が別の seek に割り込まれた場合。ここでは完了扱いにせず何もしない
                     return
                 }
+                self.pendingStartTime = nil
+                self.pendingPlaybackGeneration = 0
                 self.player?.play()
                 self.isPlaying = true
                 self.installTimeObserver()
