@@ -104,7 +104,7 @@ actor WhisperKitTranscriber: Transcriber {
             }
 
             // 長時間音声はチャンク単位で処理する（WhisperKit への一度の投入を避ける）。
-            let chunks = await splitAudioIntoChunks(url: job.audioFileURL, chunkDuration: job.chunkDuration)
+            let chunks = try await splitAudioIntoChunks(url: job.audioFileURL, chunkDuration: job.chunkDuration)
             var allResults: [TranscriptionResult] = []
             var processedSeconds: TimeInterval = 0
             var totalSeconds: TimeInterval = chunks.count > 1
@@ -276,7 +276,16 @@ actor WhisperKitTranscriber: Transcriber {
 
     /// 長時間音声を指定チャンク長で分割して一時ファイルを返す。
     /// 分割不要（既にチャンク長以下）の場合は元ファイルを返す。
-    private func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async -> [URL] {
+    private struct ChunkExportFailure: LocalizedError {
+        let outputURL: URL
+        let statusText: String
+
+        var errorDescription: String? {
+            "チャンクの書き出しに失敗しました: \(outputURL.lastPathComponent) (\(statusText))"
+        }
+    }
+
+    private func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async throws -> [URL] {
         guard chunkDuration > 0 else { return [url] }
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration).seconds, duration > chunkDuration else {
@@ -301,9 +310,17 @@ actor WhisperKitTranscriber: Transcriber {
             let semaphore = DispatchSemaphore(value: 0)
             export?.exportAsynchronously { semaphore.signal() }
             semaphore.wait()
-            if export?.status == .completed {
-                outputURLs.append(outputURL)
+            guard let export, export.status == .completed else {
+                let statusText: String
+                if let export {
+                    let statusMessage = export.error?.localizedDescription ?? "unknown error"
+                    statusText = "\(export.status) \(statusMessage)"
+                } else {
+                    statusText = "export session unavailable"
+                }
+                throw ChunkExportFailure(outputURL: outputURL, statusText: statusText)
             }
+                outputURLs.append(outputURL)
         }
         return outputURLs.isEmpty ? [url] : outputURLs
     }
