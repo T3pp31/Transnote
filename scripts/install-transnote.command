@@ -105,6 +105,12 @@ fi
 
 verify_dmg_checksum
 
+# Info.plist から CFBundleIdentifier を読み取る。読み取り不可の場合は空文字を返す。
+get_bundle_id() {
+  local app_path="$1"
+  /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${app_path}/Contents/Info.plist" 2>/dev/null || true
+}
+
 remove_installed_apps() {
   local base_name="$1"
   local candidate
@@ -115,7 +121,7 @@ remove_installed_apps() {
     if [[ -d "$candidate" ]]; then
       # 削除前に Bundle ID を検証し、同名の無関係アプリを誤って削除しない。
       local candidate_id
-      candidate_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${candidate}/Contents/Info.plist" 2>/dev/null || true)"
+      candidate_id="$(get_bundle_id "$candidate")"
       if [[ -z "$candidate_id" ]]; then
         continue
       fi
@@ -178,6 +184,11 @@ if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
 fi
 
 if [[ -d "$TARGET_APP" ]]; then
+  # 退避前に Bundle ID を検証し、同名の無関係アプリを誤って削除しない。
+  target_app_id="$(get_bundle_id "$TARGET_APP")"
+  if [[ -z "$target_app_id" || "$target_app_id" != "$BUNDLE_IDENTIFIER" ]]; then
+    fail "Applications に既にある ${APP_NAME}.app は Transnote 以外のアプリの可能性があります (Bundle ID: ${target_app_id:-unknown})。安全のためインストールを中止しました。"
+  fi
   mv "$TARGET_APP" "${BACKUP_DIR}/${APP_NAME}.app"
 fi
 
