@@ -116,6 +116,7 @@ final class AudioPlayerService {
         switch item.status {
         case .readyToPlay:
             cancelStatusObservation()
+            guard pendingPlaybackGeneration == playbackGeneration else { return }
             if let start = pendingStartTime {
                 beginPlayback(at: start, generation: pendingPlaybackGeneration)
             }
