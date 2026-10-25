@@ -118,7 +118,9 @@ struct MainWindowView: View {
                 isModelDownloaded: viewModel.isModelDownloaded,
                 onDownloadSelectedModel: viewModel.downloadSelectedModel,
                 onDeleteSelectedModel: viewModel.deleteSelectedModel,
-                onDiskUsage: viewModel.modelDiskUsageText
+                onDiskUsage: viewModel.modelDiskUsageText,
+                modelsRevision: viewModel.downloadedModelIDs.count,
+                onModelsCleared: viewModel.refreshModelAvailability
             )
         }
         .overlay(alignment: .top) {

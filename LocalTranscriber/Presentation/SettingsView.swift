@@ -9,6 +9,8 @@ struct SettingsView: View {
     let onDownloadSelectedModel: () -> Void
     let onDeleteSelectedModel: () -> Void
     let onDiskUsage: (ModelOption) -> String?
+    let modelsRevision: Int
+    let onModelsCleared: () -> Void
 
     private func modelSizeSuffix(_ model: ModelOption) -> String {
         guard let bytes = model.downloadSizeBytes else { return "" }
@@ -189,12 +191,15 @@ struct SettingsView: View {
                 StorageRow(
                     title: "Imports",
                     directory: AppDirectories.importsDirectory,
-                    icon: "tray"
+                    icon: "tray",
+                    onCleared: nil
                 )
                 StorageRow(
                     title: "Models",
                     directory: AppDirectories.modelsDirectory,
-                    icon: "internaldrive"
+                    icon: "internaldrive",
+                    modelsRevision: modelsRevision,
+                    onCleared: onModelsCleared
                 )
             }
 
@@ -253,6 +258,8 @@ private struct StorageRow: View {
     let title: String
     let directory: URL
     let icon: String
+    var modelsRevision: Int = 0
+    let onCleared: (() -> Void)?
 
     @State private var sizeText: String = "計算中…"
 
@@ -267,13 +274,18 @@ private struct StorageRow: View {
                 .foregroundStyle(.secondary)
             Button("クリア") {
                 AppDirectories.clearDirectory(directory)
-                sizeText = "0 KB"
+                sizeText = "計算中…"
+                refreshSize()
+                onCleared?()
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(sizeText == "計算中…")
         }
         .onAppear {
+            refreshSize()
+        }
+        .onChange(of: modelsRevision) { _ in
             refreshSize()
         }
     }
