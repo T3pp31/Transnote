@@ -100,6 +100,12 @@ final class AudioFileServiceTests: XCTestCase {
         XCTAssertEqual(parsed, original)
     }
 
+    func testDropURLParserReadsUnencodedFileURLString() {
+        let parsed = DropURLParser.url(from: "file:///Users/test/My 音声.wav" as NSString)
+
+        XCTAssertEqual(parsed?.path, "/Users/test/My 音声.wav")
+    }
+
     func testProbeDecodabilityReturnsTrueForRealWAV() throws {
         let url = tempRoot.appendingPathComponent("real-silence.wav")
         let wavHeader = Data([
