@@ -201,7 +201,9 @@ struct AppConfig {
             data = loaded
         } else {
             #if DEBUG
-            let developmentPlistURL = bundle.bundleURL
+            // #filePath: .../Transnote/LocalTranscriber/Domain/AppSettings.swift
+            let developmentPlistURL = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appendingPathComponent("Config/Defaults.plist")
