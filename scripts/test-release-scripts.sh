@@ -35,6 +35,40 @@ if (cd "$WORK" && bash scripts/set-marketing-version.sh bad-version >/dev/null 2
 fi
 echo "PASS: invalid version rejected"
 
+cp "$ROOT/scripts/verify-xcode-project.py" "$WORK/scripts/"
+
+if ! (cd "$ROOT" && python3 scripts/verify-xcode-project.py); then
+  echo "FAIL: Xcode project build phase references should resolve" >&2
+  exit 1
+fi
+echo "PASS: Xcode project build phase references resolve"
+
+awk '
+  BEGIN {
+    target = "		B96466D6AF9543009AF761B9 /* Frameworks */ = {"
+    replacement = "		B96466D6AF9543009AF761B90 /* Frameworks */ = {"
+  }
+  !replaced && $0 == target {
+    print replacement
+    replaced = 1
+    next
+  }
+  { print }
+' "$ROOT/LocalTranscriber.xcodeproj/project.pbxproj" \
+  > "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"
+
+if ! grep -q 'B96466D6AF9543009AF761B90 /\* Frameworks \*/ = {' \
+  "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
+  echo "FAIL: could not create unresolved Frameworks phase fixture" >&2
+  exit 1
+fi
+
+if (cd "$WORK" && python3 scripts/verify-xcode-project.py >/dev/null 2>&1); then
+  echo "FAIL: unresolved Frameworks phase should fail validation" >&2
+  exit 1
+fi
+echo "PASS: unresolved Frameworks phase rejected"
+
 if ! grep -q 'MARKETING_VERSION = 0.2.0;' "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
   echo "FAIL: valid version was not persisted after invalid input" >&2
   exit 1
@@ -45,7 +79,8 @@ NO_MATCH_WORK=$(mktemp -d)
 trap 'rm -rf "$WORK" "$NO_MATCH_WORK"' EXIT
 mkdir -p "$NO_MATCH_WORK/LocalTranscriber.xcodeproj"
 mkdir -p "$NO_MATCH_WORK/scripts"
-printf 'CURRENT_PROJECT_VERSION = 1;\n' \
+printf 'CURRENT_PROJECT_VERSION = 1;
+' \
   > "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"
 cp "$ROOT/scripts/set-marketing-version.sh" "$NO_MATCH_WORK/scripts/"
 if (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 >/dev/null 2>&1); then
