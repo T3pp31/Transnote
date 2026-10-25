@@ -68,7 +68,7 @@ final class AudioPlayerService {
             beginPlayback(at: start, generation: generation)
         } else if let item = player.currentItem {
             pendingPlaybackGeneration = generation
-            statusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
                 Task { @MainActor in
                     self?.handlePlayerItemStatusChange(item)
                 }
