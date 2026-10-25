@@ -42,6 +42,11 @@ struct ExportService {
             guard segment.endTime > segment.startTime else {
                 throw AppError.exportFailed("字幕の開始時刻が終了時刻より後になっています。")
             }
+            let maximumSeconds = Double(Int.max / 1_000_000)
+            guard segment.startTime <= maximumSeconds,
+                  segment.endTime <= maximumSeconds else {
+                throw AppError.exportFailed("字幕の時間情報が不正です（範囲外の値）。")
+            }
             if let previousEnd, segment.startTime < previousEnd {
                 throw AppError.exportFailed("字幕セグメントが重なっています。")
             }
