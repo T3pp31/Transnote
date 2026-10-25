@@ -152,7 +152,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.cancelMenuTitle, viewModel.cancelActionAccessibilityLabel)
         XCTAssertEqual(
             viewModel.cancelActionHelp,
-            L("ダウンロードをキャンセル（Esc）", comment: "Cancel model download shortcut help")
+            L("ダウンロードをキャンセル（⌘.）", comment: "Cancel model download shortcut help")
         )
     }
 
@@ -169,7 +169,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.cancelMenuTitle, viewModel.cancelActionAccessibilityLabel)
         XCTAssertEqual(
             viewModel.cancelActionHelp,
-            L("文字起こしをキャンセル（Esc）", comment: "Cancel transcription shortcut help")
+            L("文字起こしをキャンセル（⌘.）", comment: "Cancel transcription shortcut help")
         )
     }
 

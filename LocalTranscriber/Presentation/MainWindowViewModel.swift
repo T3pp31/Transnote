@@ -273,9 +273,9 @@ final class MainWindowViewModel: ObservableObject {
 
     var cancelActionHelp: String {
         if isDownloadingModel {
-            return NSLocalizedString("ダウンロードをキャンセル（Esc）", comment: "Cancel model download shortcut help")
+            return NSLocalizedString("ダウンロードをキャンセル（⌘.）", comment: "Cancel model download shortcut help")
         }
-        return NSLocalizedString("文字起こしをキャンセル（Esc）", comment: "Cancel transcription shortcut help")
+        return NSLocalizedString("文字起こしをキャンセル（⌘.）", comment: "Cancel transcription shortcut help")
     }
 
     var cancelMenuTitle: String {
