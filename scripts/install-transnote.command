@@ -70,7 +70,10 @@ verify_dmg_checksum() {
 
   local sidecar_path="${dmg_path}.sha256"
   if [[ -f "$sidecar_path" ]]; then
-    if ! shasum -a 256 -c "$sidecar_path" >/dev/null 2>&1; then
+    local expected actual
+    expected="$(awk 'FNR==1{print tolower($1); exit}' "$sidecar_path")"
+    actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
+    if [[ "$actual" != "$expected" ]]; then
       fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
     fi
     return 0
