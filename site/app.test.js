@@ -1,4 +1,6 @@
 // Node テスト用に最小限の DOM / fetch スタブを用意する。
+process.env.TZ = 'UTC';
+
 function noopElement() {
   return {
     className: '',
