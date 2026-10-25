@@ -274,8 +274,16 @@ private struct StorageRow: View {
             .disabled(sizeText == "計算中…")
         }
         .onAppear {
+            refreshSize()
+        }
+    }
+
+    private func refreshSize() {
+        Task.detached(priority: .utility) { [directory] in
             let bytes = AppDirectories.directorySize(of: directory)
-            sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            await MainActor.run {
+                sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            }
         }
     }
 }
