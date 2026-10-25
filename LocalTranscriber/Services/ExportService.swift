@@ -1,6 +1,8 @@
 import Foundation
 
 struct ExportService {
+    private static let maxTimestampSeconds: TimeInterval = 9_000_000_000_000
+
     func content(for transcript: Transcript, format: ExportFormat) throws -> String {
         try validateSegments(transcript.segments)
         switch format {
@@ -36,7 +38,9 @@ struct ExportService {
             guard segment.startTime.isFinite,
                   segment.endTime.isFinite,
                   segment.startTime >= 0,
-                  segment.endTime >= 0 else {
+                  segment.endTime >= 0,
+                  segment.startTime < Self.maxTimestampSeconds,
+                  segment.endTime < Self.maxTimestampSeconds else {
                 throw AppError.exportFailed("字幕の時間情報が不正です（負の値または非数値）。")
             }
             guard segment.endTime > segment.startTime else {
