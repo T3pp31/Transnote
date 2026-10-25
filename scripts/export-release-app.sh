@@ -14,7 +14,7 @@ Options:
   --archive PATH     Path to the .xcarchive produced by xcodebuild archive
   --output PATH      Directory where ${APP_NAME}.app will be copied
   --sign IDENTITY    Developer ID signing identity (optional)
-  --team TEAM_ID     Apple Team ID passed to codesign (optional)
+  --team TEAM_ID     Apple Team ID used to select the codesign identity (optional)
   --verify-only      Verify signature on an existing app in --output
   -h, --help         Show this help
 EOF
@@ -142,6 +142,9 @@ rm -rf "$APP_PATH"
 ditto "$SOURCE_APP" "$APP_PATH"
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
+  if [[ -n "$TEAM_ID" ]]; then
+    SIGN_IDENTITY="$TEAM_ID"
+  fi
   echo "Signing ${APP_PATH} with identity: ${SIGN_IDENTITY}"
   sign_args=(
     --force
@@ -151,9 +154,6 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
     --sign "$SIGN_IDENTITY"
     --entitlements "$ENTITLEMENTS_PATH"
   )
-  if [[ -n "$TEAM_ID" ]]; then
-    sign_args+=(--identifier "com.transnote.LocalTranscriber")
-  fi
   codesign "${sign_args[@]}" "$APP_PATH"
 fi
 
