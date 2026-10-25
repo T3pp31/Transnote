@@ -17,6 +17,7 @@ final class AudioPlayerService {
     private var pendingPlaybackGeneration = 0
 
     private(set) var isPlaying = false
+    private(set) var currentSegmentEndTime: TimeInterval = 0
     private(set) var loadedURL: URL?
     /// 現在の再生位置（秒）。再生していない場合は最後の値を保持する。
     private(set) var currentPlaybackTime: TimeInterval = 0
@@ -58,6 +59,7 @@ final class AudioPlayerService {
         }
 
         segmentEndTime = end
+        currentSegmentEndTime = end
         self.onFinished = onFinished
         pendingStartTime = start
         // 新しい再生リクエストごとに世代を進める（古い seek コールバックを無効化するため）
