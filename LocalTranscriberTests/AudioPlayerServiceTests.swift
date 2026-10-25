@@ -80,6 +80,34 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertFalse(service.hasActiveTimeObserver)
     }
 
+    func testStatusChangeIgnoresStalePendingGeneration() throws {
+        let service = AudioPlayerService()
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("status-generation-\(UUID().uuidString).wav")
+        let wavHeader = Data([
+            0x52, 0x49, 0x46, 0x46, // RIFF
+            0x24, 0x00, 0x00, 0x00, // size
+            0x57, 0x41, 0x56, 0x45, // WAVE
+            0x66, 0x6d, 0x74, 0x20, // fmt
+            0x10, 0x00, 0x00, 0x00, // fmt size
+            0x01, 0x00, // PCM
+            0x01, 0x00, // channels
+            0x40, 0x1f, 0x00, 0x00, // sample rate 8000
+            0x80, 0x3e, 0x00, 0x00, // byte rate
+            0x02, 0x00, // block align
+            0x10, 0x00, // bits
+            0x64, 0x61, 0x74, 0x61, // data
+            0x00, 0x00, 0x00, 0x00  // data size 0
+        ])
+        FileManager.default.createFile(atPath: url.path, contents: wavHeader)
+
+        service.load(url: url)
+        service.playSegment(start: 0, end: 0.5)
+        service.stop()
+
+        XCTAssertFalse(service.isPlaying)
+    }
+
     // セグメントを素早く2回連続でタップしても、後者のセグメントの再生が開始されること
     // （状態遷移 isPlaying / hasActiveTimeObserver で検証）
     func testConsecutivePlaySegmentStartsLatestSegment() async throws {
