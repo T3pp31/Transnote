@@ -38,7 +38,7 @@ final class LocalTranscriberUITests: XCTestCase {
 
         // Then: 閉じるボタンで設定シートが閉じる
         app.buttons["設定を閉じる"].tap()
-        XCTAssertTrue(closeButton.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(closeButton.waitForNonExistence(withTimeout: 3))
 
         // 下部の閉じるボタンもスクロールせずに操作できる
         app.buttons["設定"].firstMatch.tap()
@@ -46,12 +46,12 @@ final class LocalTranscriberUITests: XCTestCase {
         XCTAssertTrue(footerCloseButton.waitForExistence(timeout: 10))
         XCTAssertTrue(footerCloseButton.isHittable)
         footerCloseButton.tap()
-        XCTAssertTrue(closeButton.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(closeButton.waitForNonExistence(withTimeout: 3))
 
         // Escape キーでもシートを閉じられる
         app.buttons["設定"].firstMatch.tap()
         XCTAssertTrue(closeButton.waitForExistence(timeout: 10))
         app.typeKey(.escape, modifierFlags: [])
-        XCTAssertTrue(closeButton.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(closeButton.waitForNonExistence(withTimeout: 3))
     }
 }
