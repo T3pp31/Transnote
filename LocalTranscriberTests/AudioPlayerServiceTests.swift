@@ -8,7 +8,7 @@ final class AudioPlayerServiceTests: XCTestCase {
 
     override func setUp() async throws {
         service = AudioPlayerService()
-        tempAudioURL = try Self.makeSilentWAV(duration: 1.0)
+        tempAudioURL = try Self.makeSilentWAV(duration: 3.0)
     }
 
     override func tearDown() async throws {
@@ -84,7 +84,7 @@ final class AudioPlayerServiceTests: XCTestCase {
     func testConsecutivePlaySegmentStartsLatestSegment() async throws {
         service.load(url: tempAudioURL)
         service.playSegment(start: 0.0, end: 0.1)
-        service.playSegment(start: 0.0, end: 0.8)
+        service.playSegment(start: 0.0, end: 2.0)
 
         let startedPlaying = await waitUntil(timeout: 2.0) {
             self.service.isPlaying && self.service.hasActiveTimeObserver
@@ -106,7 +106,7 @@ final class AudioPlayerServiceTests: XCTestCase {
         service.playSegment(start: 0.0, end: 0.1) {
             firstFinished = true
         }
-        service.playSegment(start: 0.0, end: 0.8) {
+        service.playSegment(start: 0.0, end: 2.0) {
             secondFinished = true
         }
 
