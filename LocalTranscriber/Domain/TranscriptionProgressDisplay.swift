@@ -41,7 +41,8 @@ struct TranscriptionProgressDisplay: Equatable {
 
     static func from(update: TranscriptionProgressUpdate) -> TranscriptionProgressDisplay {
         let primaryLabel = update.phase.localizedDisplayName
-        let detailLabel = makeDetailLabel(for: update)
+        let clampedFraction = min(1.0, max(0.0, update.fraction.isFinite ? update.fraction : 0))
+        let detailLabel = makeDetailLabel(for: update, fraction: clampedFraction)
 
         let style: ProgressStyle
         let fraction: Double?
@@ -96,7 +97,7 @@ struct TranscriptionProgressDisplay: Equatable {
         )
     }
 
-    private static func makeDetailLabel(for update: TranscriptionProgressUpdate) -> String? {
+    private static func makeDetailLabel(for update: TranscriptionProgressUpdate, fraction: Double) -> String? {
         switch update.phase {
         case .downloadingModel:
             var detail = ""
@@ -117,7 +118,7 @@ struct TranscriptionProgressDisplay: Equatable {
                     ? "\(completedText) / \(totalText)"
                     : "\(detail) · \(completedText) / \(totalText)"
             }
-            let percent = Int(update.fraction * 100)
+            let percent = Int(fraction * 100)
             return detail.isEmpty ? "\(percent)%" : "\(detail) · \(percent)%"
 
         case .loadingModel:
@@ -131,7 +132,7 @@ struct TranscriptionProgressDisplay: Equatable {
             return guidance
 
         case .transcribing:
-            let percent = Int(update.fraction * 100)
+            let percent = Int(fraction * 100)
             if let partialText = update.partialText,
                TranscriptTextSanitizer.presentableText(from: partialText) != nil {
                 let partialGuidance = NSLocalizedString("途中結果を表示中", comment: "Partial transcription guidance")

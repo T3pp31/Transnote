@@ -7,7 +7,11 @@
   var fallbackDownloadURL =
     'https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg';
   var expectedRepository = 'T3pp31/Transnote';
-  var allowedDownloadHosts = ['github.com', 'objects.githubusercontent.com'];
+  var allowedDownloadHosts = [
+    'github.com',
+    'objects.githubusercontent.com',
+    'release-assets.githubusercontent.com'
+  ];
   var latestTagName = null;
 
   function isAllowedDownloadURL(urlString) {

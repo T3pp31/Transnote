@@ -84,6 +84,38 @@ final class ModelDownloadServiceTests: XCTestCase {
         XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
     }
 
+    func testValidateModelFolderRejectsBundleWithZeroBytePayload() throws {
+        let partialFolder = temporaryRoot.appendingPathComponent("openai_whisper-base", isDirectory: true)
+        try FileManager.default.createDirectory(at: partialFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let bundle = partialFolder.appendingPathComponent("\(name).mlmodelc", isDirectory: true)
+            try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+            let payload = bundle.appendingPathComponent("coremldata.bin")
+            FileManager.default.createFile(atPath: payload.path, contents: Data())
+            let filler = bundle.appendingPathComponent("weights.bin")
+            FileManager.default.createFile(atPath: filler.path, contents: Data(count: 200 * 1024))
+        }
+
+        XCTAssertFalse(availability.validateModelFolder(partialFolder))
+        XCTAssertFalse(availability.isDownloaded(whisperKitModelName: "base"))
+    }
+
+    func testValidateModelFolderAcceptsBundleWithNonZeroPayloadAndSize() throws {
+        let completeFolder = temporaryRoot.appendingPathComponent("openai_whisper-base", isDirectory: true)
+        try FileManager.default.createDirectory(at: completeFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            let bundle = completeFolder.appendingPathComponent("\(name).mlmodelc", isDirectory: true)
+            try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
+            let payload = bundle.appendingPathComponent("coremldata.bin")
+            FileManager.default.createFile(atPath: payload.path, contents: Data("coreml".utf8))
+            let filler = bundle.appendingPathComponent("weights.bin")
+            FileManager.default.createFile(atPath: filler.path, contents: Data(count: 200 * 1024))
+        }
+
+        XCTAssertTrue(availability.validateModelFolder(completeFolder))
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+    }
+
     func testCleanUpFailedDownloadRemovesNewlyCreatedHiddenStagingFolder() throws {
         // Given: ダウンロード開始前に隠しステージングは存在しない
         let directoriesBeforeDownload = Set(
