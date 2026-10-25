@@ -8,7 +8,7 @@ final class AudioPlayerServiceTests: XCTestCase {
 
     override func setUp() async throws {
         service = AudioPlayerService()
-        tempAudioURL = try Self.makeSilentWAV(duration: 1.0)
+        tempAudioURL = try Self.makeSilentWAV(duration: 3.0)
     }
 
     override func tearDown() async throws {
@@ -41,9 +41,10 @@ final class AudioPlayerServiceTests: XCTestCase {
         service.load(url: tempAudioURL)
         service.playSegment(start: 0.0, end: 0.2)
 
-        _ = await waitUntil(timeout: 2.0) {
+        let started = await waitUntil(timeout: 2.0) {
             self.service.hasActiveTimeObserver
         }
+        XCTAssertTrue(started, "stop 前に再生が開始されていること")
 
         service.stop()
 
@@ -79,15 +80,45 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertFalse(service.hasActiveTimeObserver)
     }
 
+    func testStatusChangeIgnoresStalePendingGeneration() throws {
+        let service = AudioPlayerService()
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("status-generation-\(UUID().uuidString).wav")
+        let wavHeader = Data([
+            0x52, 0x49, 0x46, 0x46, // RIFF
+            0x24, 0x00, 0x00, 0x00, // size
+            0x57, 0x41, 0x56, 0x45, // WAVE
+            0x66, 0x6d, 0x74, 0x20, // fmt
+            0x10, 0x00, 0x00, 0x00, // fmt size
+            0x01, 0x00, // PCM
+            0x01, 0x00, // channels
+            0x40, 0x1f, 0x00, 0x00, // sample rate 8000
+            0x80, 0x3e, 0x00, 0x00, // byte rate
+            0x02, 0x00, // block align
+            0x10, 0x00, // bits
+            0x64, 0x61, 0x74, 0x61, // data
+            0x00, 0x00, 0x00, 0x00  // data size 0
+        ])
+        FileManager.default.createFile(atPath: url.path, contents: wavHeader)
+
+        service.load(url: url)
+        service.playSegment(start: 0, end: 0.5)
+        service.stop()
+
+        XCTAssertFalse(service.isPlaying)
+    }
+
     // セグメントを素早く2回連続でタップしても、後者のセグメントの再生が開始されること
     // （状態遷移 isPlaying / hasActiveTimeObserver で検証）
     func testConsecutivePlaySegmentStartsLatestSegment() async throws {
         service.load(url: tempAudioURL)
         service.playSegment(start: 0.0, end: 0.1)
-        service.playSegment(start: 0.0, end: 0.8)
+        service.playSegment(start: 0.0, end: 2.0)
 
         let startedPlaying = await waitUntil(timeout: 2.0) {
-            self.service.isPlaying && self.service.hasActiveTimeObserver
+            self.service.isPlaying
+                && self.service.hasActiveTimeObserver
+                && self.service.currentSegmentEndTime == 0.8
         }
         XCTAssertTrue(startedPlaying, "連続タップ後、後者のセグメントの再生が開始されること")
 
@@ -106,7 +137,7 @@ final class AudioPlayerServiceTests: XCTestCase {
         service.playSegment(start: 0.0, end: 0.1) {
             firstFinished = true
         }
-        service.playSegment(start: 0.0, end: 0.8) {
+        service.playSegment(start: 0.0, end: 2.0) {
             secondFinished = true
         }
 

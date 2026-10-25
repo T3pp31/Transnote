@@ -26,8 +26,15 @@ struct TranscriptSegment: Codable, Identifiable, Sendable {
         Self.formatAccessibilityTimestamp(startTime)
     }
 
+    private static func clampedNonnegativeTime(_ time: TimeInterval) -> TimeInterval {
+        guard time.isFinite else { return 0 }
+        let maximumTime = Double(Int.max / 1_000_000)
+        return min(max(0, time), maximumTime)
+    }
+
     private static func formatDisplayTimestamp(_ time: TimeInterval, separator: String) -> String {
-        let totalMilliseconds = max(0, Int(time * 1000))
+        let clampedTime = Self.clampedNonnegativeTime(time)
+        let totalMilliseconds = Int(clampedTime * 1000)
         let hours = totalMilliseconds / 3_600_000
         let minutes = (totalMilliseconds % 3_600_000) / 60_000
         let seconds = (totalMilliseconds % 60_000) / 1000
@@ -36,7 +43,8 @@ struct TranscriptSegment: Codable, Identifiable, Sendable {
     }
 
     private static func formatAccessibilityTimestamp(_ time: TimeInterval) -> String {
-        let totalSeconds = max(0, Int(time.rounded(.down)))
+        let clampedTime = Self.clampedNonnegativeTime(time)
+        let totalSeconds = Int(clampedTime.rounded(.down))
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
         let seconds = totalSeconds % 60

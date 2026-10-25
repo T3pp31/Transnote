@@ -17,6 +17,7 @@ final class AudioPlayerService {
     private var pendingPlaybackGeneration = 0
 
     private(set) var isPlaying = false
+    private(set) var currentSegmentEndTime: TimeInterval = 0
     private(set) var loadedURL: URL?
     /// 現在の再生位置（秒）。再生していない場合は最後の値を保持する。
     private(set) var currentPlaybackTime: TimeInterval = 0
@@ -58,6 +59,7 @@ final class AudioPlayerService {
         }
 
         segmentEndTime = end
+        currentSegmentEndTime = end
         self.onFinished = onFinished
         pendingStartTime = start
         // 新しい再生リクエストごとに世代を進める（古い seek コールバックを無効化するため）
@@ -68,7 +70,7 @@ final class AudioPlayerService {
             beginPlayback(at: start, generation: generation)
         } else if let item = player.currentItem {
             pendingPlaybackGeneration = generation
-            statusObservation = item.observe(\.status, options: [.new]) { [weak self] item, _ in
+            statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
                 Task { @MainActor in
                     self?.handlePlayerItemStatusChange(item)
                 }
@@ -116,6 +118,7 @@ final class AudioPlayerService {
         switch item.status {
         case .readyToPlay:
             cancelStatusObservation()
+            guard pendingPlaybackGeneration == playbackGeneration else { return }
             if let start = pendingStartTime {
                 beginPlayback(at: start, generation: pendingPlaybackGeneration)
             }
@@ -145,6 +148,8 @@ final class AudioPlayerService {
                     // seek が別の seek に割り込まれた場合。ここでは完了扱いにせず何もしない
                     return
                 }
+                self.pendingStartTime = nil
+                self.pendingPlaybackGeneration = 0
                 self.player?.play()
                 self.isPlaying = true
                 self.installTimeObserver()

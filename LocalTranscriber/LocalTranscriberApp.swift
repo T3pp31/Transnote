@@ -5,7 +5,14 @@ struct LocalTranscriberApp: App {
     init() {
         AppDirectories.ensureDirectoriesExist()
         // Imports/ に残った古い一時ファイルや完了済み音声を自動クリーンアップする。
-        try? AudioImportService().cleanupExpiredImports()
+        do {
+            try AudioImportService().cleanupExpiredImports()
+        } catch {
+            AppLogger.error(
+                "Expired imports cleanup failed: \(error)",
+                logger: AppLogger.fileAccess
+            )
+        }
 
         // 設定不整合（defaultModelID 等が Models に無い等）を起動時に検出してログへ出力する。
         for error in AppConfig.shared.validationErrors {

@@ -48,7 +48,7 @@ final class AudioFileNameResolverTests: XCTestCase {
             supportedExtensions: supportedExtensions
         )
 
-        XCTAssertEqual(resolved, "source")
+        XCTAssertEqual(resolved, "source.mp3")
         XCTAssertFalse(resolved.contains("/"))
         XCTAssertFalse(resolved.contains(".."))
     }

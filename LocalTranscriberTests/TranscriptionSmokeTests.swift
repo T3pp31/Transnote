@@ -25,12 +25,21 @@ final class TranscriptionSmokeTests: XCTestCase {
             throw XCTSkip("No local audio fixture available. Add LocalTranscriberTests/Fixtures/sample.wav to run this test.")
         }
 
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_WHISPER_SMOKE_TEST"] == "1",
+            "Set RUN_WHISPER_SMOKE_TEST=1 to run the real-model smoke test."
+        )
+
         let transcriber = WhisperKitTranscriber()
         let downloadService = ModelDownloadService()
-        _ = try await downloadService.downloadIfNeeded(
-            whisperKitModelName: "tiny",
-            modelDisplayName: "Tiny"
-        )
+        do {
+            _ = try await downloadService.downloadIfNeeded(
+                whisperKitModelName: "tiny",
+                modelDisplayName: "Tiny"
+            )
+        } catch {
+            throw XCTSkip("Model download failed: \(error)")
+        }
 
         let job = TranscriptionJob(
             audioFileURL: audioURL,

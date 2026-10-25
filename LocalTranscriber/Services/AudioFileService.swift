@@ -53,13 +53,16 @@ struct AudioFileService {
     /// 拡張子チェックだけでは見逃す破損ファイルを検出するための補助。
     /// - Parameter url: プローブ対象のファイル URL
     /// - Returns: デコード可能なら true
-    func probeDecodability(url: URL) -> Bool {
+    func probeDecodability(url: URL) async -> Bool {
         let asset = AVURLAsset(url: url)
-        // 同期的にトラック情報へアクセスして再生可能性を確認する（軽量プローブ）
-        guard asset.tracks(withMediaType: .audio).first != nil || asset.isPlayable else {
+        do {
+            if try await asset.load(.tracks).contains(where: { $0.mediaType == .audio }) {
+                return true
+            }
+            return try await asset.load(.isPlayable)
+        } catch {
             return false
         }
-        return true
     }
 
     static func formatByteCount(_ bytes: Int64) -> String {
@@ -73,12 +76,18 @@ struct AudioFileService {
         }
         defer { try? handle.close() }
 
-        var hasher = SHA256()
-        while true {
-            let data = handle.readData(ofLength: 64 * 1024)
-            if data.isEmpty { break }
-            hasher.update(data: data)
+        do {
+            var hasher = SHA256()
+            while let chunk = try handle.read(upToCount: 64 * 1024), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+            return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+        } catch {
+            AppLogger.error(
+                "Failed to compute SHA256 for \(url.lastPathComponent): \(error.localizedDescription)",
+                logger: AppLogger.fileAccess
+            )
+            return nil
         }
-        return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 }
