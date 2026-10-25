@@ -118,7 +118,7 @@ final class AudioPlayerServiceTests: XCTestCase {
         let startedPlaying = await waitUntil(timeout: 2.0) {
             self.service.isPlaying
                 && self.service.hasActiveTimeObserver
-                && self.service.currentSegmentEndTime == 0.8
+                && self.service.currentSegmentEndTime == 2.0
         }
         XCTAssertTrue(startedPlaying, "連続タップ後、後者のセグメントの再生が開始されること")
 
