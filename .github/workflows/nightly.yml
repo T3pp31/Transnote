@@ -39,11 +39,26 @@ jobs:
         env:
           RUN_MODEL_INTEGRATION_TESTS: '1'
         run: |
+          RESULT_BUNDLE="DerivedData/TestResults/NightlyModelTests.xcresult"
+          rm -rf "$RESULT_BUNDLE"
           xcodebuild test \
             -project LocalTranscriber.xcodeproj \
             -scheme LocalTranscriber \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             -derivedDataPath DerivedData \
+            -resultBundlePath "$RESULT_BUNDLE" \
             -only-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
             -only-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
+
+      - name: Verify real-model tests executed
+        run: |
+          RESULT_BUNDLE="DerivedData/TestResults/NightlyModelTests.xcresult"
+          summary="$(xcrun xcresulttool get test-results summary --path "$RESULT_BUNDLE" --compact)"
+          total="$(echo "$summary" | python3 -c 'import json,sys; print(json.load(sys.stdin)["totalTestCount"])')"
+          executed="$(echo "$summary" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(sum(item["passedTests"] + item["failedTests"] + item["expectedFailures"] for item in data["devicesAndConfigurations"]))')"
+          echo "Executed tests: $executed (total: $total)"
+          if [[ "$total" -eq 0 || "$executed" -eq 0 ]]; then
+            echo "FAIL: nightly real-model tests did not execute" >&2
+            exit 1
+          fi
