@@ -85,6 +85,7 @@ final class MainWindowViewModel: ObservableObject {
     @Published var selectedFile: AudioFileInfo?
     @Published var transcriptText: String = ""
     @Published var currentTranscript: Transcript?
+    @Published var baselineTranscriptText: String = ""
     @Published var playingSegmentID: UUID?
     @Published var playbackPositionText: String = ""
     @Published var isSegmentPaused = false
@@ -311,6 +312,7 @@ final class MainWindowViewModel: ObservableObject {
     /// クラッシュ復旧用の一時 Transcript を現在の状態へ復元する。
     func restoreTranscript(_ transcript: Transcript) {
         currentTranscript = transcript
+        baselineTranscriptText = transcript.fullText
         transcriptText = transcript.fullText
         isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
         hasSegmentTextEdits = false
@@ -433,10 +435,11 @@ final class MainWindowViewModel: ObservableObject {
     /// 編集モードで内容が元の文字起こしから変わっているかを表す。
     /// ウィンドウ終了・ファイル差し替え前に確認するための dirty 状態。
     var hasUnsavedChanges: Bool {
-        guard let transcript = currentTranscript else { return false }
+        guard currentTranscript != nil else { return false }
         let normalizedEdited = transcriptText.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedOriginal = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return hasSegmentTextEdits || normalizedEdited != normalizedOriginal
+        let normalizedBaseline = baselineTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedEdited != normalizedOriginal || normalizedEdited != normalizedBaseline
     }
 
     func selectFile(url: URL, preferredFileName: String? = nil) {
@@ -491,6 +494,7 @@ final class MainWindowViewModel: ObservableObject {
             isEditingTranscript = false
             hasSegmentTextEdits = false
             currentTranscript = nil
+            baselineTranscriptText = ""
             transcriptText = ""
             selectedFile = info
             uiState = .idle
@@ -632,6 +636,7 @@ final class MainWindowViewModel: ObservableObject {
 
                 guard activeJobID == job.id else { return }
                 currentTranscript = transcript
+                baselineTranscriptText = transcript.fullText
                 try? historyStore.save(transcript)
                 try? historyStore.saveTemporary(transcript)
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
@@ -795,6 +800,11 @@ final class MainWindowViewModel: ObservableObject {
 
     func exportTranscript(format: ExportFormat) {
         guard var transcript = currentTranscript else { return }
+        transcript.fullText = transcriptText
+        // エクスポート時（最新の編集内容を反映）に updatedAt を更新し、編集済み状態を記録する。
+        transcript.updatedAt = Date()
+        currentTranscript = transcript
+        baselineTranscriptText = transcriptText
 
         let savedExportDirectory = fileAccess.loadLastExportDirectory()
         var didBeginSavedDirectoryAccess = false
