@@ -82,6 +82,10 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         // When
         viewModel.startTranscription()
+        if viewModel.confirmFileImport {
+            viewModel.confirmFileImport = false
+            viewModel.pendingFileImport = nil
+        }
 
         // Then: 開始直後に前回結果がクリアされる
         XCTAssertEqual(viewModel.transcriptText, "")
