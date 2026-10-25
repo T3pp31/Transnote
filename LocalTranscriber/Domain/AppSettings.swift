@@ -162,6 +162,18 @@ struct AppConfig {
     let allowedUpdateDownloadHosts: [String]
     let maxImportFileSizeBytes: Int64
 
+    private static let fallbackModels = [
+        ModelOption(id: "tiny", displayName: "Tiny", whisperKitModelName: "tiny"),
+        ModelOption(id: "base", displayName: "Base", whisperKitModelName: "base"),
+        ModelOption(id: "small", displayName: "Small", whisperKitModelName: "small")
+    ]
+
+    private static let fallbackLanguages = [
+        LanguageOption(id: "auto", displayName: "Auto"),
+        LanguageOption(id: "ja", displayName: "Japanese"),
+        LanguageOption(id: "en", displayName: "English")
+    ]
+
     /// 設定不整合を起動時に明示的に検出するための検証結果。
     /// 空でない場合は LocalTranscriberApp の起動時にログへ出力する。
     var validationErrors: [String] {
@@ -208,8 +220,10 @@ struct AppConfig {
         defaultLanguageID = data["DefaultLanguage"] as? String ?? "auto"
         modelsDirectoryName = data["ModelsDirectoryName"] as? String ?? "Models"
 
-        models = Self.parseModels(from: data["Models"] as? [[String: Any]] ?? [])
-        languages = Self.parseLanguages(from: data["Languages"] as? [[String: Any]] ?? [])
+        let parsedModels = Self.parseModels(from: data["Models"] as? [[String: Any]] ?? [])
+        let parsedLanguages = Self.parseLanguages(from: data["Languages"] as? [[String: Any]] ?? [])
+        models = parsedModels.isEmpty ? Self.fallbackModels : parsedModels
+        languages = parsedLanguages.isEmpty ? Self.fallbackLanguages : parsedLanguages
 
         updateCheckEnabled = data["UpdateCheckEnabled"] as? Bool ?? true
         expectedGitHubRepository = data["ExpectedGitHubRepository"] as? String ?? "T3pp31/Transnote"
