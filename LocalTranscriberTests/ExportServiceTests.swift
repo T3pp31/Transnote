@@ -159,8 +159,11 @@ final class ExportServiceTests: XCTestCase {
 
     func testJSONExportIncludesSchemaVersion() throws {
         let content = try exportService.content(for: sampleTranscript, format: .json)
-        XCTAssertTrue(content.contains("schemaVersion"))
-        XCTAssertTrue(content.contains("1"))
+        let data = try XCTUnwrap(content.data(using: .utf8))
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        XCTAssertEqual(json["schemaVersion"] as? Int, Transcript.currentSchemaVersion)
     }
 
     func testJSONDecodeWithoutSchemaVersionUsesDefault() throws {
