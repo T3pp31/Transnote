@@ -36,6 +36,8 @@ jobs:
             -derivedDataPath DerivedData
 
       - name: Run real-model tests (normally skipped)
+        env:
+          RUN_MODEL_INTEGRATION_TESTS: '1'
         run: |
           xcodebuild test \
             -project LocalTranscriber.xcodeproj \
