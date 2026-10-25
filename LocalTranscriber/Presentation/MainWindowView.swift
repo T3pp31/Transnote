@@ -123,6 +123,9 @@ struct MainWindowView: View {
                 onModelsCleared: viewModel.refreshModelAvailability
             )
         }
+        .sheet(isPresented: $showingHistory) {
+            HistorySheet()
+        }
         .overlay(alignment: .top) {
             if let toast = viewModel.toast {
                 ToastView(message: toast)
