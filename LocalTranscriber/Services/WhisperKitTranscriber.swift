@@ -331,14 +331,16 @@ actor WhisperKitTranscriber: Transcriber {
                 language: languageID,
                 usePrefillPrompt: true,
                 detectLanguage: false,
-                skipSpecialTokens: true
+                skipSpecialTokens: true,
+                chunkingStrategy: vadEnabled ? .vad : nil
             )
         }
         return DecodingOptions(
             language: nil,
             usePrefillPrompt: false,
             detectLanguage: true,
-            skipSpecialTokens: true
+            skipSpecialTokens: true,
+            chunkingStrategy: vadEnabled ? .vad : nil
         )
     }
 
