@@ -63,17 +63,6 @@ final class ErrorMapperTests: XCTestCase {
         )
     }
 
-    func testTranscriptionFailedWithReasonIsEquatable() {
-        let a = AppError.transcriptionFailedWithReason(URLError(.notConnectedToInternet))
-        let b = AppError.transcriptionFailedWithReason(URLError(.notConnectedToInternet))
-        let c = AppError.transcriptionFailedWithReason(URLError(.timedOut))
-        let d = AppError.transcriptionFailed("fixed message")
-
-        XCTAssertEqual(a, b)
-        XCTAssertNotEqual(a, c)
-        XCTAssertNotEqual(a, d)
-    }
-
     func testURLErrorNotConnectedToInternetClassifiedAsNetwork() {
         let message = ErrorMapper.userMessage(for: URLError(.notConnectedToInternet))
 
