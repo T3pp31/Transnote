@@ -279,63 +279,69 @@ private struct SegmentPlaybackRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Image(systemName: isPlaying ? "speaker.wave.2.fill" : "play.fill")
-                    .font(.caption)
-                    .foregroundStyle(isPlaying ? Color.accentColor : .secondary)
-                    .frame(width: DesignTokens.Icon.compact)
-                    .symbolEffect(.variableColor, isActive: isPlaying && !reduceMotion)
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Button(action: onTap) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Image(systemName: isPlaying ? "speaker.wave.2.fill" : "play.fill")
+                        .font(.caption)
+                        .foregroundStyle(isPlaying ? Color.accentColor : .secondary)
+                        .frame(width: DesignTokens.Icon.compact)
+                        .symbolEffect(.variableColor, isActive: isPlaying && !reduceMotion)
 
-                if isPlaying {
-                    Button(isPaused ? "再開" : "一時停止") {
-                        if isPaused {
-                            onResume()
-                        } else {
-                            onPause()
-                        }
+                    Text(segment.formattedStartTime)
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .frame(width: 72, alignment: .leading)
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(segment.accessibilityStartTimestamp)を再生")
+            .accessibilityAction(named: "停止") {
+                onStop()
+            }
+
+            if isPlaying {
+                Button(isPaused ? "再開" : "一時停止") {
+                    if isPaused {
+                        onResume()
+                    } else {
+                        onPause()
                     }
-                    .buttonStyle(.borderless)
-                    .controlSize(.mini)
-                    .accessibilityLabel(isPaused ? "再生を再開" : "再生を一時停止")
                 }
-
-                Text(segment.formattedStartTime)
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                    .frame(width: 72, alignment: .leading)
-
-                if isPlaying, !playbackPositionText.isEmpty {
-                    Text("残り \(playbackPositionText)")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(Color.accentColor)
-                        .accessibilityLabel("残り時間 \(playbackPositionText)")
-                }
-
-                TextField("", text: Binding(
-                    get: { segment.text },
-                    set: { onTextChange($0) }
-                ))
-                    .textFieldStyle(.plain)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .multilineTextAlignment(.leading)
+                .buttonStyle(.borderless)
+                .controlSize(.mini)
+                .accessibilityLabel(isPaused ? "再生を再開" : "再生を一時停止")
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background {
-                RoundedRectangle(cornerRadius: DesignTokens.Corner.segment)
-                    .fill(backgroundColor)
+
+            if isPlaying, !playbackPositionText.isEmpty {
+                Text("残り \(playbackPositionText)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(Color.accentColor)
+                    .accessibilityLabel("残り時間 \(playbackPositionText)")
             }
-            .overlay(alignment: .leading) {
-                if isPlaying {
-                    RoundedRectangle(cornerRadius: 1.5)
-                        .fill(Color.accentColor)
-                        .frame(width: 3)
-                        .padding(.vertical, 4)
-                }
+
+            TextField("", text: Binding(
+                get: { segment.text },
+                set: { onTextChange($0) }
+            ))
+                .textFieldStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .multilineTextAlignment(.leading)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background {
+            RoundedRectangle(cornerRadius: DesignTokens.Corner.segment)
+                .fill(backgroundColor)
+        }
+        .overlay(alignment: .leading) {
+            if isPlaying {
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(Color.accentColor)
+                    .frame(width: 3)
+                    .padding(.vertical, 4)
             }
         }
-        .buttonStyle(.plain)
         .onHover { hovering in
             if reduceMotion {
                 isHovered = hovering
@@ -345,20 +351,7 @@ private struct SegmentPlaybackRow: View {
                 }
             }
         }
-        .accessibilityLabel("\(segment.accessibilityStartTimestamp)、\(segment.text)")
-        .accessibilityValue(isPlaying ? "再生中" : "停止中")
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("スワイプアップまたはダウンで再生・停止できます")
-        .accessibilityAdjustableAction { direction in
-            switch direction {
-            case .increment:
-                onTap()
-            case .decrement:
-                onStop()
-            @unknown default:
-                break
-            }
-        }
+        .accessibilityElement(children: .contain)
     }
 
     private var backgroundColor: Color {
