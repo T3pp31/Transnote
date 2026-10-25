@@ -106,6 +106,18 @@ final class UpdateURLValidatorTests: XCTestCase {
         )
     }
 
+    // Given: dot-segmentでリポジトリを脱出しようとするURL
+    // When: matchesReleaseHTMLURL を実行
+    // Then: false を返す
+    func testMatchesReleaseHTMLURLRejectsDotSegments() {
+        XCTAssertFalse(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases/tag/../../attacker/evil/releases/tag/v1.0.0")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+    }
+
     // Given: github.com 以外、または HTTPS 以外
     // When: matchesReleaseHTMLURL を実行
     // Then: false を返す

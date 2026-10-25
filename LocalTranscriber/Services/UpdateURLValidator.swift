@@ -37,6 +37,10 @@ enum UpdateRepositoryValidator {
             return false
         }
 
+        guard !url.pathComponents.contains(where: { $0 == "." || $0 == ".." }) else {
+            return false
+        }
+
         let components = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
         // タグ名に `/` が含まれると path が分割されることがある。owner/repo/releases/tag/ の後はタグとして扱う。
         guard components.count >= 5,
