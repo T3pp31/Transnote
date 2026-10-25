@@ -7,6 +7,10 @@ import WhisperKit
 /// - テスト用 wav が無い環境（CI 含む）では XCTSkip する
 /// - ローカル絶対パスは開発マシン上の DerivedData 探索用のフォールバック
 final class PerformanceBaselineTests: XCTestCase {
+    private struct FFmpegUnavailableError: LocalizedError {
+        let errorDescription: String?
+    }
+
 
     private let modelsRoot = AppDirectories.modelsDirectory
 
@@ -36,7 +40,11 @@ final class PerformanceBaselineTests: XCTestCase {
         }
 
         // 約3分の音声に加工（発話+無音でリアルな会議を模す）
-        longAudioURL = try Self.makeLongAudio(from: whisperWAV, targetSeconds: 180)
+        do {
+            longAudioURL = try Self.makeLongAudio(from: whisperWAV, targetSeconds: 180)
+        } catch let error as FFmpegUnavailableError {
+            throw XCTSkip(error.localizedDescription)
+        }
 
         let transcriber = WhisperKitTranscriber()
 
@@ -80,8 +88,16 @@ final class PerformanceBaselineTests: XCTestCase {
             "-map", "[out]",
             tmp.path,
         ]
+        let candidates = [
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+        ]
+        guard let ffmpegPath = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            throw FFmpegUnavailableError(errorDescription: "ffmpeg not found")
+        }
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/ffmpeg")
+        p.executableURL = URL(fileURLWithPath: ffmpegPath)
         p.arguments = filterArgs
         try p.run()
         p.waitUntilExit()
