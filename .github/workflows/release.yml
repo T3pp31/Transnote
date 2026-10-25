@@ -28,19 +28,30 @@ env:
 jobs:
   release:
     runs-on: macos-15
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+      MACOS_CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
 
-      - uses: maxim-lobanov/setup-xcode@v1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: ${{ env.XCODE_VERSION }}
 
       - name: Resolve release version
         id: version
+        env:
+          RELEASE_VERSION_INPUT: ${{ github.event.inputs.version }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            raw="${{ github.event.inputs.version }}"
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            raw="$RELEASE_VERSION_INPUT"
             if [ -z "$raw" ]; then
               echo "workflow_dispatch requires the version input (e.g. v0.1.0)." >&2
               exit 1
@@ -53,13 +64,19 @@ jobs:
             echo "Could not determine release version." >&2
             exit 1
           fi
+          if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+            echo "Release version contains unsupported characters." >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
       - name: Sync MARKETING_VERSION
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           chmod +x ./scripts/set-marketing-version.sh
-          ./scripts/set-marketing-version.sh "${{ steps.version.outputs.version }}"
+          ./scripts/set-marketing-version.sh "$RELEASE_VERSION"
 
       - name: Run tests
         run: |
@@ -94,11 +111,11 @@ jobs:
             --output "${{ env.RELEASE_APP_DIR }}"
 
       - name: Sign app with Developer ID
-        if: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_CERTIFICATE_PWD != '' && secrets.MACOS_CERTIFICATE_IDENTITY != '' }}
+        if: ${{ env.MACOS_CERTIFICATE != '' && env.MACOS_CERTIFICATE_PWD != '' && env.MACOS_CERTIFICATE_IDENTITY != '' }}
         env:
-          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
-          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
+          CERTIFICATE_BASE64: ${{ env.MACOS_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ env.MACOS_CERTIFICATE_PWD }}
+          CERTIFICATE_IDENTITY: ${{ env.MACOS_CERTIFICATE_IDENTITY }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
@@ -109,15 +126,18 @@ jobs:
           security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security list-keychain -d user -s "$KEYCHAIN"
           APP_PATH="${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app"
-          /usr/bin/codesign --force --deep --options runtime --sign "$CERTIFICATE_IDENTITY" "$APP_PATH"
+          /usr/bin/codesign --force --deep --options runtime \
+            --entitlements "${{ github.workspace }}/LocalTranscriber/LocalTranscriber.entitlements" \
+            --sign "$CERTIFICATE_IDENTITY" "$APP_PATH"
+          /usr/bin/codesign -d --entitlements :- "$APP_PATH" | grep -q 'com.apple.security.app-sandbox'
           echo "SIGNED=1" >> "$GITHUB_ENV"
 
       - name: Notarize app
-        if: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && env.SIGNED == '1' }}
+        if: ${{ env.APPLE_ID != '' && env.APPLE_ID_PASSWORD != '' && env.APPLE_TEAM_ID != '' && env.SIGNED == '1' }}
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ env.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ env.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           APP_PATH="${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app"
@@ -130,8 +150,10 @@ jobs:
       - name: Read Syft version
         id: syft_config
         run: |
+          set -euo pipefail
           chmod +x ./scripts/generate-sbom.sh
-          echo "version=$(./scripts/generate-sbom.sh --print SyftVersion)" >> "$GITHUB_OUTPUT"
+          version="$(./scripts/generate-sbom.sh --print SyftVersion)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Install Syft
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -140,28 +162,32 @@ jobs:
 
       - name: Generate SBOM
         id: sbom
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           chmod +x ./scripts/generate-sbom.sh
           sbom_path="$(./scripts/generate-sbom.sh \
             --mode release \
-            --version "${{ steps.version.outputs.version }}")"
+            --version "$RELEASE_VERSION")"
           echo "sbom_path=${sbom_path}" >> "$GITHUB_OUTPUT"
 
       - name: Create DMG
         id: dmg
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           ./scripts/create-dmg.sh \
             --app "${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app" \
-            --version "${{ steps.version.outputs.version }}" \
+            --version "$RELEASE_VERSION" \
             --output build/dist
-          versioned_dmg="build/dist/${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg"
+          versioned_dmg="build/dist/${{ env.APP_NAME }}-$RELEASE_VERSION.dmg"
           latest_dmg="build/dist/${{ env.APP_NAME }}.dmg"
           cp "$versioned_dmg" "$latest_dmg"
           echo "dmg_path=$versioned_dmg" >> "$GITHUB_OUTPUT"
           echo "latest_dmg_path=$latest_dmg" >> "$GITHUB_OUTPUT"
-          echo "versioned_dmg_name=${{ env.APP_NAME }}-${{ steps.version.outputs.version }}.dmg" >> "$GITHUB_OUTPUT"
+          echo "versioned_dmg_name=${{ env.APP_NAME }}-$RELEASE_VERSION.dmg" >> "$GITHUB_OUTPUT"
           echo "latest_dmg_name=${{ env.APP_NAME }}.dmg" >> "$GITHUB_OUTPUT"
 
       - name: Compute SHA256 checksums
@@ -172,8 +198,8 @@ jobs:
           latest_dmg="${{ steps.dmg.outputs.latest_dmg_path }}"
           versioned_sha256="${versioned_dmg}.sha256"
           latest_sha256="${latest_dmg}.sha256"
-          shasum -a 256 "$versioned_dmg" > "$versioned_sha256"
-          shasum -a 256 "$latest_dmg" > "$latest_sha256"
+          (cd "$(dirname "$versioned_dmg")" && shasum -a 256 "$(basename "$versioned_dmg")" > "$(basename "$versioned_sha256")")
+          (cd "$(dirname "$latest_dmg")" && shasum -a 256 "$(basename "$latest_dmg")" > "$(basename "$latest_sha256")")
           versioned_hash="$(awk '{print $1}' "$versioned_sha256")"
           latest_hash="$(awk '{print $1}' "$latest_sha256")"
           echo "versioned_sha256_path=$versioned_sha256" >> "$GITHUB_OUTPUT"
@@ -185,14 +211,23 @@ jobs:
         id: notes
         run: |
           set -euo pipefail
+          if [[ "${NOTARIZED:-0}" == "1" ]]; then
+            security_notice="Developer ID で署名・公証済みのビルドです。"
+            signature_note="このビルドは Developer ID で署名・公証済みです。"
+          elif [[ "${SIGNED:-0}" == "1" ]]; then
+            security_notice="Developer ID で署名済みのビルドです。公証は行われていません。"
+            signature_note="このビルドは Developer ID で署名済みです。公証には Apple ID 等の secrets 設定が必要です。"
+          else
+            security_notice="**⚠️ 初回起動時に「マルウェア」という警告が出ても、これはマルウェアではありません。** Transnote は Apple の有料開発者認証（署名）をせずに配布しているため、macOS の Gatekeeper が「マルウェアでないことを確認できない」と表示します。未署名アプリ共通の安全確認の通知で、ウイルス検出ではありません。「完了」で閉じて進んでください（「ゴミ箱に入れる」は押さないでください）。"
+            signature_note="現時点では未署名ビルドを配布しています。Developer ID 署名と Notarization には [Apple Developer Program](https://developer.apple.com/programs/) への加入と CI 用証明書の設定が必要です（将来対応予定）。"
+          fi
+
           cat > release_body.md <<EOF
-          **⚠️ 初回起動時に「マルウェア」という警告が出ても、これはマルウェアではありません。** Transnote は Apple の有料開発者認証（署名）をせずに配布しているため、macOS の Gatekeeper が「マルウェアでないことを確認できない」と表示します。未署名アプリ共通の安全確認の通知で、ウイルス検出ではありません。「完了」で閉じて進んでください（「ゴミ箱に入れる」は押さないでください）。
+          $security_notice
 
           ※ この案内は **Transnote について**のものです。他のアプリで同様の警告が出たときは、そのアプリの配布元が信頼できるか必ず確認してください。
 
-          未署名ビルドです。DMG と **Transnote.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **インストール.command** を実行してください（旧バージョンは自動的に置き換えられます）。
-
-          初回起動時に Gatekeeper の警告が出る場合は、Finder でアプリを右クリックして「開く」を選んでください。
+          DMG と **Transnote.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **インストール.command** を実行してください（旧バージョンは自動的に置き換えられます）。
 
           ## SHA256 チェックサム
 
@@ -211,7 +246,7 @@ jobs:
 
           詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
 
-          > **コード署名について**: 現時点では未署名ビルドを配布しています。Developer ID 署名と Notarization には [Apple Developer Program](https://developer.apple.com/programs/) への加入と CI 用証明書の設定が必要です（将来対応予定）。
+          > **コード署名について**: $signature_note
           EOF
 
       - name: Attest build provenance
@@ -224,7 +259,7 @@ jobs:
           show-summary: true
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: Transnote ${{ steps.version.outputs.version }}

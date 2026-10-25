@@ -59,6 +59,15 @@ struct Transcript: Codable, Identifiable, Sendable {
         modelID = try container.decodeIfPresent(String.self, forKey: .modelID)
         sourceFileFingerprint = try container.decodeIfPresent(String.self, forKey: .sourceFileFingerprint)
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
-        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
+        let rawSchemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
+        guard rawSchemaVersion >= 1, rawSchemaVersion <= Self.currentSchemaVersion else {
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: container.codingPath,
+                    debugDescription: "Unsupported schemaVersion: \(rawSchemaVersion)"
+                )
+            )
+        }
+        schemaVersion = rawSchemaVersion
     }
 }

@@ -118,8 +118,13 @@ struct MainWindowView: View {
                 isModelDownloaded: viewModel.isModelDownloaded,
                 onDownloadSelectedModel: viewModel.downloadSelectedModel,
                 onDeleteSelectedModel: viewModel.deleteSelectedModel,
-                onDiskUsage: viewModel.modelDiskUsageText
+                onDiskUsage: viewModel.modelDiskUsageText,
+                modelsRevision: viewModel.downloadedModelIDs.count,
+                onModelsCleared: viewModel.refreshModelAvailability
             )
+        }
+        .sheet(isPresented: $showingHistory) {
+            HistorySheet()
         }
         .overlay(alignment: .top) {
             if let toast = viewModel.toast {
@@ -408,7 +413,7 @@ private struct InlineErrorBanner: View {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
                 .strokeBorder(DesignTokens.Colors.warning.opacity(0.35), lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -442,7 +447,7 @@ private struct ModelDownloadGuidanceBanner: View {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
                 .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 

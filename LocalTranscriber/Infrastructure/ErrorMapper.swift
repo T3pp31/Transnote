@@ -1,6 +1,6 @@
 import Foundation
 
-enum AppError: LocalizedError, Equatable {
+enum AppError: LocalizedError {
     case unsupportedFileExtension(String)
     case fileNotFound
     case fileAccessDenied
@@ -18,33 +18,6 @@ enum AppError: LocalizedError, Equatable {
         ErrorMapper.userMessage(for: self)
     }
 
-    // Error は Equatable に適合しないため、手動で同値比較を実装する。
-    // 元エラー保持ケース（*WithReason）は NSError にブリッジして同値比較する。
-    static func == (lhs: AppError, rhs: AppError) -> Bool {
-        switch (lhs, rhs) {
-        case (.unsupportedFileExtension(let l), .unsupportedFileExtension(let r)):
-            return l == r
-        case (.fileNotFound, .fileNotFound), (.fileAccessDenied, .fileAccessDenied),
-             (.transcriptionCancelled, .transcriptionCancelled):
-            return true
-        case (.transcriptionFailed(let l), .transcriptionFailed(let r)):
-            return l == r
-        case (.transcriptionFailedWithReason(let l), .transcriptionFailedWithReason(let r)):
-            return (l as NSError).isEqual(r as NSError)
-        case (.exportFailed(let l), .exportFailed(let r)):
-            return l == r
-        case (.exportFailedWithReason(let l), .exportFailedWithReason(let r)):
-            return (l as NSError).isEqual(r as NSError)
-        case (.invalidConfiguration, .invalidConfiguration),
-             (.bookmarkResolutionFailed, .bookmarkResolutionFailed),
-             (.fileTooLarge, .fileTooLarge):
-            return true
-        case (.modelNotDownloaded(let l), .modelNotDownloaded(let r)):
-            return l == r
-        default:
-            return false
-        }
-    }
 }
 
 enum ErrorMapper {

@@ -175,6 +175,10 @@ if [[ "$MODE" != "release" && "$MODE" != "ci" ]]; then
   exit 1
 fi
 
+if [[ "$SBOM_CONFIG" != /* ]]; then
+  SBOM_CONFIG="${ROOT_DIR}/${SBOM_CONFIG}"
+fi
+
 read_sbom_config
 
 if [[ -z "$OUTPUT_DIR" ]]; then

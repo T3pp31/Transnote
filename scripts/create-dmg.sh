@@ -36,14 +36,29 @@ OUTPUT_DIR="."
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --app)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --app" >&2
+        usage >&2
+        exit 1
+      fi
       APP_PATH="$2"
       shift 2
       ;;
     --version)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --version" >&2
+        usage >&2
+        exit 1
+      fi
       VERSION="$2"
       shift 2
       ;;
     --output)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --output" >&2
+        usage >&2
+        exit 1
+      fi
       OUTPUT_DIR="$2"
       shift 2
       ;;
@@ -74,7 +89,7 @@ fi
 
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 STAGING_DIR="$(mktemp -d)"
-DMG_RW="$(mktemp "${TMPDIR:-/tmp}/${APP_NAME}.XXXXXX.dmg")"
+DMG_RW="$(mktemp "${TMPDIR:-/tmp}/${APP_NAME}.XXXXXX")"
 trap 'rm -rf "$STAGING_DIR" "$DMG_RW"' EXIT
 
 cp -R "$APP_PATH" "${STAGING_DIR}/"

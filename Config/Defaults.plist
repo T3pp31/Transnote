@@ -173,6 +173,7 @@
 	<array>
 		<string>github.com</string>
 		<string>objects.githubusercontent.com</string>
+		<string>release-assets.githubusercontent.com</string>
 	</array>
 </dict>
 </plist>
