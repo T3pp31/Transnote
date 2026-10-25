@@ -76,11 +76,7 @@ CHECKSUM="<Release に記載の SHA256>" bash "/Volumes/Transnote/インスト�
 #### 方法 A: ターミナルから実行（推奨）
 
 1. **ターミナル** を開きます（Spotlight で「ターミナル」と検索）。
-2. 次の2行を **1行ずつ** 貼り付けて Enter を押します。
-
-```bash
-xattr -cr "/Volumes/Transnote/"
-```
+2. 次の1行を貼り付けて Enter を押します。
 
 ```bash
 bash "/Volumes/Transnote/インストール.command"
@@ -88,8 +84,6 @@ bash "/Volumes/Transnote/インストール.command"
 
 DMG のボリューム名が `Transnote 1` などの場合は、Finder 左サイドバーの表示名に合わせてパスを変更してください。
 
-```bash
-xattr -cr "/Volumes/Transnote 1/"
 bash "/Volumes/Transnote 1/インストール.command"
 ```
 
@@ -124,14 +118,14 @@ bash "/Volumes/Transnote 1/インストール.command"
 
 1. Applications から Transnote を起動します。
 2. 未署名ビルドのため、macOS の Gatekeeper により「開発元を確認できない」「マルウェアでないことを確認できない」などの警告が出ることがあります（**マルウェア検出ではありません**。上の「最初に」の節を参照）:
-   - **推奨**: Finder で Transnote を右クリック → **開く** を選択する（2 回目以降は通常どおり起動できます）
-   - または、システム設定 → プライバシーとセキュリティ で Transnote の起動を許可する
+   - **macOS 14 以前**: Finder で Transnote を右クリック → **開く** を選択する（2 回目以降は通常どおり起動できます）
+   - **macOS 15 以降**: システム設定 → プライバシーとセキュリティ で Transnote の **このまま開く** を押して認証する
 3. 初回利用時は Whisper モデルのダウンロードが必要です。画面の案内に従ってください。
 4. モデル取得時のみインターネット接続が必要です。文字起こし処理自体は端末内で完結します。
 
 ## 更新
 
-新しいバージョンがリリースされたら、最新の DMG をダウンロードし、**インストール.command** をターミナルから実行してください（上記 方法 A）。旧バージョンは自動的に置き換えられます。ユーザーデータ（`~/Library/Application Support/LocalTranscriber/`）は保持されます。
+新しいバージョンがリリースされたら、最新の DMG をダウンロードし、**インストール.command** をターミナルから実行してください（上記 方法 A）。旧バージョンは自動的に置き換えられます。ユーザーデータ（`~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/`）は保持されます。
 
 ## ファイルアクセス
 
@@ -140,15 +134,15 @@ Transnote は App Sandbox 上で動作します。音声ファイルの読み込
 ## アンインストール
 
 1. Applications から Transnote をゴミ箱へ移動します。
-2. 必要に応じて `~/Library/Application Support/LocalTranscriber/` 以下のデータを削除します。
+2. 必要に応じて `~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/` 以下のデータを削除します。
 
 ## トラブルシューティング
 
 | 症状 | 対処 |
 | --- | --- |
-| 「マルウェアでないことを確認できない」と出る | **マルウェア検出ではありません**。未署名アプリ共通の警告です。「完了」で閉じ、Finder で Transnote を右クリック → **開く** を試す（[最初に: マルウェア警告について](#-最初に-マルウェア警告について)を参照） |
+| 「マルウェアでないことを確認できない」と出る | **マルウェア検出ではありません**。未署名アプリ共通の警告です。「完了」で閉じ、macOS 15以降では **システム設定 → プライバシーとセキュリティ** から **このまま開く** を試す（[最初に: マルウェア警告について](#-最初に-マルウェア警告について)を参照） |
 | アプリが開かない | Finder で右クリック → **開く** を試す。それでも開かない場合は DMG から再インストールする |
-| インストールスクリプトが実行できない（「開いていません」） | **ゴミ箱に入れる** は押さず **完了** で閉じる。ターミナルで `xattr -cr "/Volumes/Transnote/"` のあと `bash "/Volumes/Transnote/インストール.command"` を実行する（推奨）。右クリック → **開く** やシステム設定の **このまま開く** も試せるが、最近の macOS ではターミナルが確実 |
+| インストールスクリプトが実行できない（「開いていません」） | **ゴミ箱に入れる** は押さず **完了** で閉じる。ターミナルで `bash "/Volumes/Transnote/インストール.command"` を実行する（推奨）。右クリック → **開く** やシステム設定の **このまま開く** も試せるが、最近の macOS ではターミナルが確実 |
 | 旧バージョンが残る | **インストール.command** を使って再インストールする。手動ドラッグの場合は Applications 内の重複を削除してから再度配置する |
 | アプリが複数表示される | マウントしたままの DMG（`Transnote`、`Transnote 1` など）を Finder から取り出す。Applications 内に `Transnote 2.app` などがあれば削除し、**インストール.command** で再インストールする |
 | モデルが取得できない | ネットワーク接続とファイアウォール設定を確認する |

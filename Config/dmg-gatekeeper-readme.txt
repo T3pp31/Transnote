@@ -37,10 +37,6 @@ macOS 14 / 15 で実際に表示される警告の例と対処：
    （Spotlight で「ターミナル」と検索しても開けます）
 2. 次の1行目を貼り付けて Enter を押す:
 
-xattr -cr "/Volumes/Transnote/"
-
-3. 次の1行目を貼り付けて Enter を押す:
-
 bash "/Volumes/Transnote/インストール.command"
 
 ※ DMG のボリューム名が Transnote でない場合（例: Transnote 1）は、

@@ -131,9 +131,11 @@ final class AudioImportServiceTests: XCTestCase {
 
     // MARK: - partial import file cleanup (#140)
 
-    func testRemoveFileIfExistsIfFailedDeletesZeroByteFile() {
+    func testRemoveFileIfExistsIfFailedDeletesZeroByteFile() throws {
+        try FileManager.default.createDirectory(at: importsRoot, withIntermediateDirectories: true)
         let zeroByteURL = importsRoot.appendingPathComponent("partial-zero-byte.m4a")
-        FileManager.default.createFile(atPath: zeroByteURL.path, contents: nil)
+        XCTAssertTrue(FileManager.default.createFile(atPath: zeroByteURL.path, contents: nil))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: zeroByteURL.path))
 
         service.removeFileIfExistsIfFailed(zeroByteURL)
 
@@ -241,6 +243,23 @@ final class AudioImportServiceTests: XCTestCase {
         try service.cleanupExpiredImports(maxAge: 30 * 24 * 60 * 60, now: Date())
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: hiddenTmpURL.path))
+    }
+
+    func testImportedOldSourceIsNotImmediatelyExpired() throws {
+        let sourceRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: sourceRoot) }
+
+        let sourceURL = sourceRoot.appendingPathComponent("old-recording.wav")
+        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
+        let oldDate = Date(timeIntervalSinceNow: -40 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: sourceURL.path)
+
+        let importedURL = try service.importFile(from: sourceURL)
+        try service.cleanupExpiredImports(maxAge: 30 * 24 * 60 * 60, now: Date())
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: importedURL.path))
     }
 }
 

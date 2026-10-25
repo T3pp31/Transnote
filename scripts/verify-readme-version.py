@@ -29,12 +29,15 @@ def read_version_from_pbxproj() -> str:
 
 def read_version_from_readme() -> str:
     content = README.read_text()
-    matches = re.findall(r"当前版本.*?v([0-9]+\.[0-9]+\.[0-9]+)", content)
-    if not matches:
+    patterns = [
+        r"当前版本.*?v([0-9]+\.[0-9]+\.[0-9]+)",
         # 日本語の記述（現在のバージョンは vX.Y.Z）を探す
-        matches = re.findall(r"現在のバージョンは \*\*v([0-9]+\.[0-9]+\.[0-9]+)\*\*", content)
-    if not matches:
-        matches = re.findall(r"\| バージョン \| v([0-9]+\.[0-9]+\.[0-9]+) \|", content)
+        r"現在のバージョンは \*\*v([0-9]+\.[0-9]+\.[0-9]+)\*\*",
+        r"\| バージョン \| v([0-9]+\.[0-9]+\.[0-9]+) \|",
+    ]
+    matches = []
+    for pattern in patterns:
+        matches.extend(re.findall(pattern, content))
     if not matches:
         sys.stderr.write("No version found in README.md\n")
         sys.exit(1)

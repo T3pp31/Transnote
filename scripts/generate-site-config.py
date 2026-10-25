@@ -49,6 +49,11 @@ def main() -> int:
     if BEGIN not in content or END not in content:
         sys.stderr.write(f"{APP_JS_PATH}: config markers not found\n")
         return 1
+    begin_index = content.index(BEGIN)
+    end_index = content.index(END, begin_index)
+    if end_index == -1:
+        sys.stderr.write(f"{APP_JS_PATH}: config markers are not in order\n")
+        return 1
 
     updated = apply(content, block)
     if "--check" in sys.argv:
