@@ -655,8 +655,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         )
 
         MockURLProtocol.requestHandler = { _ in
-            XCTFail("Network should not be called when update check is disabled")
-            fatalError("unreachable")
+            MockURLProtocol.didReceiveRequest = true
+            throw URLError(.badURL)
         }
 
         let service = UpdateCheckService(
@@ -667,14 +667,17 @@ final class UpdateCheckServiceTests: XCTestCase {
 
         let offer = await service.checkForUpdate()
         XCTAssertNil(offer)
+        XCTAssertFalse(MockURLProtocol.didReceiveRequest)
     }
 }
 
 private final class MockURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    static var didReceiveRequest = false
 
     static func reset() {
         requestHandler = nil
+        didReceiveRequest = false
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
