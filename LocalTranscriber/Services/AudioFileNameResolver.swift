@@ -41,15 +41,7 @@ enum AudioFileNameResolver {
             return "\(fallbackStem(from: sourceURL)).\(extensionFromMagicBytes)"
         }
 
-        if let sanitized = sanitizeFileName(component),
-           sanitized != "file URL",
-           !supportedExtensions.contains((sanitized as NSString).pathExtension.lowercased()) {
-            // 拡張子を特定できなかった場合は安全な既定名へ固定する。
-            return "imported-audio"
-        }
-        if let sanitized = sanitizeFileName(component) {
-            return sanitized
-        }
+        // 最終フォールバックは拡張子の確定していない名前を返さない。
         return "imported-audio"
     }
 
