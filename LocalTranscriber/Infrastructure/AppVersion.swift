@@ -58,7 +58,9 @@ enum AppVersion {
 
         let withoutBuild = version.split(separator: "+", maxSplits: 1).first.map(String.init) ?? version
         let parts = withoutBuild.split(separator: "-", maxSplits: 1).map(String.init)
-        let coreString = parts[0]
+        guard let coreString = parts.first else {
+            return ParsedVersion(core: [], prerelease: nil)
+        }
         let prerelease = parts.count > 1 ? parts[1].split(separator: ".").map(String.init) : nil
 
         let core = coreString

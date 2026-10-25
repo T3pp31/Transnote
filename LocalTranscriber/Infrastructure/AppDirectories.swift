@@ -48,7 +48,7 @@ enum AppDirectories {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
+            options: []
         ) else { return }
         for entry in entries {
             try? FileManager.default.removeItem(at: entry)

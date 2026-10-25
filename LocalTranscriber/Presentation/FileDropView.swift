@@ -10,6 +10,8 @@ struct FileDropView: View {
     @State private var isTargeted = false
     @State private var isHovered = false
     @State private var dropErrorMessage: String?
+    @State private var dropGeneration = 0
+    @State private var isImportingDrop = false
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -75,7 +77,7 @@ struct FileDropView: View {
             isHovered = hovering
         }
         .onDrop(of: acceptedDropTypes, isTargeted: $isTargeted) { providers in
-            guard !isBusy else { return false }
+            guard !isBusy, !isImportingDrop else { return false }
             return handleDrop(providers: providers)
         }
         .accessibilityElement(children: .contain)
@@ -180,6 +182,9 @@ struct FileDropView: View {
         }
 
         guard let provider = providers.first else { return false }
+        dropGeneration += 1
+        let generation = dropGeneration
+        isImportingDrop = true
 
         let suggestedName = provider.suggestedName
         let typeIdentifiers = DropImportService.preferredTypeIdentifiers(from: provider)
@@ -188,7 +193,8 @@ struct FileDropView: View {
             provider: provider,
             typeIdentifiers: typeIdentifiers,
             index: 0,
-            suggestedName: suggestedName
+            suggestedName: suggestedName,
+            generation: generation
         )
         return true
     }
@@ -197,11 +203,12 @@ struct FileDropView: View {
         provider: NSItemProvider,
         typeIdentifiers: [String],
         index: Int,
-        suggestedName: String?
+        suggestedName: String?,
+        generation: Int
     ) {
         guard index < typeIdentifiers.count else {
             AppLogger.error("Drop import failed: unsupported dropped item", logger: AppLogger.fileAccess)
-            DispatchQueue.main.async {
+            finishDrop(generation: generation) {
                 self.dropErrorMessage = "対応している音声ファイルを読み込めませんでした。"
             }
             return
@@ -215,7 +222,8 @@ struct FileDropView: View {
                     provider: provider,
                     typeIdentifiers: typeIdentifiers,
                     index: index + 1,
-                    suggestedName: suggestedName
+                    suggestedName: suggestedName,
+                    generation: generation
                 )
                 return
             }
@@ -223,15 +231,25 @@ struct FileDropView: View {
             self.importDroppedRepresentation(
                 tempURL: tempURL,
                 suggestedName: suggestedName,
-                typeIdentifiers: typeIdentifiers
+                typeIdentifiers: typeIdentifiers,
+                generation: generation
             )
+        }
+    }
+
+    private func finishDrop(generation: Int, update: @escaping () -> Void) {
+        DispatchQueue.main.async {
+            guard generation == self.dropGeneration else { return }
+            self.isImportingDrop = false
+            update()
         }
     }
 
     private func importDroppedRepresentation(
         tempURL: URL,
         suggestedName: String?,
-        typeIdentifiers: [String]
+        typeIdentifiers: [String],
+        generation: Int
     ) {
         let fileName = DropImportService.resolvedFileName(
             sourceURL: tempURL,
@@ -241,7 +259,7 @@ struct FileDropView: View {
 
         guard DropImportService.hasSupportedExtension(fileName, supportedExtensions: supportedExtensions) else {
             AppLogger.error("Drop import failed: unsupported extension for \(fileName)", logger: AppLogger.fileAccess)
-            DispatchQueue.main.async {
+            finishDrop(generation: generation) {
                 self.dropErrorMessage = ErrorMapper.userMessage(for: AppError.unsupportedFileExtension(fileName))
             }
             return
@@ -252,13 +270,13 @@ struct FileDropView: View {
                 from: tempURL,
                 preferredFileName: fileName
             )
-            DispatchQueue.main.async {
+            finishDrop(generation: generation) {
                 self.dropErrorMessage = nil
                 self.onFileSelected(importedURL, nil)
             }
         } catch {
             AppLogger.error("Drop import failed: \(error.localizedDescription)", logger: AppLogger.fileAccess)
-            DispatchQueue.main.async {
+            finishDrop(generation: generation) {
                 self.dropErrorMessage = ErrorMapper.userMessage(for: error)
             }
         }

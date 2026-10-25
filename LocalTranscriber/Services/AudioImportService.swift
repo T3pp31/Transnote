@@ -74,6 +74,10 @@ struct AudioImportService: Sendable {
         // 一時ファイルを最終 URL へ atomic に rename する（同名競合・部分ファイル防止）
         try fileManager.moveItem(at: temporaryURL, to: destinationURL)
 
+        // copyItem は元ファイルのmtimeを保存するため、クリーンアップ判定には
+        // ソースの録音日ではなく「取り込み日」を使う。
+        try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: destinationURL.path)
+
         AppLogger.info(
             "Imported audio to sandbox: \(destinationURL.lastPathComponent)",
             logger: AppLogger.fileAccess

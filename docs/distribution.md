@@ -114,9 +114,9 @@ CI では `Package.resolved`（宣言依存のロックファイル）を Ubuntu
 
 ## ユーザー向け注意
 
-未署名アプリは初回起動時に macOS の Gatekeeper 警告が出ることがあります。**インストール.command** も同様に、ダブルクリックでは「開いていません」とブロックされる場合があります。右クリック → 開く でも通らないことがあるため、DMG 内の `初めにお読みください.txt` または [docs/install.md](install.md) の **ターミナル実行手順**（`xattr -cr` のあと `bash`）を案内してください。
+未署名アプリは初回起動時に macOS の Gatekeeper 警告が出ることがあります。**インストール.command** も同様に、ダブルクリックでは「開いていません」とブロックされる場合があります。右クリック → 開く でも通らないことがあるため、DMG 内の `初めにお読みください.txt` または [docs/install.md](install.md) の **ターミナル実行手順**（`bash` での実行）を案内してください。
 
-インストールスクリプトは配置後に `xattr -cr` で Applications 内アプリの隔離属性を除去するため、インストール直後の起動がスムーズになります。
+インストールスクリプトは配置後に Applications 内アプリから検疫属性のみを除去するため、インストール直後の起動がスムーズになります。
 
 ## 検証コマンド
 
@@ -132,8 +132,9 @@ hdiutil verify Transnote-0.1.0.dmg
 ls -la build/release/Transnote.app/Contents/MacOS/Transnote
 
 # DMG 内容の確認
-hdiutil attach Transnote-0.1.0.dmg -mountpoint /tmp/transnote-dmg
-ls -la /tmp/transnote-dmg
+MOUNT_DIR="$(mktemp -d)"
+hdiutil attach Transnote-0.1.0.dmg -mountpoint "$MOUNT_DIR"
+ls -la "$MOUNT_DIR"
 # Transnote.app, インストール.command, 初めにお読みください.txt, distribution.plist, Applications があること
-hdiutil detach /tmp/transnote-dmg
+hdiutil detach "$MOUNT_DIR"
 ```

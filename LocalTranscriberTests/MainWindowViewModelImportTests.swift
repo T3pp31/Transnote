@@ -5,9 +5,11 @@ import XCTest
 final class MainWindowViewModelImportTests: XCTestCase {
     private var importsRoot: URL!
     private var sourceRoot: URL!
+    private var originalSelectedModelID: String!
     private var viewModel: MainWindowViewModel!
 
     override func setUpWithError() throws {
+        originalSelectedModelID = AppSettings.shared.selectedModelID
         importsRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         sourceRoot = FileManager.default.temporaryDirectory
@@ -21,6 +23,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
+        AppSettings.shared.selectedModelID = originalSelectedModelID
         try? FileManager.default.removeItem(at: importsRoot)
         try? FileManager.default.removeItem(at: sourceRoot)
     }
@@ -192,6 +195,39 @@ final class MainWindowViewModelImportTests: XCTestCase {
 
         XCTAssertEqual(vm.selectedFile?.url, before)
         gate.open()
+
+        try await waitUntil { !vm.isBusy }
+        XCTAssertEqual(vm.currentTranscript?.fullText, "done")
+        XCTAssertEqual(vm.transcriptText, "done")
+    }
+
+    private func waitUntil(
+        timeoutNanoseconds: UInt64 = 5_000_000_000,
+        pollNanoseconds: UInt64 = 10_000_000,
+        condition: @escaping () -> Bool
+    ) async throws {
+        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            if condition() {
+                return
+            }
+            try await Task.sleep(nanoseconds: pollNanoseconds)
+        }
+        XCTFail("Condition not met within timeout")
+    }
+
+    func testAsyncGateOpenBeforeWaitResumesLaterWaiter() async {
+        let gate = AsyncGate()
+        gate.open()
+
+        await gate.wait()
+    }
+
+    func testAsyncGateOpenBeforeWaitResumesLaterWaiter() async {
+        let gate = AsyncGate()
+        gate.open()
+
+        await gate.wait()
     }
 
     func testStaleTranscriptionTaskDoesNotClearNewOperation() async throws {
@@ -248,13 +284,17 @@ final class MainWindowViewModelImportTests: XCTestCase {
 // 完了を待機できる非同期ゲート
 final class AsyncGate: @unchecked Sendable {
     private let lock = NSLock()
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var continuations: [CheckedContinuation<Void, Never>] = []
     private var opened = false
 
     func wait() async {
         await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
             lock.lock()
-            self.continuation = cont
+            if opened {
+                cont.resume()
+            } else {
+                continuations.append(cont)
+            }
             lock.unlock()
         }
     }
@@ -262,9 +302,13 @@ final class AsyncGate: @unchecked Sendable {
     func open() {
         lock.lock()
         opened = true
-        continuation?.resume()
-        continuation = nil
+        let waiters = continuations
+        continuations = []
         lock.unlock()
+
+        for continuation in waiters {
+            continuation.resume()
+        }
     }
 }
 
