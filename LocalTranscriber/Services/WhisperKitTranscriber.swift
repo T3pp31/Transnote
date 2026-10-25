@@ -293,15 +293,21 @@ actor WhisperKitTranscriber: Transcriber {
             try? FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? FileManager.default.removeItem(at: outputURL)
 
-            let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough)
-            export?.outputURL = outputURL
-            export?.outputFileType = .m4a
-            export?.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), end: CMTime(seconds: end, preferredTimescale: 600))
+            guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
+                AppLogger.error(
+                    "Chunk export session could not be created for chunk \(index).",
+                    logger: AppLogger.transcription
+                )
+                continue
+            }
+            export.outputURL = outputURL
+            export.outputFileType = .m4a
+            export.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), end: CMTime(seconds: end, preferredTimescale: 600))
 
             let semaphore = DispatchSemaphore(value: 0)
-            export?.exportAsynchronously { semaphore.signal() }
+            export.exportAsynchronously { semaphore.signal() }
             semaphore.wait()
-            if export?.status == .completed {
+            if export.status == .completed {
                 outputURLs.append(outputURL)
             }
         }
