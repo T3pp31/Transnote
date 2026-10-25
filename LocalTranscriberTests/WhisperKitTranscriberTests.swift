@@ -38,7 +38,9 @@ final class WhisperKitTranscriberTests: XCTestCase {
             _ = try await transcriber.transcribe(job)
             XCTFail("Expected modelNotDownloaded error")
         } catch let error as AppError {
-            XCTAssertEqual(error, .modelNotDownloaded("Base"))
+            guard case .modelNotDownloaded("Base") = error else {
+                return XCTFail("Unexpected AppError: \(error)")
+            }
         } catch {
             XCTFail("Unexpected error: \(error)")
         }

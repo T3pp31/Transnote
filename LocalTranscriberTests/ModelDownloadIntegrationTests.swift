@@ -4,8 +4,10 @@ import WhisperKit
 
 final class ModelDownloadIntegrationTests: XCTestCase {
     func testDownloadTinyModelToAppModelsDirectory() async throws {
-        let modelsRoot = AppDirectories.modelsDirectory
+        let modelsRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: modelsRoot) }
 
         let service = ModelDownloadService(modelsRoot: modelsRoot)
         let path = try await service.downloadIfNeeded(

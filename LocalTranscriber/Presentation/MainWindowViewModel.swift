@@ -121,6 +121,7 @@ final class MainWindowViewModel: ObservableObject {
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
+    private var hasSegmentTextEdits = false
 
     private let modelDownloadCoordinator = ModelDownloadCoordinator()
 
@@ -274,9 +275,9 @@ final class MainWindowViewModel: ObservableObject {
 
     var cancelActionHelp: String {
         if isDownloadingModel {
-            return NSLocalizedString("ダウンロードをキャンセル（Esc）", comment: "Cancel model download shortcut help")
+            return NSLocalizedString("ダウンロードをキャンセル（⌘.）", comment: "Cancel model download shortcut help")
         }
-        return NSLocalizedString("文字起こしをキャンセル（Esc）", comment: "Cancel transcription shortcut help")
+        return NSLocalizedString("文字起こしをキャンセル（⌘.）", comment: "Cancel transcription shortcut help")
     }
 
     var cancelMenuTitle: String {
@@ -313,6 +314,7 @@ final class MainWindowViewModel: ObservableObject {
         baselineTranscriptText = transcript.fullText
         transcriptText = transcript.fullText
         isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
+        hasSegmentTextEdits = false
         uiState = .done
         progressDisplay = .done()
         confirmFileImport = false
@@ -419,6 +421,7 @@ final class MainWindowViewModel: ObservableObject {
 
     @Published var confirmFileImport = false
     @Published var pendingFileImport: (url: URL, preferredFileName: String?)?
+    private var isPendingTranscriptionRestart = false
 
     var hasExistingResult: Bool {
         (currentTranscript?.fullText ?? "")
@@ -431,8 +434,9 @@ final class MainWindowViewModel: ObservableObject {
     var hasUnsavedChanges: Bool {
         guard currentTranscript != nil else { return false }
         let normalizedEdited = transcriptText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedOriginal = baselineTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return normalizedEdited != normalizedOriginal
+        let normalizedOriginal = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedBaseline = baselineTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedEdited != normalizedOriginal || normalizedEdited != normalizedBaseline
     }
 
     func selectFile(url: URL, preferredFileName: String? = nil) {
@@ -454,15 +458,21 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func applyPendingFileImport() {
+        let shouldStartTranscription = isPendingTranscriptionRestart
+        isPendingTranscriptionRestart = false
         guard let pending = pendingFileImport else { return }
         confirmFileImport = false
         pendingFileImport = nil
         applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+        if shouldStartTranscription {
+            startTranscription()
+        }
     }
 
     func cancelPendingFileImport() {
         confirmFileImport = false
         pendingFileImport = nil
+        isPendingTranscriptionRestart = false
     }
 
     private func applyFileImport(url: URL, preferredFileName: String?) {
@@ -479,6 +489,7 @@ final class MainWindowViewModel: ObservableObject {
             removePreviousSandboxCopyIfNeeded()
             stopPlayback()
             isEditingTranscript = false
+            hasSegmentTextEdits = false
             currentTranscript = nil
             baselineTranscriptText = ""
             transcriptText = ""
@@ -529,6 +540,12 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func startTranscription() {
+        if (hasExistingResult || hasUnsavedChanges) && !isPendingTranscriptionRestart {
+            isPendingTranscriptionRestart = true
+            confirmFileImport = true
+            return
+        }
+
         guard let file = selectedFile,
               let model = settings.selectedModel else {
             let message = AppError.invalidConfiguration.errorDescription
@@ -569,6 +586,7 @@ final class MainWindowViewModel: ObservableObject {
         clearErrors()
         stopPlayback()
         isEditingTranscript = false
+        hasSegmentTextEdits = false
         transcriptText = ""
         currentTranscript = nil
         uiState = .preparing
@@ -628,6 +646,7 @@ final class MainWindowViewModel: ObservableObject {
                 transcriptionTask = nil
             }
             operationCoordinator.end(.transcription)
+            isPendingTranscriptionRestart = false
         }
     }
 
@@ -678,6 +697,8 @@ final class MainWindowViewModel: ObservableObject {
         guard var transcript = currentTranscript else { return }
         if let index = transcript.segments.firstIndex(where: { $0.id == id }) {
             transcript.segments[index].text = text
+            hasSegmentTextEdits = true
+            transcript.fullText = transcript.segments.map(\.text).joined(separator: "\n")
             currentTranscript = transcript
             transcriptText = transcript.fullText
         }
@@ -795,6 +816,11 @@ final class MainWindowViewModel: ObservableObject {
             initialDirectoryURL: didBeginSavedDirectoryAccess ? savedExportDirectory : nil
         )
         guard let url else { return }
+
+        // 保存先が確定した後にのみ最新編集内容を反映し、キャンセル時は元の状態を保持する。
+        transcript.fullText = transcriptText
+        transcript.updatedAt = Date()
+        currentTranscript = transcript
 
         // 成功時に次回の初期ディレクトリとして bookmark を保存する
         fileAccess.saveLastExportDirectoryBookmark(for: url.deletingLastPathComponent())
