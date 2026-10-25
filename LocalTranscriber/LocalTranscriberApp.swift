@@ -14,8 +14,8 @@ struct LocalTranscriberApp: App {
                     "Expired imports cleanup failed: \(error)",
                     logger: AppLogger.fileAccess
                 )
+            }
         }
-    }
 
         // 設定不整合（defaultModelID 等が Models に無い等）を起動時に検出してログへ出力する。
         for error in AppConfig.shared.validationErrors {
