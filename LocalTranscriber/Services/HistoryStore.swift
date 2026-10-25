@@ -24,23 +24,47 @@ struct HistoryStore: Sendable {
 
     func recent(limit: Int = 50) -> [Transcript] {
         guard fileManager.fileExists(atPath: historyRoot.path) else { return [] }
+        guard limit > 0 else { return [] }
         guard let enumerator = fileManager.enumerator(
             at: historyRoot,
-            includingPropertiesForKeys: [.isRegularFileKey],
+            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
-        var items: [Transcript] = []
+        struct Candidate {
+            let url: URL
+            let modificationDate: Date
+        }
+
+        var candidates: [Candidate] = []
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
         for case let url as URL in enumerator {
             guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
-            guard let data = try? Data(contentsOf: url),
+            guard let modificationDate = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate else {
+                continue
+            }
+            candidates.append(Candidate(url: url, modificationDate: modificationDate))
+        }
+
+        candidates.sort { $0.modificationDate > $1.modificationDate }
+
+        var items: [Transcript] = []
+        for candidate in candidates {
+            guard let data = try? Data(contentsOf: candidate.url),
                   let transcript = try? decoder.decode(Transcript.self, from: data) else {
                 continue
             }
             items.append(transcript)
+
+            // 修正日時が古い候補は createdAt も古いことが多いため、
+            // 必要件数を満たした時点で以降の重いデコードを止める。
+            if items.count >= limit,
+               let oldest = items.map({ $0.createdAt }).min(),
+               candidate.modificationDate < oldest {
+                break
+            }
         }
 
         return items
@@ -53,13 +77,53 @@ struct HistoryStore: Sendable {
     func search(query: String, limit: Int = 50) -> [Transcript] {
         let normalized = query.lowercased()
         guard !normalized.isEmpty else { return recent(limit: limit) }
-        return recent(limit: 500)
-            .filter { item in
-                item.fullText.lowercased().contains(normalized)
-                    || item.sourceFileName.lowercased().contains(normalized)
+
+        guard fileManager.fileExists(atPath: historyRoot.path) else { return [] }
+        guard let enumerator = fileManager.enumerator(
+            at: historyRoot,
+            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        struct Candidate {
+            let url: URL
+            let modificationDate: Date
+        }
+
+        var candidates: [Candidate] = []
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        for case let url as URL in enumerator {
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
+            guard let modificationDate = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate else {
+                continue
             }
+            candidates.append(Candidate(url: url, modificationDate: modificationDate))
+        }
+
+        candidates.sort { $0.modificationDate > $1.modificationDate }
+
+        var matches: [Transcript] = []
+        for candidate in candidates {
+            guard let data = try? Data(contentsOf: candidate.url),
+                  let transcript = try? decoder.decode(Transcript.self, from: data) else {
+                continue
+            }
+
+            let isMatch = transcript.fullText.lowercased().contains(normalized)
+                || transcript.sourceFileName.lowercased().contains(normalized)
+            guard isMatch else { continue }
+            matches.append(transcript)
+            if matches.count >= limit {
+                break
+            }
+        }
+
+        return matches
+            .sorted { $0.createdAt > $1.createdAt }
             .prefix(limit)
-            .map { item in item }
+            .map { $0 }
     }
 
     func delete(_ transcript: Transcript) {

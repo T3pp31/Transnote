@@ -50,7 +50,7 @@ struct TranscriptionCommands: Commands {
             Button(actions?.cancelMenuTitle ?? NSLocalizedString("キャンセル", comment: "Cancel")) {
                 actions?.cancelTranscription()
             }
-            .keyboardShortcut(.escape, modifiers: [])
+            .keyboardShortcut(".", modifiers: [.command])
             .disabled(actions?.canCancel != true)
 
             Divider()

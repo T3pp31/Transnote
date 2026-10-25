@@ -1,4 +1,6 @@
 // Node テスト用に最小限の DOM / fetch スタブを用意する。
+process.env.TZ = 'UTC';
+
 function noopElement() {
   return {
     className: '',
@@ -42,6 +44,13 @@ function test(name, fn) {
 test('isAllowedDownloadURL allows github.com', function () {
   assert.strictEqual(
     app.isAllowedDownloadURL('https://github.com/T3pp31/Transnote/releases/download/v0.1.0/Transnote.dmg'),
+    true
+  );
+});
+
+test('isAllowedDownloadURL allows current GitHub release asset host', function () {
+  assert.strictEqual(
+    app.isAllowedDownloadURL('https://release-assets.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg'),
     true
   );
 });
