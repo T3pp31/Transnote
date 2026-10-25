@@ -81,9 +81,11 @@ final class AudioPlayerService {
 
     /// 一時停止する（現在位置を保持）。
     func pause() {
-        guard isPlaying else { return }
-        player?.pause()
-        isPlaying = false
+        if isPlaying {
+            player?.pause()
+            isPlaying = false
+        }
+        invalidatePendingPlayback()
     }
 
     /// 一時停止から再開する。
@@ -98,6 +100,7 @@ final class AudioPlayerService {
     }
 
     private func stop(resetPlayer: Bool) {
+        invalidatePendingPlayback()
         clearSegmentPlayback()
         cancelStatusObservation()
         player?.pause()
@@ -199,5 +202,13 @@ final class AudioPlayerService {
             player.removeTimeObserver(timeObserver)
         }
         timeObserver = nil
+    }
+
+    private func invalidatePendingPlayback() {
+        playbackGeneration += 1
+        pendingStartTime = nil
+        pendingPlaybackGeneration = 0
+        onFinished = nil
+        cancelStatusObservation()
     }
 }
