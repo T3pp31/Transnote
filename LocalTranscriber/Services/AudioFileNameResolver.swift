@@ -133,11 +133,11 @@ enum AudioFileNameResolver {
         }
         defer { try? handle.close() }
 
-        guard let data = try? handle.read(upToCount: 12), data.count >= 8 else {
+        guard let data = try? handle.read(upToCount: 12), data.count >= 4 else {
             return nil
         }
 
-        guard String(data: data[4 ..< 8], encoding: .ascii) == "ftyp" else {
+        guard data.count >= 8, String(data: data[4 ..< 8], encoding: .ascii) == "ftyp" else {
             if String(data: data[0 ..< 4], encoding: .ascii) == "RIFF" {
                 return supportedExtensions.contains("wav") ? "wav" : nil
             }
