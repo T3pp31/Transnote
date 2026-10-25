@@ -77,14 +77,38 @@ final class ErrorMapperTests: XCTestCase {
     func testURLErrorNotConnectedToInternetClassifiedAsNetwork() {
         let message = ErrorMapper.userMessage(for: URLError(.notConnectedToInternet))
 
-        // ネットワークエラーに分類されること（ロケール非依存の検証）
+        // ネットワーク分類の文言を直接確認する
+        XCTAssertEqual(
+            message,
+            L(
+                "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。",
+                comment: "Model download network failure"
+            )
+        )
+        XCTAssertEqual(
+            message,
+            ErrorMapper.userMessage(for: URLError(.networkConnectionLost))
+        )
+        XCTAssertNotEqual(message, ErrorMapper.userMessage(for: URLError(.cancelled)))
         XCTAssertNotEqual(message, ErrorMapper.userMessage(for: UnknownTestError()))
     }
 
     func testURLErrorNetworkConnectionLostClassifiedAsNetwork() {
         let message = ErrorMapper.userMessage(for: URLError(.networkConnectionLost))
 
-        // 個別のメッセージを参照せず、ネットワーク分類の文言が返ることのみ検証する
+        // ネットワーク分類の文言を直接確認する
+        XCTAssertEqual(
+            message,
+            L(
+                "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。",
+                comment: "Model download network failure"
+            )
+        )
+        XCTAssertEqual(
+            message,
+            ErrorMapper.userMessage(for: URLError(.notConnectedToInternet))
+        )
+        XCTAssertNotEqual(message, ErrorMapper.userMessage(for: URLError(.cancelled)))
         XCTAssertNotEqual(message, ErrorMapper.userMessage(for: UnknownTestError()))
     }
 
