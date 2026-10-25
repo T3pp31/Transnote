@@ -229,6 +229,19 @@ final class AudioImportServiceTests: XCTestCase {
         // importsRoot が存在しない場合でも throw しない
         XCTAssertNoThrow(try service.cleanupExpiredImports())
     }
+
+    func testCleanupExpiredImportsRemovesHiddenTemporaryFile() throws {
+        try FileManager.default.createDirectory(at: importsRoot, withIntermediateDirectories: true)
+        let hiddenTmpURL = importsRoot.appendingPathComponent(".audio.m4a.tmp-UUID")
+        FileManager.default.createFile(atPath: hiddenTmpURL.path, contents: Data("tmp".utf8))
+
+        let oldDate = Date(timeIntervalSinceNow: -40 * 24 * 60 * 60)
+        try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: hiddenTmpURL.path)
+
+        try service.cleanupExpiredImports(maxAge: 30 * 24 * 60 * 60, now: Date())
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: hiddenTmpURL.path))
+    }
 }
 
 /// copyItem が常に失敗し、その際に destination へ部分的なファイルを残す FileManager。
