@@ -59,7 +59,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         viewModel.startTranscription()
 
         try await waitUntil { self.viewModel.uiState == .transcribing }
-        try await Task.sleep(nanoseconds: 100_000_000)
+        try await waitUntil { mock.partialTextCount == 1 }
         XCTAssertEqual(viewModel.transcriptText, "")
         try await waitUntil { self.viewModel.uiState == .done }
         XCTAssertEqual(viewModel.transcriptText, "final")
@@ -297,6 +297,7 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
     private let finalDelayNanoseconds: UInt64
     private var activeTasks: [UUID: Task<Transcript, Error>] = [:]
     private let lock = NSLock()
+    private var emittedPartialTexts = 0
 
     init(
         partialTexts: [String],
@@ -308,6 +309,12 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
         self.finalText = finalText
         self.delayNanoseconds = delayNanoseconds
         self.finalDelayNanoseconds = finalDelayNanoseconds
+    }
+
+    var partialTextCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return emittedPartialTexts
     }
 
     func transcribe(
@@ -327,6 +334,9 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                 )
                 try await Task.sleep(nanoseconds: delayNanoseconds)
             }
+            lock.lock()
+            emittedPartialTexts = partialTexts.count
+            lock.unlock()
 
             if finalDelayNanoseconds > 0 {
                 try await Task.sleep(nanoseconds: finalDelayNanoseconds)
