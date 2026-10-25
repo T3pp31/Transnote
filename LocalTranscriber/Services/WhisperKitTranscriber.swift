@@ -122,11 +122,11 @@ actor WhisperKitTranscriber: Transcriber {
                 ? (try? await AVURLAsset(url: job.audioFileURL).load(.duration).seconds) ?? Double(chunks.count)
                 : Double(chunks.count)
 
-            for (index, chunkURL) in chunks.enumerated() {
+            for (index, chunk) in chunks.enumerated() {
                 currentChunkIndex = index
                 try Task.checkCancellation()
                 let results = try await whisperKit.transcribe(
-                    audioPath: chunkURL.path,
+                    audioPath: chunk.url.path,
                     decodeOptions: decodeOptions,
                     callback: { progress in
                         let overall = totalSeconds > 0 ? normalizedOverallProgress() : 0
@@ -141,8 +141,18 @@ actor WhisperKitTranscriber: Transcriber {
                         return !Task.isCancelled
                     }
                 )
-                allResults.append(contentsOf: results)
-                processedSeconds += (try? await AVURLAsset(url: chunkURL).load(.duration).seconds) ?? 0
+                let offsetResults = results.map { result in
+                    var adjusted = result
+                    adjusted.segments = result.segments.map { segment in
+                        var adjustedSegment = segment
+                        adjustedSegment.start += Float(chunk.startSeconds)
+                        adjustedSegment.end += Float(chunk.startSeconds)
+                        return adjustedSegment
+                    }
+                    return adjusted
+                }
+                allResults.append(contentsOf: offsetResults)
+                processedSeconds += (try? await AVURLAsset(url: chunk.url).load(.duration).seconds) ?? 0
             }
 
             try Task.checkCancellation()
@@ -285,17 +295,22 @@ actor WhisperKitTranscriber: Transcriber {
 
     /// 長時間音声を指定チャンク長で分割して一時ファイルを返す。
     /// 分割不要（既にチャンク長以下）の場合は元ファイルを返す。
-    private func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async -> [URL] {
-        guard chunkDuration > 0 else { return [url] }
+    private struct AudioChunk {
+        let url: URL
+        let startSeconds: TimeInterval
+    }
+
+    private func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async -> [AudioChunk] {
+        guard chunkDuration > 0 else { return [AudioChunk(url: url, startSeconds: 0)] }
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration).seconds, duration > chunkDuration else {
-            return [url]
+            return [AudioChunk(url: url, startSeconds: 0)]
         }
 
         // チャンク境界をまたぐ発話を失わないよう、隣接チャンクに1秒のオーバーラップを持たせる。
         let overlap = min(1.0, max(0.0, chunkDuration / 4))
         let stride = max(0.1, chunkDuration - overlap)
-        var outputURLs: [URL] = []
+        var outputChunks: [AudioChunk] = []
         var start: TimeInterval = 0
         var index = 0
         while start < duration {
@@ -320,12 +335,12 @@ actor WhisperKitTranscriber: Transcriber {
             export.exportAsynchronously { semaphore.signal() }
             semaphore.wait()
             if export.status == .completed {
-                outputURLs.append(outputURL)
+                outputChunks.append(AudioChunk(url: outputURL, startSeconds: start))
             }
             index += 1
             start += stride
         }
-        return outputURLs.isEmpty ? [url] : outputURLs
+        return outputChunks.isEmpty ? [AudioChunk(url: url, startSeconds: 0)] : outputChunks
     }
 
     private func makeDecodingOptions(languageID: String, vadEnabled: Bool = false) -> DecodingOptions {
