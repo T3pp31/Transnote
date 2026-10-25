@@ -196,13 +196,14 @@ final class ExportServiceTests: XCTestCase {
     func testMarkdownEscapesSpecialCharactersInSegmentText() throws {
         let transcript = Transcript(
             sourceFileName: "test.wav",
-            fullText: "text *italic* _under_ [link]",
+            fullText: "full text",
             segments: [
                 TranscriptSegment(startTime: 0, endTime: 1, text: "text *italic* _under_ [link]")
             ]
         )
         let content = try exportService.content(for: transcript, format: .markdown)
-        XCTAssertTrue(content.contains("text \\*italic\\* \\_under\\_ \\[link\\]"))
+        let segments = try XCTUnwrap(content.range(of: "## Segments")).upperBound
+        XCTAssertTrue(content[segments...].contains("- [00:00:00.000 --> 00:00:01.000] text \\*italic\\* \\_under\\_ \\[link\\]"))
     }
 
 }
