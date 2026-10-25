@@ -120,7 +120,8 @@ final class TranscriptPartialTextBuilderTests: XCTestCase {
         var oldAcc: [String] = []
         var newAcc = ""
         for i in 0..<100 {
-            let input = "<|startoftranscript|><|ja|><|\(Double(i) * 0.5).00|>セグ\(i)"
+            let timestamp = String(format: "%.2f", Double(i) * 0.5)
+            let input = "<|startoftranscript|><|ja|><|\(timestamp)|>セグ\(i)"
             let oldResult = legacyAppend(from: [input], to: &oldAcc)
             let newResult = TranscriptPartialTextBuilder.appendPresentableWindowText(from: [input], to: &newAcc)
             XCTAssertEqual(oldResult, newResult, "Mismatch at index: \(i)")

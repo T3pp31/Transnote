@@ -94,6 +94,10 @@ struct ModelDownloadService: Sendable {
             ).map { $0.path }
         )
 
+        let resumeState = directoriesBeforeDownload.isEmpty
+            ? nil
+            : NSLocalizedString("キャッシュから再開中", comment: "Resuming download")
+
         // ネットワーク失敗時に指数バックオフで再試行する（最大3回、待機 1s / 2s / 4s）。
         let maxAttempts = 3
         var attempt = 0
@@ -106,10 +110,6 @@ struct ModelDownloadService: Sendable {
                     variant: whisperKitModelName,
                     downloadBase: modelsRoot,
                     progressCallback: { progress in
-                        // 再開状態: 既に一部ダウンロード済みの場合は「キャッシュから再開中」を表示する
-                        let resumeState = (progress.completedUnitCount ?? 0) > 0
-                            ? NSLocalizedString("キャッシュから再開中", comment: "Resuming download")
-                            : nil
                         progressHandler?(
                             .make(
                                 phase: .downloadingModel,
@@ -150,12 +150,14 @@ struct ModelDownloadService: Sendable {
                 whisperKitModelName: whisperKitModelName,
                 directoriesBeforeDownload: directoriesBeforeDownload
             )
+            modelAvailability.invalidateCache()
             throw AppError.transcriptionFailed(
                 "モデルのダウンロードは完了しましたが、ファイル構成が不正です: \(path.path)"
             )
         }
 
         AppLogger.info("Downloaded model to \(path.lastPathComponent)", logger: AppLogger.transcription)
+        modelAvailability.invalidateCache()
         return path
     }
 
@@ -196,5 +198,6 @@ struct ModelDownloadService: Sendable {
             )
             try? fileManager.removeItem(at: url)
         }
+        modelAvailability.invalidateCache()
     }
 }

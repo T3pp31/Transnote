@@ -25,6 +25,11 @@ final class ModelAvailabilityPathTests: XCTestCase {
     }
 
     func testWhisperKitLoadsFromDetectedModelFolder() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_MODEL_INTEGRATION_TESTS"] == "1",
+            "Set RUN_MODEL_INTEGRATION_TESTS=1 to run the real-model integration test."
+        )
+
         let modelsRoot = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
