@@ -772,10 +772,6 @@ final class MainWindowViewModel: ObservableObject {
 
     func exportTranscript(format: ExportFormat) {
         guard var transcript = currentTranscript else { return }
-        transcript.fullText = transcriptText
-        // エクスポート時（最新の編集内容を反映）に updatedAt を更新し、編集済み状態を記録する。
-        transcript.updatedAt = Date()
-        currentTranscript = transcript
 
         let savedExportDirectory = fileAccess.loadLastExportDirectory()
         var didBeginSavedDirectoryAccess = false
@@ -804,6 +800,11 @@ final class MainWindowViewModel: ObservableObject {
             initialDirectoryURL: didBeginSavedDirectoryAccess ? savedExportDirectory : nil
         )
         guard let url else { return }
+
+        // 保存先が確定した後にのみ最新編集内容を反映し、キャンセル時は元の状態を保持する。
+        transcript.fullText = transcriptText
+        transcript.updatedAt = Date()
+        currentTranscript = transcript
 
         // 成功時に次回の初期ディレクトリとして bookmark を保存する
         fileAccess.saveLastExportDirectoryBookmark(for: url.deletingLastPathComponent())
