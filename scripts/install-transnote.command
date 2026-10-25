@@ -178,6 +178,10 @@ if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
 fi
 
 if [[ -d "$TARGET_APP" ]]; then
+  target_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${TARGET_APP}/Contents/Info.plist" 2>/dev/null || true)"
+  if [[ -z "$target_id" || "$target_id" != "$BUNDLE_IDENTIFIER" ]]; then
+    fail "${TARGET_APP} の Bundle ID が一致しません (${target_id:-unknown} != ${BUNDLE_IDENTIFIER:-unknown})。上書きを中止しました。"
+  fi
   mv "$TARGET_APP" "${BACKUP_DIR}/${APP_NAME}.app"
 fi
 
