@@ -33,7 +33,9 @@ bash "/Volumes/Transnote/インストール.command"
 ```
 
 3. DMG を取り出す
-4. 初回起動時に Gatekeeper 警告が出た場合は、右クリック → 開く
+4. 初回起動時に Gatekeeper 警告が出た場合は:
+   - macOS 14 以前: Finderで Transnote を右クリック → **開く**
+   - macOS 15 以降: **システム設定 → プライバシーとセキュリティ** で Transnote を **このまま開く**
 5. 初回利用時に Whisper モデルをダウンロードする
 
 詳細は [docs/install.md](docs/install.md) を参照。
