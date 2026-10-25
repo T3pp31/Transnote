@@ -652,6 +652,34 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertNil(offer)
     }
 
+    func testCheckForUpdateUpdatesThrottleOnNotModified() async {
+        MockURLProtocol.requestHandler = { request in
+            let ifNoneMatch = request.value(forHTTPHeaderField: "If-None-Match")
+            if let ifNoneMatch {
+                XCTAssertEqual(ifNoneMatch, "\"etag-304\"")
+            }
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 304,
+                httpVersion: nil,
+                headerFields: ["ETag": "\"etag-304\""]
+            )!
+            return (response, Data())
+        }
+
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" },
+            checkInterval: 6 * 60 * 60,
+            defaults: .standard
+        )
+
+        let offer = await service.checkForUpdate()
+        XCTAssertNil(offer)
+        XCTAssertNotNil(UserDefaults.standard.object(forKey: "lastUpdateCheckDate") as? Date)
+    }
+
     // Given: 更新チェックが無効
     // When: checkForUpdate を実行
     // Then: ネットワークに触れず nil を返す

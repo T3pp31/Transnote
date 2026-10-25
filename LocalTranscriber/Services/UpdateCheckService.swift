@@ -79,6 +79,7 @@ struct UpdateCheckService: UpdateChecking {
         } catch let error as UpdateCheckError {
             if case .notModified = error {
                 // 304 Not Modified: 変更なし。エラーログは不要。
+                defaults.set(Date(), forKey: "lastUpdateCheckDate")
                 return nil
             }
             AppLogger.error("Update check failed: \(error)", logger: AppLogger.general)
