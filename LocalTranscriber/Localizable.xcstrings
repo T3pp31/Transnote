@@ -166,7 +166,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %@ is available (current: %@).\nAfter downloading, run “Install.command” in the DMG.\nThe previous version will be replaced automatically."
+            "value": "Version %@ is available (current: %@).\nAfter downloading, run “インストール.command” in the DMG.\nThe previous version will be replaced automatically."
           }
         }
       }
@@ -176,7 +176,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Version %@ is available (current: %@).\nAfter obtaining the update file, run “Install.command” in the DMG.\nThe previous version will be replaced automatically."
+            "value": "Version %@ is available (current: %@).\nAfter obtaining the update file, run “インストール.command” in the DMG.\nThe previous version will be replaced automatically."
           }
         }
       }
