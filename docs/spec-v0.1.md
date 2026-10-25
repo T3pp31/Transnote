@@ -12,7 +12,7 @@ UI: SwiftUI
 言語: auto, ja, en
 モデル: tiny, base, small, large-v3系
 保存: ローカルのみ
-通信: モデルDL時のみ
+通信: モデルDL時、アプリ内更新確認時（GitHub API）
 ```
 
 ## スコープ外
