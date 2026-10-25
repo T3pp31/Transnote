@@ -32,8 +32,8 @@ find_mounted_dmg_path() {
     return 1
   fi
 
-  local volume_path="/Volumes/${SCRIPT_DIR#/Volumes/}"
-  volume_path="${volume_path%%/*}"
+  local volume_name="${SCRIPT_DIR#/Volumes/}"
+  local volume_path="/Volumes/${volume_name%%/*}"
 
   local dmg_path=""
   local current_path=""
@@ -70,7 +70,10 @@ verify_dmg_checksum() {
 
   local sidecar_path="${dmg_path}.sha256"
   if [[ -f "$sidecar_path" ]]; then
-    if ! shasum -a 256 -c "$sidecar_path" >/dev/null 2>&1; then
+    local expected actual
+    expected="$(awk 'FNR==1{print tolower($1); exit}' "$sidecar_path")"
+    actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
+    if [[ "$actual" != "$expected" ]]; then
       fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
     fi
     return 0
@@ -134,19 +137,15 @@ eject_installer_volume() {
     return 0
   fi
 
-  local volume_path="/Volumes/${SCRIPT_DIR#/Volumes/}"
-  volume_path="${volume_path%%/*}"
+  local volume_name="${SCRIPT_DIR#/Volumes/}"
+  local volume_path="/Volumes/${volume_name%%/*}"
   hdiutil detach "$volume_path" -quiet >/dev/null 2>&1 || true
 }
 
 remove_quarantine_attribute() {
   local target="$1"
   if command -v xattr >/dev/null 2>&1; then
-    find "$target" -type f -print0 2>/dev/null | while IFS= read -r -d '' path; do
-      if xattr -p com.apple.quarantine "$path" >/dev/null 2>&1; then
-        xattr -d com.apple.quarantine "$path" >/dev/null 2>&1 || true
-      fi
-    done
+    xattr -dr com.apple.quarantine "$target" >/dev/null 2>&1 || true
   fi
 }
 
@@ -178,6 +177,10 @@ if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
 fi
 
 if [[ -d "$TARGET_APP" ]]; then
+  target_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${TARGET_APP}/Contents/Info.plist" 2>/dev/null || true)"
+  if [[ -z "$target_id" || "$target_id" != "$BUNDLE_IDENTIFIER" ]]; then
+    fail "${TARGET_APP} の Bundle ID が一致しません (${target_id:-unknown} != ${BUNDLE_IDENTIFIER:-unknown})。上書きを中止しました。"
+  fi
   mv "$TARGET_APP" "${BACKUP_DIR}/${APP_NAME}.app"
 fi
 

@@ -85,7 +85,7 @@ struct StatusBarView: View {
         Button("キャンセル") {
             onCancel()
         }
-        .keyboardShortcut(.escape, modifiers: [])
+        .keyboardShortcut(".", modifiers: [.command])
         .help(cancelHelp)
         .accessibilityLabel(cancelAccessibilityLabel)
     }

@@ -50,7 +50,7 @@ enum AppDirectories {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
+            options: []
         ) else { return false }
         for entry in entries {
             do {

@@ -14,6 +14,10 @@ enum DropURLParser {
             if string.hasPrefix("file://"), let url = URL(string: string) {
                 return url
             }
+            if string.hasPrefix("file://"),
+               string.dropFirst("file://".count).hasPrefix("/") {
+                return URL(fileURLWithPath: String(string.dropFirst("file://".count)))
+            }
             return URL(fileURLWithPath: string)
         }
 
