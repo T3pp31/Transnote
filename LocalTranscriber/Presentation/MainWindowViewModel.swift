@@ -120,6 +120,7 @@ final class MainWindowViewModel: ObservableObject {
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
+    private var hasSegmentTextEdits = false
 
     private let modelDownloadCoordinator = ModelDownloadCoordinator()
 
@@ -311,6 +312,7 @@ final class MainWindowViewModel: ObservableObject {
         currentTranscript = transcript
         transcriptText = transcript.fullText
         isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
+        hasSegmentTextEdits = false
         uiState = .done
         progressDisplay = .done()
         confirmFileImport = false
@@ -431,7 +433,7 @@ final class MainWindowViewModel: ObservableObject {
         guard let transcript = currentTranscript else { return false }
         let normalizedEdited = transcriptText.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedOriginal = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return normalizedEdited != normalizedOriginal
+        return hasSegmentTextEdits || normalizedEdited != normalizedOriginal
     }
 
     func selectFile(url: URL, preferredFileName: String? = nil) {
@@ -484,6 +486,7 @@ final class MainWindowViewModel: ObservableObject {
             removePreviousSandboxCopyIfNeeded()
             stopPlayback()
             isEditingTranscript = false
+            hasSegmentTextEdits = false
             currentTranscript = nil
             transcriptText = ""
             selectedFile = info
@@ -579,6 +582,7 @@ final class MainWindowViewModel: ObservableObject {
         clearErrors()
         stopPlayback()
         isEditingTranscript = false
+        hasSegmentTextEdits = false
         transcriptText = ""
         currentTranscript = nil
         uiState = .preparing
@@ -688,6 +692,8 @@ final class MainWindowViewModel: ObservableObject {
         guard var transcript = currentTranscript else { return }
         if let index = transcript.segments.firstIndex(where: { $0.id == id }) {
             transcript.segments[index].text = text
+            hasSegmentTextEdits = true
+            transcript.fullText = transcript.segments.map(\.text).joined(separator: "\n")
             currentTranscript = transcript
             transcriptText = transcript.fullText
         }
