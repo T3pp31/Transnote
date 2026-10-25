@@ -193,6 +193,7 @@ final class MainWindowViewModel: ObservableObject {
     /// テスト専用: モデルダウンロード中の状態をシミュレートする。
     /// 本番コードでは使用しない（状態機械の整合性を保つため）。
     func simulateModelDownloadForTesting() {
+        guard operationCoordinator.start(.modelDownload) else { return }
         uiState = .preparing
         progressDisplay = TranscriptionProgressDisplay.from(update: .make(phase: .downloadingModel, fraction: 0))
     }
@@ -369,7 +370,8 @@ final class MainWindowViewModel: ObservableObject {
 
     func downloadSelectedModel() {
         guard let model = settings.selectedModel,
-              canDownloadSelectedModel else {
+              canDownloadSelectedModel,
+              operationCoordinator.start(.modelDownload) else {
             return
         }
 
@@ -412,6 +414,7 @@ final class MainWindowViewModel: ObservableObject {
                 activeModelDownloadID = nil
                 modelDownloadTask = nil
             }
+            operationCoordinator.end(.modelDownload)
         }
     }
 
@@ -526,6 +529,16 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func startTranscription() {
+        guard operationCoordinator.activeOperation == nil else {
+            presentInlineError(
+                title: NSLocalizedString("処理中", comment: "Busy title"),
+                message: NSLocalizedString("別の処理を実行中のため開始できません。", comment: "Busy message"),
+                canRetry: false,
+                action: nil
+            )
+            return
+        }
+
         guard let file = selectedFile,
               let model = settings.selectedModel else {
             let message = AppError.invalidConfiguration.errorDescription
@@ -644,9 +657,13 @@ final class MainWindowViewModel: ObservableObject {
 
     /// モデルダウンロードのみをキャンセルする（文字起こしは対象外）。
     func cancelModelDownload() {
+        let wasDownloading = operationCoordinator.activeOperation == .modelDownload
         modelDownloadTask?.cancel()
         modelDownloadTask = nil
         activeModelDownloadID = nil
+        if wasDownloading {
+            operationCoordinator.end(.modelDownload)
+        }
         uiState = .idle
         progressDisplay = .idle()
         lastAnnouncedPhase = nil

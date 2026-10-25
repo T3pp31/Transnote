@@ -120,6 +120,29 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertFalse(viewModel.canDownloadSelectedModel)
     }
 
+    func testStartTranscriptionIsRejectedWhileModelDownloadIsSimulated() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = ["base"]
+        viewModel.selectedFile = AudioFileInfo(
+            url: audioURL,
+            fileName: audioURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 64,
+            formattedFileSize: "64 bytes"
+        )
+        viewModel.simulateModelDownloadForTesting()
+
+        viewModel.startTranscription()
+
+        XCTAssertEqual(viewModel.progressDisplay.phase, .downloadingModel)
+        XCTAssertTrue(viewModel.isBusy)
+        XCTAssertEqual(
+            viewModel.startTranscriptionDisabledReason,
+            L("文字起こし処理中です", comment: "Transcription is busy")
+        )
+    }
+
     func testModelDownloadGuidanceIsShownForModelThatIsNotDownloaded() {
         AppSettings.shared.selectedModelID = "base"
         viewModel = MainWindowViewModel()
