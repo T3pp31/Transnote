@@ -32,8 +32,8 @@ find_mounted_dmg_path() {
     return 1
   fi
 
-  local volume_path="/Volumes/${SCRIPT_DIR#/Volumes/}"
-  volume_path="${volume_path%%/*}"
+  local volume_name="${SCRIPT_DIR#/Volumes/}"
+  local volume_path="/Volumes/${volume_name%%/*}"
 
   local dmg_path=""
   local current_path=""
@@ -134,8 +134,8 @@ eject_installer_volume() {
     return 0
   fi
 
-  local volume_path="/Volumes/${SCRIPT_DIR#/Volumes/}"
-  volume_path="${volume_path%%/*}"
+  local volume_name="${SCRIPT_DIR#/Volumes/}"
+  local volume_path="/Volumes/${volume_name%%/*}"
   hdiutil detach "$volume_path" -quiet >/dev/null 2>&1 || true
 }
 
