@@ -4,12 +4,13 @@ import XCTest
 final class UpdateCheckServiceTests: XCTestCase {
     private var session: URLSession!
     private var config: AppConfig!
+    private var defaults: UserDefaults!
 
     override func setUp() {
         super.setUp()
-        // 確認間隔と ETag の状態がテスト間で残らないようクリアする
-        UserDefaults.standard.removeObject(forKey: "lastUpdateCheckDate")
-        UserDefaults.standard.removeObject(forKey: "updateETag")
+        let suiteName = "UpdateCheckServiceTests"
+        UserDefaults.standard.removePersistentDomain(forName: suiteName)
+        defaults = UserDefaults(suiteName: suiteName)
         MockURLProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -37,6 +38,7 @@ final class UpdateCheckServiceTests: XCTestCase {
         MockURLProtocol.reset()
         session = nil
         config = nil
+        defaults = nil
         super.tearDown()
     }
 
@@ -73,7 +75,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -115,7 +118,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -150,7 +154,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -190,7 +195,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -245,7 +251,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: unsafeConfig,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -285,7 +292,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -325,7 +333,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -365,7 +374,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -402,7 +412,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -445,7 +456,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -485,7 +497,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -525,7 +538,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -563,7 +577,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -604,7 +619,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -628,7 +644,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: config,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
@@ -662,7 +679,8 @@ final class UpdateCheckServiceTests: XCTestCase {
         let service = UpdateCheckService(
             config: disabledConfig,
             session: session,
-            currentVersionProvider: { "0.1.0" }
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
