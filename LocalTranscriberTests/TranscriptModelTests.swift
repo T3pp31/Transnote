@@ -55,6 +55,23 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(ExportFormat.srt.fileExtension, "srt")
         XCTAssertEqual(ExportFormat.vtt.fileExtension, "vtt")
     }
+
+    func testTranscriptRejectsUnsupportedSchemaVersion() throws {
+        let json = """
+        {
+          "id": "\(UUID().uuidString)",
+          "sourceFileName": "sample.wav",
+          "createdAt": "2026-01-01T00:00:00Z",
+          "fullText": "hello",
+          "segments": [],
+          "schemaVersion": 999
+        }
+        """
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertThrowsError(try decoder.decode(Transcript.self, from: data))
+    }
     // MARK: - AppConfig / AppSettings (#245)
 
     func testAppConfigDefaultValues() {
