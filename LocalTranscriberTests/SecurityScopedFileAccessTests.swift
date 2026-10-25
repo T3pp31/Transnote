@@ -28,8 +28,15 @@ final class SecurityScopedFileAccessTests: XCTestCase {
     func testLastExportDirectoryBookmarkRoundTrip() throws {
         let directory = tempRoot.appendingPathComponent("Exports", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        UserDefaults.standard.removeObject(forKey: "lastExportDirectoryBookmark")
-        defer { UserDefaults.standard.removeObject(forKey: "lastExportDirectoryBookmark") }
+        let key = SecurityScopedFileAccess.lastExportDirectoryKey
+        let originalBookmark = UserDefaults.standard.data(forKey: key)
+        defer {
+            if let originalBookmark {
+                UserDefaults.standard.set(originalBookmark, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
 
         access.saveLastExportDirectoryBookmark(for: directory)
 
