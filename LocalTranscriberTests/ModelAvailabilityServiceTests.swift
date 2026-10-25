@@ -281,13 +281,11 @@ final class ModelAvailabilityServiceTests: XCTestCase {
                 atPath: bundleURL.appendingPathComponent("coremldata.bin").path,
                 contents: Data("model".utf8)
             )
+            FileManager.default.createFile(
+                atPath: bundleURL.appendingPathComponent("weights.bin").path,
+                contents: Data(repeating: 0x41, count: 200 * 1024)
+            )
         }
-        // 128KB 閾値を超えるための追加ペイロード。
-        let audioEncoderWeights = variantFolder.appendingPathComponent("AudioEncoder.mlmodelc/weights.bin")
-        FileManager.default.createFile(
-            atPath: audioEncoderWeights.path,
-            contents: Data(repeating: 0x41, count: 200 * 1024)
-        )
 
         // When / Then
         XCTAssertTrue(service.isDownloaded(whisperKitModelName: "base"))
