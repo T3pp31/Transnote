@@ -109,7 +109,10 @@ jobs:
           security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security list-keychain -d user -s "$KEYCHAIN"
           APP_PATH="${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app"
-          /usr/bin/codesign --force --deep --options runtime --sign "$CERTIFICATE_IDENTITY" "$APP_PATH"
+          /usr/bin/codesign --force --deep --options runtime \
+            --entitlements "${{ github.workspace }}/LocalTranscriber/LocalTranscriber.entitlements" \
+            --sign "$CERTIFICATE_IDENTITY" "$APP_PATH"
+          /usr/bin/codesign -d --entitlements :- "$APP_PATH" | grep -q 'com.apple.security.app-sandbox'
           echo "SIGNED=1" >> "$GITHUB_ENV"
 
       - name: Notarize app
