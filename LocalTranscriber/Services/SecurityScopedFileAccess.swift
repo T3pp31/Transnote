@@ -67,7 +67,7 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
 
   // MARK: - Last export directory
 
-  private static let lastExportDirectoryKey = "lastExportDirectoryBookmark"
+  static let lastExportDirectoryKey = "lastExportDirectoryBookmark"
 
   /// 最後にエクスポートしたディレクトリの security-scoped bookmark を保存する。
   func saveLastExportDirectoryBookmark(for url: URL) {
