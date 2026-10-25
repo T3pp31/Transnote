@@ -21,5 +21,11 @@ if [ ! -f "$project" ]; then
   exit 1
 fi
 
-perl -pi -e "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = ${version};/g" "$project"
-echo "Set MARKETING_VERSION to ${version} in ${project}"
+VERSION="$version" perl -pi -e 'BEGIN { $count = 0; $version = $ENV{VERSION} } s/^([ \t]*MARKETING_VERSION = )[^;]*;/${1}$version;/g and $count++; END { if ($count == 0) { exit 1 } }' "$project"
+
+if ! grep -qF "MARKETING_VERSION = ${version};" "$project"; then
+  echo "Failed to update MARKETING_VERSION in $project" >&2
+  exit 1
+fi
+
+echo "Set MARKETING_VERSION to ${version} in $project"

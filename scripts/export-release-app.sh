@@ -14,7 +14,7 @@ Options:
   --archive PATH     Path to the .xcarchive produced by xcodebuild archive
   --output PATH      Directory where ${APP_NAME}.app will be copied
   --sign IDENTITY    Developer ID signing identity (optional)
-  --team TEAM_ID     Apple Team ID passed to codesign (optional)
+  --team TEAM_ID     Apple Team ID used to select the codesign identity (optional)
   --verify-only      Verify signature on an existing app in --output
   -h, --help         Show this help
 EOF
@@ -29,18 +29,38 @@ VERIFY_ONLY=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --archive)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --archive" >&2
+        usage >&2
+        exit 1
+      fi
       ARCHIVE_PATH="$2"
       shift 2
       ;;
     --output)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --output" >&2
+        usage >&2
+        exit 1
+      fi
       OUTPUT_DIR="$2"
       shift 2
       ;;
     --sign)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --sign" >&2
+        usage >&2
+        exit 1
+      fi
       SIGN_IDENTITY="$2"
       shift 2
       ;;
     --team)
+      if [[ $# -lt 2 ]]; then
+        echo "Missing value for --team" >&2
+        usage >&2
+        exit 1
+      fi
       TEAM_ID="$2"
       shift 2
       ;;
@@ -75,13 +95,17 @@ verify_app() {
   fi
 
   if ! codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1; then
+    if codesign -d "$APP_PATH" >/dev/null 2>&1; then
+      echo "Invalid signature detected for ${APP_PATH}" >&2
+      return 1
+    fi
     echo "App is unsigned; skipping signature verification."
     return 0
   fi
 
   echo "Verifying signature for ${APP_PATH}"
   codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-  spctl --assess --type execute --verbose=4 "$APP_PATH" || true
+  spctl --assess --type execute --verbose=4 "$APP_PATH"
 }
 
 if [[ "$VERIFY_ONLY" -eq 1 ]]; then
@@ -106,11 +130,21 @@ if [[ ! -d "$SOURCE_APP" ]]; then
   exit 1
 fi
 
+resolved_output_path="$(cd "$(dirname "$APP_PATH")" && pwd -P)/$(basename "$APP_PATH")"
+resolved_source_path="$(cd "$SOURCE_APP" && pwd -P)"
+if [[ "$resolved_output_path" == "$resolved_source_path" || "$resolved_source_path" == "$resolved_output_path"/* ]]; then
+  echo "--output overlaps the source app inside the archive: $OUTPUT_DIR" >&2
+  exit 1
+fi
+
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$APP_PATH"
 ditto "$SOURCE_APP" "$APP_PATH"
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
+  if [[ -n "$TEAM_ID" ]]; then
+    SIGN_IDENTITY="$TEAM_ID"
+  fi
   echo "Signing ${APP_PATH} with identity: ${SIGN_IDENTITY}"
   sign_args=(
     --force
@@ -120,9 +154,6 @@ if [[ -n "$SIGN_IDENTITY" ]]; then
     --sign "$SIGN_IDENTITY"
     --entitlements "$ENTITLEMENTS_PATH"
   )
-  if [[ -n "$TEAM_ID" ]]; then
-    sign_args+=(--identifier "com.transnote.LocalTranscriber")
-  fi
   codesign "${sign_args[@]}" "$APP_PATH"
 fi
 
