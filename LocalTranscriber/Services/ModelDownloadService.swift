@@ -135,15 +135,18 @@ struct ModelDownloadService: Sendable {
         }
 
         guard let path = downloadedPath else {
+            modelAvailability.invalidateCache()
             throw lastError ?? AppError.transcriptionFailed("モデルのダウンロードに失敗しました。")
         }
         guard modelAvailability.validateModelFolder(path) else {
+            modelAvailability.invalidateCache()
             throw AppError.transcriptionFailed(
                 "モデルのダウンロードは完了しましたが、ファイル構成が不正です: \(path.path)"
             )
         }
 
         AppLogger.info("Downloaded model to \(path.lastPathComponent)", logger: AppLogger.transcription)
+        modelAvailability.invalidateCache()
         return path
     }
 
@@ -184,5 +187,6 @@ struct ModelDownloadService: Sendable {
             )
             try? fileManager.removeItem(at: url)
         }
+        modelAvailability.invalidateCache()
     }
 }

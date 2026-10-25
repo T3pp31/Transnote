@@ -89,6 +89,13 @@ final class ModelAvailabilityService: @unchecked Sendable {
         return allDirectories.filter { matchesVariant(url: $0, whisperKitModelName: whisperKitModelName) }
     }
 
+    /// モデル追加・削除後にキャッシュを破棄し、次回は再走査させる。
+    func invalidateCache() {
+        cacheLock.lock()
+        cachedIndex = nil
+        cacheLock.unlock()
+    }
+
     /// モデルルート以下を再帰走査してバリアント候補ディレクトリを返す（キャッシュ用）。
     private func scanVariantDirectories(includingHidden: Bool) -> [URL] {
         guard fileManager.fileExists(atPath: modelsRoot.path) else { return [] }
