@@ -41,9 +41,10 @@ final class AudioPlayerServiceTests: XCTestCase {
         service.load(url: tempAudioURL)
         service.playSegment(start: 0.0, end: 0.2)
 
-        _ = await waitUntil(timeout: 2.0) {
+        let started = await waitUntil(timeout: 2.0) {
             self.service.hasActiveTimeObserver
         }
+        XCTAssertTrue(started, "stop 前に再生が開始されていること")
 
         service.stop()
 
