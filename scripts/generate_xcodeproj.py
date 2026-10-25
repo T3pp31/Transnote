@@ -37,6 +37,7 @@ APP_SOURCES = [
     "LocalTranscriber/Services/ExportService.swift",
     "LocalTranscriber/Services/AudioPlayerService.swift",
     "LocalTranscriber/Services/SecurityScopedFileAccess.swift",
+    "LocalTranscriber/Services/HistoryStore.swift",
     "LocalTranscriber/Services/UpdateCheckService.swift",
     "LocalTranscriber/Services/UpdateURLValidator.swift",
     "LocalTranscriber/Presentation/MainWindowView.swift",
