@@ -75,13 +75,17 @@ verify_app() {
   fi
 
   if ! codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1; then
+    if codesign -d "$APP_PATH" >/dev/null 2>&1; then
+      echo "Invalid signature detected for ${APP_PATH}" >&2
+      return 1
+    fi
     echo "App is unsigned; skipping signature verification."
     return 0
   fi
 
   echo "Verifying signature for ${APP_PATH}"
   codesign --verify --deep --strict --verbose=2 "$APP_PATH"
-  spctl --assess --type execute --verbose=4 "$APP_PATH" || true
+  spctl --assess --type execute --verbose=4 "$APP_PATH"
 }
 
 if [[ "$VERIFY_ONLY" -eq 1 ]]; then
