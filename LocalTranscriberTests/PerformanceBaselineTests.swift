@@ -103,7 +103,9 @@ final class PerformanceBaselineTests: XCTestCase {
         p.arguments = filterArgs
         try p.run()
         p.waitUntilExit()
-        guard FileManager.default.fileExists(atPath: tmp.path) else {
+        guard p.terminationStatus == 0,
+              FileManager.default.fileExists(atPath: tmp.path) else {
+            try? FileManager.default.removeItem(at: tmp)
             throw NSError(domain: "bench", code: 1, userInfo: [NSLocalizedDescriptionKey: "ffmpeg failed"])
         }
         return tmp
