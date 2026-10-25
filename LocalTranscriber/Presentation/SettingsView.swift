@@ -10,6 +10,8 @@ struct SettingsView: View {
     let onDeleteSelectedModel: () -> Void
     let onDiskUsage: (ModelOption) -> String?
 
+    @State private var isConfirmingModelDelete = false
+
     private func modelSizeSuffix(_ model: ModelOption) -> String {
         guard let bytes = model.downloadSizeBytes else { return "" }
         return "（" + ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) + "）"
@@ -60,6 +62,26 @@ struct SettingsView: View {
             idealHeight: DesignTokens.Layout.windowMinHeight,
             maxHeight: DesignTokens.Layout.windowMinHeight
         )
+        .confirmationDialog(
+            NSLocalizedString("モデルを削除しますか？", comment: "Delete model confirmation title"),
+            isPresented: $isConfirmingModelDelete,
+            titleVisibility: .visible
+        ) {
+            Button(
+                NSLocalizedString("削除する", comment: "Delete model confirmation action"),
+                role: .destructive
+            ) {
+                onDeleteSelectedModel()
+            }
+            Button(NSLocalizedString("キャンセル", comment: "Cancel"), role: .cancel) {}
+        } message: {
+            Text(
+                NSLocalizedString(
+                    "選択中のモデルファイルを削除します。必要な場合は再ダウンロードが必要です。",
+                    comment: "Delete model confirmation message"
+                )
+            )
+        }
     }
 
     private var settingsContent: some View {
@@ -154,11 +176,12 @@ struct SettingsView: View {
                     if let selected = settings.selectedModel,
                        isModelDownloaded(selected) {
                         Button {
-                            onDeleteSelectedModel()
+                            isConfirmingModelDelete = true
                         } label: {
                             Label("このモデルを削除", systemImage: "trash")
                         }
                         .buttonStyle(.bordered)
+                        .disabled(isBusy)
                         .accessibilityLabel("選択中のモデルを削除")
                     }
                 }
