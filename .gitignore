@@ -5,6 +5,8 @@
 !*.xcodeproj/project.xcworkspace/
 *.xcworkspace/*
 !*.xcworkspace/contents.xcworkspacedata
+!*.xcodeproj/project.xcworkspace/xcshareddata/
+!*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 xcuserdata/
 DerivedData*/
 build/
