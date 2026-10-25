@@ -38,7 +38,9 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(decoded.sourceFileName, original.sourceFileName)
         XCTAssertEqual(decoded.language, original.language)
         XCTAssertEqual(decoded.fullText, original.fullText)
-        XCTAssertEqual(decoded.segments.count, original.segments.count)
+        guard decoded.segments.count == original.segments.count else {
+            return XCTFail("segments count mismatch: \(decoded.segments.count)")
+        }
         XCTAssertEqual(decoded.segments[0].text, "Hello")
         XCTAssertEqual(decoded.segments[1].endTime, 2.4)
     }
