@@ -202,7 +202,7 @@ struct AudioImportService: Sendable {
         guard let enumerator = fileManager.enumerator(
             at: importsRoot,
             includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
+            options: []
         ) else {
             return
         }
