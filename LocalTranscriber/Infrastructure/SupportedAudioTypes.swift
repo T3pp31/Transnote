@@ -6,7 +6,7 @@ enum SupportedAudioTypes {
         "wav": .wav,
         "mp3": .mp3,
         "m4a": .mpeg4Audio,
-        "flac": UTType(filenameExtension: "flac") ?? .audio,
+        "flac": UTType(filenameExtension: "flac") ?? UTType(importedAs: "org.xiph.flac", conformingTo: .audio),
     ]
 
     static func utType(forExtension ext: String) -> UTType? {
@@ -51,7 +51,7 @@ enum SupportedAudioTypes {
     }
 
     private static func extensionForContentType(_ type: UTType) -> String? {
-        for (ext, utType) in extensionToUTType where type.conforms(to: utType) {
+        for (ext, utType) in extensionToUTType where type.identifier == utType.identifier {
             return ext
         }
         return nil

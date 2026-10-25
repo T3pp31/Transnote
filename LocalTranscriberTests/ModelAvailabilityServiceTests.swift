@@ -281,6 +281,10 @@ final class ModelAvailabilityServiceTests: XCTestCase {
                 atPath: bundleURL.appendingPathComponent("coremldata.bin").path,
                 contents: Data("model".utf8)
             )
+            FileManager.default.createFile(
+                atPath: bundleURL.appendingPathComponent("weights.bin").path,
+                contents: Data(repeating: 0x41, count: 200 * 1024)
+            )
         }
 
         // When / Then
