@@ -408,7 +408,7 @@ private struct InlineErrorBanner: View {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.banner)
                 .strokeBorder(DesignTokens.Colors.warning.opacity(0.35), lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -442,7 +442,7 @@ private struct ModelDownloadGuidanceBanner: View {
             RoundedRectangle(cornerRadius: DesignTokens.Corner.card, style: .continuous)
                 .strokeBorder(Color.accentColor.opacity(0.35), lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 }
 
