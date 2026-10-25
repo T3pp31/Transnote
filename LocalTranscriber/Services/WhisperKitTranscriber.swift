@@ -283,10 +283,13 @@ actor WhisperKitTranscriber: Transcriber {
             return [url]
         }
 
-        let chunkCount = Int(ceil(duration / chunkDuration))
+        // チャンク境界をまたぐ発話を失わないよう、隣接チャンクに1秒のオーバーラップを持たせる。
+        let overlap = min(1.0, max(0.0, chunkDuration / 4))
+        let stride = max(0.1, chunkDuration - overlap)
         var outputURLs: [URL] = []
-        for index in 0..<chunkCount {
-            let start = Double(index) * chunkDuration
+        var start: TimeInterval = 0
+        var index = 0
+        while start < duration {
             let end = min(start + chunkDuration, duration)
             let outputURL = AppDirectories.checkpointDirectory
                 .appendingPathComponent("chunk-\(index).m4a")
@@ -304,6 +307,8 @@ actor WhisperKitTranscriber: Transcriber {
             if export?.status == .completed {
                 outputURLs.append(outputURL)
             }
+            index += 1
+            start += stride
         }
         return outputURLs.isEmpty ? [url] : outputURLs
     }
