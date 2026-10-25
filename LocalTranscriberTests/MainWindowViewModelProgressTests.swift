@@ -324,45 +324,49 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
         _ job: TranscriptionJob,
         progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
     ) async throws -> Transcript {
-        let task = Task<Transcript, Error> {
-            for (index, text) in partialTexts.enumerated() {
-                try Task.checkCancellation()
-                progressHandler?(
-                    .make(
-                        phase: .transcribing,
-                        fraction: Double(index + 1) / Double(partialTexts.count + 1),
-                        modelDisplayName: job.modelDisplayName,
-                        partialText: text
+        try await withTaskCancellationHandler {
+            let task = Task<Transcript, Error> {
+                for (index, text) in partialTexts.enumerated() {
+                    try Task.checkCancellation()
+                    progressHandler?(
+                        .make(
+                            phase: .transcribing,
+                            fraction: Double(index + 1) / Double(partialTexts.count + 1),
+                            modelDisplayName: job.modelDisplayName,
+                            partialText: text
+                        )
                     )
+                    try await Task.sleep(nanoseconds: delayNanoseconds)
+                }
+
+                if finalDelayNanoseconds > 0 {
+                    try await Task.sleep(nanoseconds: finalDelayNanoseconds)
+                }
+
+                try Task.checkCancellation()
+                return Transcript(
+                    sourceFileName: job.sourceFileName,
+                    fullText: finalText
                 )
-                try await Task.sleep(nanoseconds: delayNanoseconds)
             }
             lock.lock()
             emittedPartialTexts = partialTexts.count
             lock.unlock()
 
-            if finalDelayNanoseconds > 0 {
-                try await Task.sleep(nanoseconds: finalDelayNanoseconds)
+            lock.lock()
+            activeTasks[job.id] = task
+            lock.unlock()
+
+            defer {
+                lock.lock()
+                activeTasks.removeValue(forKey: job.id)
+                lock.unlock()
             }
 
-            try Task.checkCancellation()
-            return Transcript(
-                sourceFileName: job.sourceFileName,
-                fullText: finalText
-            )
+            return try await task.value
+        } onCancel: {
+            cancel(jobID: job.id)
         }
-
-        lock.lock()
-        activeTasks[job.id] = task
-        lock.unlock()
-
-        defer {
-            lock.lock()
-            activeTasks.removeValue(forKey: job.id)
-            lock.unlock()
-        }
-
-        return try await task.value
     }
 
     func cancel(jobID: UUID) {
