@@ -94,6 +94,18 @@ final class UpdateURLValidatorTests: XCTestCase {
         )
     }
 
+    // Given: dot-segmentを含むhtml_url
+    // When: matchesReleaseHTMLURL を実行
+    // Then: ブラウザの解決先と乖離するため false を返す
+    func testMatchesReleaseHTMLURLRejectsDotSegments() {
+        XCTAssertFalse(
+            UpdateRepositoryValidator.matchesReleaseHTMLURL(
+                URL(string: "https://github.com/T3pp31/Transnote/releases/tag/../../attacker/evil/releases/tag/v1")!,
+                expectedRepository: "T3pp31/Transnote"
+            )
+        )
+    }
+
     // Given: リポジトリ名が前方一致する別リポジトリ
     // When: matchesReleaseHTMLURL を実行
     // Then: false を返す
