@@ -296,6 +296,7 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
     private let delayNanoseconds: UInt64
     private let finalDelayNanoseconds: UInt64
     private var activeTasks: [UUID: Task<Transcript, Error>] = [:]
+    private var cancelledJobIDs: Set<UUID> = []
     private let lock = NSLock()
 
     init(
@@ -314,9 +315,22 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
         _ job: TranscriptionJob,
         progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
     ) async throws -> Transcript {
+        lock.lock()
+        if cancelledJobIDs.contains(job.id) {
+            lock.unlock()
+            throw CancellationError()
+        }
+        lock.unlock()
+
         let task = Task<Transcript, Error> {
             for (index, text) in partialTexts.enumerated() {
                 try Task.checkCancellation()
+                lock.lock()
+                let isCancelled = cancelledJobIDs.contains(job.id)
+                lock.unlock()
+                if isCancelled {
+                    throw CancellationError()
+                }
                 progressHandler?(
                     .make(
                         phase: .transcribing,
@@ -333,6 +347,12 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
             }
 
             try Task.checkCancellation()
+            lock.lock()
+            let isCancelled = cancelledJobIDs.contains(job.id)
+            lock.unlock()
+            if isCancelled {
+                throw CancellationError()
+            }
             return Transcript(
                 sourceFileName: job.sourceFileName,
                 fullText: finalText
@@ -346,6 +366,7 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
         defer {
             lock.lock()
             activeTasks.removeValue(forKey: job.id)
+            cancelledJobIDs.remove(job.id)
             lock.unlock()
         }
 
@@ -354,6 +375,7 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
 
     func cancel(jobID: UUID) {
         lock.lock()
+        cancelledJobIDs.insert(jobID)
         let task = activeTasks[jobID]
         lock.unlock()
         task?.cancel()
