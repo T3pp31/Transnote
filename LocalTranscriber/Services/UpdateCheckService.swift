@@ -101,6 +101,10 @@ struct UpdateCheckService: UpdateChecking {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
 
+        if let expectedLength = try await expectedContentLength(for: request),
+           expectedLength > Self.maxResponseSize {
+            throw UpdateCheckError.responseTooLarge
+        }
         let (data, response) = try await session.data(for: request)
         // レスポンスサイズ上限（8 MB）
         guard data.count <= Self.maxResponseSize else {
@@ -121,6 +125,11 @@ struct UpdateCheckService: UpdateChecking {
             throw UpdateCheckError.invalidResponse
         }
         return release
+    }
+
+    private func expectedContentLength(for request: URLRequest) async throws -> Int64? {
+        let (_, response) = try await session.data(for: request)
+        return (response as? HTTPURLResponse)?.expectedContentLength
     }
 
     /// `repository.full_name` がある場合は期待値と一致すること。欠落・一致いずれでも `html_url` は必ず検証する。
