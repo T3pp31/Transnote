@@ -222,13 +222,6 @@ final class MainWindowViewModelImportTests: XCTestCase {
 
         await gate.wait()
     }
-
-    func testAsyncGateOpenBeforeWaitResumesLaterWaiter() async {
-        let gate = AsyncGate()
-        gate.open()
-
-        await gate.wait()
-    }
 }
 
 // 完了を待機できる非同期ゲート

@@ -215,12 +215,14 @@ struct SettingsView: View {
                     title: "Imports",
                     directory: AppDirectories.importsDirectory,
                     icon: "tray",
+                    isBusy: isBusy,
                     onCleared: nil
                 )
                 StorageRow(
                     title: "Models",
                     directory: AppDirectories.modelsDirectory,
                     icon: "internaldrive",
+                    isBusy: isBusy,
                     modelsRevision: modelsRevision,
                     onCleared: onModelsCleared
                 )
@@ -281,10 +283,13 @@ private struct StorageRow: View {
     let title: String
     let directory: URL
     let icon: String
+    let isBusy: Bool
     var modelsRevision: Int = 0
     let onCleared: (() -> Void)?
 
     @State private var sizeText: String = "計算中…"
+    @State private var isConfirmingClear = false
+    @State private var isClearing = false
 
     var body: some View {
         HStack {
@@ -296,14 +301,23 @@ private struct StorageRow: View {
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Button("クリア") {
-                AppDirectories.clearDirectory(directory)
-                sizeText = "計算中…"
-                refreshSize()
-                onCleared?()
+                isConfirmingClear = true
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(sizeText == "計算中…")
+            .disabled(isBusy || isClearing || sizeText == "計算中…")
+        }
+        .confirmationDialog(
+            "\(title)を空にしますか？",
+            isPresented: $isConfirmingClear,
+            titleVisibility: .visible
+        ) {
+            Button("削除する", role: .destructive) {
+                clearDirectory()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("この操作は元に戻せません。")
         }
         .onAppear {
             refreshSize()
@@ -318,6 +332,24 @@ private struct StorageRow: View {
             let bytes = AppDirectories.directorySize(of: directory)
             await MainActor.run {
                 sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            }
+        }
+    }
+
+    private func clearDirectory() {
+        isClearing = true
+        sizeText = "計算中…"
+
+        Task.detached(priority: .userInitiated) { [directory] in
+            let succeeded = AppDirectories.clearDirectory(directory)
+            let bytes = succeeded ? AppDirectories.directorySize(of: directory) : 0
+            await MainActor.run {
+                isClearing = false
+                if succeeded {
+                    sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+                } else {
+                    sizeText = "削除できませんでした"
+                }
             }
         }
     }

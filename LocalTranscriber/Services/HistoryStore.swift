@@ -23,6 +23,13 @@ struct HistoryStore: Sendable {
     }
 
     func recent(limit: Int = 50) -> [Transcript] {
+        return loadAllTranscripts(limit: limit)
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(limit)
+            .map { $0 }
+    }
+
+    private func loadAllTranscripts(limit: Int) -> [Transcript] {
         guard fileManager.fileExists(atPath: historyRoot.path) else { return [] }
         guard limit > 0 else { return [] }
         guard let enumerator = fileManager.enumerator(
@@ -68,16 +75,12 @@ struct HistoryStore: Sendable {
         }
 
         return items
-            .sorted { $0.createdAt > $1.createdAt }
-            .prefix(limit)
-            .map { $0 }
     }
 
     /// 全文・ファイル名を対象に履歴を検索する。
     func search(query: String, limit: Int = 50) -> [Transcript] {
         let normalized = query.lowercased()
         guard !normalized.isEmpty else { return recent(limit: limit) }
-
         guard fileManager.fileExists(atPath: historyRoot.path) else { return [] }
         guard let enumerator = fileManager.enumerator(
             at: historyRoot,
