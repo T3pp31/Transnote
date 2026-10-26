@@ -90,8 +90,8 @@ final class WhisperKitTranscriberTests: XCTestCase {
                 }
             )
             XCTFail("Expected session creation to fail on the second chunk")
-        } catch let error as AppError {
-            guard case .transcriptionFailed = error else { return XCTFail("Unexpected error: \(error)") }
+        } catch let error as WhisperKitTranscriber.ChunkExportFailure {
+            XCTAssertEqual(error.statusText, "export session unavailable")
         }
         XCTAssertEqual(sessionCount, 2)
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: output.path), [])
@@ -129,10 +129,30 @@ final class WhisperKitTranscriberTests: XCTestCase {
                 AVFormatIDKey: kAudioFormatMPEG4AAC,
                 AVSampleRateKey: 44100,
                 AVNumberOfChannelsKey: 1,
-                ]
+            ]
         let file = try AVAudioFile(forWriting: url, settings: settings)
         try file.write(from: buffer)
         return url
+    }
+
+    func testFailedExportThrowsAndDeletesPartialOutput() async throws {
+        // A session with no media tracks must fail to export.
+        let source = try makeAudioFile(name: "source.m4a")
+        let output = temporaryRoot.appendingPathComponent("chunks", isDirectory: true)
+        do {
+            _ = try await transcriber.splitAudioIntoChunks(
+                url: source, chunkDuration: 0.4, outputDirectory: output,
+                makeExportSession: { _ in
+                    AVAssetExportSession(asset: AVMutableComposition(), presetName: AVAssetExportPresetPassthrough)
+                }
+            )
+            XCTFail("Expected an empty asset export to fail")
+        } catch let error as WhisperKitTranscriber.ChunkExportFailure {
+            XCTAssertFalse(error.statusText.isEmpty)
+            XCTAssertTrue(error.outputURL.path.hasPrefix(output.path))
+        }
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: output.path), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
     }
 
 }

@@ -300,6 +300,15 @@ actor WhisperKitTranscriber: Transcriber {
 
     /// 長時間音声を指定チャンク長で分割して一時ファイルを返す。
     /// 分割不要（既にチャンク長以下）の場合は元ファイルを返す。
+    struct ChunkExportFailure: LocalizedError {
+        let outputURL: URL
+        let statusText: String
+
+        var errorDescription: String? {
+            "チャンクの書き出しに失敗しました: \(outputURL.lastPathComponent) (\(statusText))"
+        }
+    }
+
     struct AudioChunk: Sendable {
         let url: URL
         let startSeconds: TimeInterval
@@ -345,7 +354,7 @@ actor WhisperKitTranscriber: Transcriber {
             createdURLs.append(outputURL)
 
             guard let export = makeExportSession(asset) else {
-                throw AppError.transcriptionFailed("チャンクの書き出しセッションを作成できませんでした。")
+                throw ChunkExportFailure(outputURL: outputURL, statusText: "export session unavailable")
             }
             export.outputURL = outputURL
             export.outputFileType = .m4a
@@ -359,11 +368,11 @@ actor WhisperKitTranscriber: Transcriber {
                 export.cancelExport()
             }
             try Task.checkCancellation()
-            if export.status == .completed {
-                outputChunks.append(AudioChunk(url: outputURL, startSeconds: start))
-            } else {
-                try? FileManager.default.removeItem(at: outputURL)
+            guard export.status == .completed else {
+                let statusMessage = export.error?.localizedDescription ?? "unknown error"
+                throw ChunkExportFailure(outputURL: outputURL, statusText: "\(export.status) \(statusMessage)")
             }
+            outputChunks.append(AudioChunk(url: outputURL, startSeconds: start))
             index += 1
             start += stride
         }

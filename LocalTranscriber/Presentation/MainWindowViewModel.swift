@@ -117,7 +117,7 @@ final class MainWindowViewModel: ObservableObject {
     private var lastRecoverableAction: RecoverableAction?
     private var activeJobID: UUID?
     private var activeModelDownloadID: UUID?
-    private var transcriptionTask: Task<Void, Never>?
+    private(set) var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
@@ -656,9 +656,9 @@ final class MainWindowViewModel: ObservableObject {
             if activeJobID == job.id {
                 activeJobID = nil
                 transcriptionTask = nil
+                operationCoordinator.end(.transcription)
+                isPendingTranscriptionRestart = false
             }
-            operationCoordinator.end(.transcription)
-            isPendingTranscriptionRestart = false
         }
     }
 
