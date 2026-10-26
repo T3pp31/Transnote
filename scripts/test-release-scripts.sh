@@ -35,6 +35,12 @@ if (cd "$WORK" && bash scripts/set-marketing-version.sh bad-version >/dev/null 2
 fi
 echo "PASS: invalid version rejected"
 
+if ! grep -q 'MARKETING_VERSION = 0.2.0;' "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
+  echo "FAIL: valid version was not persisted after invalid input" >&2
+  exit 1
+fi
+echo "PASS: invalid version preserves valid value"
+
 cp "$ROOT/scripts/verify-xcode-project.py" "$WORK/scripts/"
 
 if ! (cd "$ROOT" && python3 scripts/verify-xcode-project.py); then
@@ -68,12 +74,6 @@ if (cd "$WORK" && python3 scripts/verify-xcode-project.py >/dev/null 2>&1); then
   exit 1
 fi
 echo "PASS: unresolved Frameworks phase rejected"
-
-if ! grep -q 'MARKETING_VERSION = 0.2.0;' "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
-  echo "FAIL: valid version was not persisted after invalid input" >&2
-  exit 1
-fi
-echo "PASS: invalid version preserves valid value"
 
 NO_MATCH_WORK=$(mktemp -d)
 trap 'rm -rf "$WORK" "$NO_MATCH_WORK"' EXIT
