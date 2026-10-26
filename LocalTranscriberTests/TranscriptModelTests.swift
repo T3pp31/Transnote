@@ -91,6 +91,24 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(ExportFormat.vtt.fileExtension, "vtt")
     }
 
+    func testAppDirectoriesDirectorySizeSumsRegularFiles() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let first = root.appendingPathComponent("first.bin")
+        let second = nested.appendingPathComponent("second.bin")
+        XCTAssertTrue(FileManager.default.createFile(atPath: first.path, contents: Data(repeating: 1, count: 12)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: second.path, contents: Data(repeating: 2, count: 8)))
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent("linked.bin"), withDestinationURL: first
+        )
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 20)
+    }
+
     func testAppDirectoriesClearDirectoryReturnsResultAndPreservesDirectory() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
