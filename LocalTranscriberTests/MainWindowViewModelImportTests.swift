@@ -222,6 +222,82 @@ final class MainWindowViewModelImportTests: XCTestCase {
 
         await gate.wait()
     }
+    func testStaleSuccessfulTaskDoesNotClearNewOperation() async throws {
+        try await assertStaleTaskIsIgnored(completion: .success("stale"))
+    }
+
+    func testStaleFailedTaskDoesNotClearNewOperation() async throws {
+        try await assertStaleTaskIsIgnored(completion: .failure)
+    }
+
+    func testStaleCancelledTaskDoesNotClearNewOperation() async throws {
+        try await assertStaleTaskIsIgnored(completion: .cancelled)
+    }
+
+    func testStaleTaskCannotOverwriteCompletedNewTranscript() async throws {
+        try await assertStaleTaskIsIgnored(completion: .success("stale"), completeNewFirst: true)
+    }
+
+    private func assertStaleTaskIsIgnored(
+        completion: SequentialGateTranscriber.Completion,
+        completeNewFirst: Bool = false
+    ) async throws {
+        let oldGate = AsyncGate()
+        let newGate = AsyncGate()
+        defer {
+            oldGate.open()
+            newGate.open()
+        }
+        let oldStarted = expectation(description: "Old transcription started")
+        let newStarted = expectation(description: "New transcription started")
+        let transcriber = SequentialGateTranscriber(
+            gates: [oldGate, newGate],
+            started: [oldStarted, newStarted],
+            completions: [completion, .success("new result")]
+        )
+        let vm = MainWindowViewModel(
+            transcriber: transcriber,
+            audioImportService: AudioImportService(importsRoot: importsRoot),
+            historyStore: HistoryStore(historyRoot: importsRoot.appendingPathComponent("history"))
+        )
+
+        AppSettings.shared.selectedModelID = "base"
+        vm.downloadedModelIDs = ["base"]
+        let sourceURL = sourceRoot.appendingPathComponent("stale-task.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8)))
+        vm.selectFile(url: sourceURL)
+
+        vm.startTranscription()
+        let oldTask = try XCTUnwrap(vm.transcriptionTask)
+        await fulfillment(of: [oldStarted], timeout: 5)
+        vm.cancelTranscription()
+        XCTAssertFalse(vm.isBusy)
+
+        vm.startTranscription()
+        let newTask = try XCTUnwrap(vm.transcriptionTask)
+        await fulfillment(of: [newStarted], timeout: 5)
+        XCTAssertTrue(vm.isBusy)
+
+        if completeNewFirst {
+            newGate.open()
+            await newTask.value
+        }
+
+        oldGate.open()
+        // ViewModel側の後処理まで待ち、yield回数やスケジューラに依存しない。
+        await oldTask.value
+        XCTAssertEqual(vm.isBusy, !completeNewFirst)
+        XCTAssertEqual(vm.currentTranscript?.fullText, completeNewFirst ? "new result" : nil)
+        XCTAssertNil(vm.errorMessage)
+
+        newGate.open()
+        await newTask.value
+        XCTAssertFalse(vm.isBusy)
+        XCTAssertEqual(vm.currentTranscript?.fullText, "new result")
+        XCTAssertEqual(vm.transcriptText, "new result")
+        XCTAssertNil(vm.transcriptionTask)
+    }
+
 }
 
 // 完了を待機できる非同期ゲート
@@ -266,3 +342,43 @@ final class MockTranscriber: Transcriber, @unchecked Sendable {
     func cancel(jobID: UUID) {}
 }
 
+
+private actor SequentialGateTranscriber: Transcriber {
+    enum Completion: Sendable {
+        case success(String)
+        case failure
+        case cancelled
+    }
+
+    private struct TestFailure: Error {}
+    private let gates: [AsyncGate]
+    private let started: [XCTestExpectation]
+    private let completions: [Completion]
+    private var nextIndex = 0
+
+    init(gates: [AsyncGate], started: [XCTestExpectation], completions: [Completion]) {
+        self.gates = gates
+        self.started = started
+        self.completions = completions
+    }
+
+    func transcribe(
+        _ job: TranscriptionJob,
+        progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
+    ) async throws -> Transcript {
+        let index = nextIndex
+        nextIndex += 1
+        started[index].fulfill()
+        await gates[index].wait()
+        switch completions[index] {
+        case .success(let text):
+            return Transcript(sourceFileName: job.sourceFileName, fullText: text)
+        case .failure:
+            throw TestFailure()
+        case .cancelled:
+            throw CancellationError()
+        }
+    }
+
+    func cancel(jobID: UUID) {}
+}
