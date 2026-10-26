@@ -314,7 +314,7 @@ actor WhisperKitTranscriber: Transcriber {
         let startSeconds: TimeInterval
     }
 
-    func splitAudioIntoChunks(
+    nonisolated func splitAudioIntoChunks(
         url: URL,
         chunkDuration: TimeInterval,
         outputDirectory: URL = AppDirectories.checkpointDirectory,
@@ -360,9 +360,13 @@ actor WhisperKitTranscriber: Transcriber {
             export.outputFileType = .m4a
             export.timeRange = CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600), end: CMTime(seconds: end, preferredTimescale: 600))
 
-            let semaphore = DispatchSemaphore(value: 0)
-            export.exportAsynchronously { semaphore.signal() }
-            semaphore.wait()
+            await withTaskCancellationHandler {
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    export.exportAsynchronously { continuation.resume() }
+                }
+            } onCancel: {
+                export.cancelExport()
+            }
             try Task.checkCancellation()
             guard export.status == .completed else {
                 let statusMessage = export.error?.localizedDescription ?? "unknown error"
