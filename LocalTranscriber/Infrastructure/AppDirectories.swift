@@ -45,15 +45,22 @@ enum AppDirectories {
     }
 
     /// 指定ディレクトリ配下のファイルを削除し、空のディレクトリを残す。
-    static func clearDirectory(_ directory: URL) {
+    /// 失敗したエントリがある場合、または一覧取得に失敗した場合は false を返す。
+    @discardableResult
+    static func clearDirectory(_ directory: URL) -> Bool {
         guard let entries = try? FileManager.default.contentsOfDirectory(
             at: directory,
             includingPropertiesForKeys: nil,
             options: []
-        ) else { return }
+        ) else { return false }
         for entry in entries {
-            try? FileManager.default.removeItem(at: entry)
+            do {
+                try FileManager.default.removeItem(at: entry)
+            } catch {
+                return false
+            }
         }
+        return true
     }
 
     static var tempTranscriptsDirectory: URL {

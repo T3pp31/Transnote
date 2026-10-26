@@ -96,15 +96,35 @@ final class TranscriptModelTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         let nested = root.appendingPathComponent("nested", isDirectory: true)
         try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
 
         let first = root.appendingPathComponent("first.bin")
         let second = nested.appendingPathComponent("second.bin")
-        FileManager.default.createFile(atPath: first.path, contents: Data(repeating: 1, count: 12))
-        FileManager.default.createFile(atPath: second.path, contents: Data(repeating: 2, count: 8))
-
-        defer { try? FileManager.default.removeItem(at: root) }
+        XCTAssertTrue(FileManager.default.createFile(atPath: first.path, contents: Data(repeating: 1, count: 12)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: second.path, contents: Data(repeating: 2, count: 8)))
+        try FileManager.default.createSymbolicLink(
+            at: root.appendingPathComponent("linked.bin"), withDestinationURL: first
+        )
 
         XCTAssertEqual(AppDirectories.directorySize(of: root), 20)
+    }
+
+    func testAppDirectoriesClearDirectoryReturnsResultAndPreservesDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: root.appendingPathComponent("file.bin").path, contents: Data("x".utf8))
+        FileManager.default.createFile(atPath: root.appendingPathComponent(".hidden").path, contents: Data("x".utf8))
+
+        XCTAssertTrue(AppDirectories.clearDirectory(root))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.path))
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 0)
+        XCTAssertFalse(AppDirectories.clearDirectory(
+            FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        ))
+
+        defer { try? FileManager.default.removeItem(at: root) }
     }
 
     func testTranscriptRejectsUnsupportedSchemaVersion() throws {
@@ -122,7 +142,6 @@ final class TranscriptModelTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         XCTAssertThrowsError(try decoder.decode(Transcript.self, from: data))
-    }
     }
     // MARK: - AppConfig / AppSettings (#245)
 
