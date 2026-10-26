@@ -222,63 +222,82 @@ final class MainWindowViewModelImportTests: XCTestCase {
 
         await gate.wait()
     }
-
-    func testAsyncGateOpenBeforeWaitResumesLaterWaiter() async {
-        let gate = AsyncGate()
-        gate.open()
-
-        await gate.wait()
+    func testStaleSuccessfulTaskDoesNotClearNewOperation() async throws {
+        try await assertStaleTaskIsIgnored(completion: .success("stale"))
     }
 
-    func testStaleTranscriptionTaskDoesNotClearNewOperation() async throws {
-        let oldGate = AsyncTestGate()
-        let newGate = AsyncTestGate()
-        let transcriber = SequentialGateTranscriber(gates: [oldGate, newGate])
+    func testStaleFailedTaskDoesNotClearNewOperation() async throws {
+        try await assertStaleTaskIsIgnored(completion: .failure)
+    }
+
+    func testStaleCancelledTaskDoesNotClearNewOperation() async throws {
+        try await assertStaleTaskIsIgnored(completion: .cancelled)
+    }
+
+    func testStaleTaskCannotOverwriteCompletedNewTranscript() async throws {
+        try await assertStaleTaskIsIgnored(completion: .success("stale"), completeNewFirst: true)
+    }
+
+    private func assertStaleTaskIsIgnored(
+        completion: SequentialGateTranscriber.Completion,
+        completeNewFirst: Bool = false
+    ) async throws {
+        let oldGate = AsyncGate()
+        let newGate = AsyncGate()
+        defer {
+            oldGate.open()
+            newGate.open()
+        }
+        let oldStarted = expectation(description: "Old transcription started")
+        let newStarted = expectation(description: "New transcription started")
+        let transcriber = SequentialGateTranscriber(
+            gates: [oldGate, newGate],
+            started: [oldStarted, newStarted],
+            completions: [completion, .success("new result")]
+        )
         let vm = MainWindowViewModel(
             transcriber: transcriber,
-            audioImportService: AudioImportService(importsRoot: importsRoot)
+            audioImportService: AudioImportService(importsRoot: importsRoot),
+            historyStore: HistoryStore(historyRoot: importsRoot.appendingPathComponent("history"))
         )
 
         AppSettings.shared.selectedModelID = "base"
         vm.downloadedModelIDs = ["base"]
         let sourceURL = sourceRoot.appendingPathComponent("stale-task.wav")
-        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
+        XCTAssertTrue(FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8)))
         vm.selectFile(url: sourceURL)
 
         vm.startTranscription()
-        try await waitUntil { oldGate.hasWaiter }
-
+        let oldTask = try XCTUnwrap(vm.transcriptionTask)
+        await fulfillment(of: [oldStarted], timeout: 5)
         vm.cancelTranscription()
         XCTAssertFalse(vm.isBusy)
 
         vm.startTranscription()
+        let newTask = try XCTUnwrap(vm.transcriptionTask)
+        await fulfillment(of: [newStarted], timeout: 5)
         XCTAssertTrue(vm.isBusy)
-        try await waitUntil { newGate.hasWaiter }
+
+        if completeNewFirst {
+            newGate.open()
+            await newTask.value
+        }
 
         oldGate.open()
-        await Task.yield()
-        await Task.yield()
-        XCTAssertTrue(vm.isBusy)
+        // ViewModel側の後処理まで待ち、yield回数やスケジューラに依存しない。
+        await oldTask.value
+        XCTAssertEqual(vm.isBusy, !completeNewFirst)
+        XCTAssertEqual(vm.currentTranscript?.fullText, completeNewFirst ? "new result" : nil)
+        XCTAssertNil(vm.errorMessage)
 
         newGate.open()
-        try await waitUntil { !vm.isBusy }
-        XCTAssertEqual(vm.currentTranscript?.fullText, "done")
+        await newTask.value
+        XCTAssertFalse(vm.isBusy)
+        XCTAssertEqual(vm.currentTranscript?.fullText, "new result")
+        XCTAssertEqual(vm.transcriptText, "new result")
+        XCTAssertNil(vm.transcriptionTask)
     }
 
-    private func waitUntil(
-        timeoutNanoseconds: UInt64 = 5_000_000_000,
-        pollNanoseconds: UInt64 = 10_000_000,
-        condition: @escaping () -> Bool
-    ) async throws {
-        let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
-        while DispatchTime.now().uptimeNanoseconds < deadline {
-            if condition() {
-                return
-            }
-            try await Task.sleep(nanoseconds: pollNanoseconds)
-        }
-        XCTFail("Condition not met within timeout")
-    }
 }
 
 // 完了を待機できる非同期ゲート
@@ -323,66 +342,43 @@ final class MockTranscriber: Transcriber, @unchecked Sendable {
     func cancel(jobID: UUID) {}
 }
 
-private final class AsyncTestGate: @unchecked Sendable {
-    private let lock = NSLock()
-    private var continuations: [CheckedContinuation<Void, Never>] = []
-    private var opened = false
-    private var waiterCount = 0
 
-    var hasWaiter: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return waiterCount > 0
+private actor SequentialGateTranscriber: Transcriber {
+    enum Completion: Sendable {
+        case success(String)
+        case failure
+        case cancelled
     }
 
-    func wait() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            lock.lock()
-            waiterCount += 1
-            if opened {
-                continuation.resume()
-            } else {
-                continuations.append(continuation)
-            }
-            lock.unlock()
-        }
-    }
+    private struct TestFailure: Error {}
+    private let gates: [AsyncGate]
+    private let started: [XCTestExpectation]
+    private let completions: [Completion]
+    private var nextIndex = 0
 
-    func open() {
-        lock.lock()
-        opened = true
-        let waiters = continuations
-        continuations = []
-        lock.unlock()
-
-        for continuation in waiters {
-            continuation.resume()
-        }
-    }
-}
-
-private final class SequentialGateTranscriber: Transcriber, @unchecked Sendable {
-    private let gates: [AsyncTestGate]
-    private let lock = NSLock()
-    private var nextGateIndex = 0
-
-    init(gates: [AsyncTestGate]) {
+    init(gates: [AsyncGate], started: [XCTestExpectation], completions: [Completion]) {
         self.gates = gates
+        self.started = started
+        self.completions = completions
     }
 
     func transcribe(
         _ job: TranscriptionJob,
         progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
     ) async throws -> Transcript {
-        lock.lock()
-        let gate = gates[nextGateIndex]
-        nextGateIndex += 1
-        lock.unlock()
-
-        await gate.wait()
-        return Transcript(sourceFileName: job.sourceFileName, fullText: "done")
+        let index = nextIndex
+        nextIndex += 1
+        started[index].fulfill()
+        await gates[index].wait()
+        switch completions[index] {
+        case .success(let text):
+            return Transcript(sourceFileName: job.sourceFileName, fullText: text)
+        case .failure:
+            throw TestFailure()
+        case .cancelled:
+            throw CancellationError()
+        }
     }
 
     func cancel(jobID: UUID) {}
 }
-

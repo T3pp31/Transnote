@@ -126,6 +126,10 @@ struct ModelDownloadService: Sendable {
                 lastError = error
                 // ネットワーク系エラーのみ再試行する
                 guard isRetryableNetworkError(error), attempt < maxAttempts else {
+                    cleanUpFailedDownload(
+                        whisperKitModelName: whisperKitModelName,
+                        directoriesBeforeDownload: directoriesBeforeDownload
+                    )
                     throw error
                 }
                 let delaySeconds = UInt64(pow(2.0, Double(attempt - 1)))
@@ -135,10 +139,17 @@ struct ModelDownloadService: Sendable {
         }
 
         guard let path = downloadedPath else {
-            modelAvailability.invalidateCache()
+            cleanUpFailedDownload(
+                whisperKitModelName: whisperKitModelName,
+                directoriesBeforeDownload: directoriesBeforeDownload
+            )
             throw lastError ?? AppError.transcriptionFailed("モデルのダウンロードに失敗しました。")
         }
         guard modelAvailability.validateModelFolder(path) else {
+            cleanUpFailedDownload(
+                whisperKitModelName: whisperKitModelName,
+                directoriesBeforeDownload: directoriesBeforeDownload
+            )
             modelAvailability.invalidateCache()
             throw AppError.transcriptionFailed(
                 "モデルのダウンロードは完了しましたが、ファイル構成が不正です: \(path.path)"

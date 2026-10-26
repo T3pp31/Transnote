@@ -18,10 +18,13 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
     func testPartialTextUpdatesDuringTranscription() async throws {
         // Given: partialText を2回 emit する Mock Transcriber
+        let firstPartialGate = ProgressGate()
+        let secondPartialGate = ProgressGate()
         let mock = MockProgressTranscriber(
             partialTexts: ["Hello", "Hello world"],
             finalText: "Hello world final",
-            delayNanoseconds: 50_000_000
+            delayNanoseconds: 50_000_000,
+            progressGates: [firstPartialGate, secondPartialGate]
         )
         viewModel = MainWindowViewModel(transcriber: mock)
         configureForTranscription()
@@ -34,10 +37,12 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.uiState, .transcribing)
         XCTAssertNil(viewModel.currentTranscript)
         XCTAssertFalse(viewModel.canExport)
+        firstPartialGate.open()
 
         // Then: 2回目の partialText が反映される
         try await waitUntil { self.viewModel.transcriptText == "Hello world" }
         XCTAssertFalse(viewModel.canExport)
+        secondPartialGate.open()
 
         // Then: 完了後は最終 Transcript で上書きされる
         try await waitUntil { self.viewModel.uiState == .done }
@@ -121,6 +126,29 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         XCTAssertTrue(viewModel.shouldShowModelDownloadButton)
         XCTAssertFalse(viewModel.canDownloadSelectedModel)
+    }
+
+    func testStartTranscriptionIsRejectedWhileModelDownloadIsSimulated() {
+        AppSettings.shared.selectedModelID = "base"
+        viewModel = MainWindowViewModel()
+        viewModel.downloadedModelIDs = ["base"]
+        viewModel.selectedFile = AudioFileInfo(
+            url: audioURL,
+            fileName: audioURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 64,
+            formattedFileSize: "64 bytes"
+        )
+        viewModel.simulateModelDownloadForTesting()
+
+        viewModel.startTranscription()
+
+        XCTAssertEqual(viewModel.progressDisplay.phase, .downloadingModel)
+        XCTAssertTrue(viewModel.isBusy)
+        XCTAssertEqual(
+            viewModel.startTranscriptionDisabledReason,
+            L("文字起こし処理中です", comment: "Transcription is busy")
+        )
     }
 
     func testModelDownloadGuidanceIsShownForModelThatIsNotDownloaded() {
@@ -317,7 +345,9 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
     private let finalText: String
     private let delayNanoseconds: UInt64
     private let finalDelayNanoseconds: UInt64
+    private let progressGates: [ProgressGate]
     private var activeTasks: [UUID: Task<Transcript, Error>] = [:]
+    private var cancelledJobIDs: Set<UUID> = []
     private let lock = NSLock()
     private var emittedPartialTexts = 0
 
@@ -325,12 +355,14 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
         partialTexts: [String],
         finalText: String,
         delayNanoseconds: UInt64,
-        finalDelayNanoseconds: UInt64 = 0
+        finalDelayNanoseconds: UInt64 = 0,
+        progressGates: [ProgressGate] = []
     ) {
         self.partialTexts = partialTexts
         self.finalText = finalText
         self.delayNanoseconds = delayNanoseconds
         self.finalDelayNanoseconds = finalDelayNanoseconds
+        self.progressGates = progressGates
     }
 
     var partialTextCount: Int {
@@ -344,9 +376,25 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
         progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
     ) async throws -> Transcript {
         try await withTaskCancellationHandler {
+            lock.lock()
+            if cancelledJobIDs.contains(job.id) {
+                lock.unlock()
+                throw CancellationError()
+            }
+            lock.unlock()
+
             let task = Task<Transcript, Error> {
                 for (index, text) in partialTexts.enumerated() {
                     try Task.checkCancellation()
+                    lock.lock()
+                    let isCancelled = cancelledJobIDs.contains(job.id)
+                    lock.unlock()
+                    if isCancelled {
+                        throw CancellationError()
+                    }
+                    lock.lock()
+                    emittedPartialTexts += 1
+                    lock.unlock()
                     progressHandler?(
                         .make(
                             phase: .transcribing,
@@ -355,6 +403,9 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                             partialText: text
                         )
                     )
+                    if index < progressGates.count {
+                        await progressGates[index].wait()
+                    }
                     try await Task.sleep(nanoseconds: delayNanoseconds)
                 }
 
@@ -363,14 +414,17 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                 }
 
                 try Task.checkCancellation()
+                lock.lock()
+                let isCancelled = cancelledJobIDs.contains(job.id)
+                lock.unlock()
+                if isCancelled {
+                    throw CancellationError()
+                }
                 return Transcript(
                     sourceFileName: job.sourceFileName,
                     fullText: finalText
                 )
             }
-            lock.lock()
-            emittedPartialTexts = partialTexts.count
-            lock.unlock()
 
             lock.lock()
             activeTasks[job.id] = task
@@ -379,6 +433,7 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
             defer {
                 lock.lock()
                 activeTasks.removeValue(forKey: job.id)
+                cancelledJobIDs.remove(job.id)
                 lock.unlock()
             }
 
@@ -390,8 +445,39 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
 
     func cancel(jobID: UUID) {
         lock.lock()
+        cancelledJobIDs.insert(jobID)
         let task = activeTasks[jobID]
         lock.unlock()
         task?.cancel()
+    }
+}
+
+private final class ProgressGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [CheckedContinuation<Void, Never>] = []
+    private var opened = false
+
+    func wait() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if opened {
+                continuation.resume()
+            } else {
+                continuations.append(continuation)
+            }
+            lock.unlock()
+        }
+    }
+
+    func open() {
+        lock.lock()
+        opened = true
+        let waiters = continuations
+        continuations = []
+        lock.unlock()
+
+        for continuation in waiters {
+            continuation.resume()
+        }
     }
 }

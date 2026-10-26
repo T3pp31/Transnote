@@ -85,6 +85,7 @@ final class MainWindowViewModel: ObservableObject {
     @Published var selectedFile: AudioFileInfo?
     @Published var transcriptText: String = ""
     @Published var currentTranscript: Transcript?
+    @Published var baselineTranscriptText: String = ""
     @Published var playingSegmentID: UUID?
     @Published var playbackPositionText: String = ""
     @Published var isSegmentPaused = false
@@ -116,7 +117,7 @@ final class MainWindowViewModel: ObservableObject {
     private var lastRecoverableAction: RecoverableAction?
     private var activeJobID: UUID?
     private var activeModelDownloadID: UUID?
-    private var transcriptionTask: Task<Void, Never>?
+    private(set) var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
@@ -194,6 +195,7 @@ final class MainWindowViewModel: ObservableObject {
     /// テスト専用: モデルダウンロード中の状態をシミュレートする。
     /// 本番コードでは使用しない（状態機械の整合性を保つため）。
     func simulateModelDownloadForTesting() {
+        guard operationCoordinator.start(.modelDownload) else { return }
         uiState = .preparing
         progressDisplay = TranscriptionProgressDisplay.from(update: .make(phase: .downloadingModel, fraction: 0))
     }
@@ -310,6 +312,7 @@ final class MainWindowViewModel: ObservableObject {
     /// クラッシュ復旧用の一時 Transcript を現在の状態へ復元する。
     func restoreTranscript(_ transcript: Transcript) {
         currentTranscript = transcript
+        baselineTranscriptText = transcript.fullText
         transcriptText = transcript.fullText
         isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
         hasSegmentTextEdits = false
@@ -371,7 +374,8 @@ final class MainWindowViewModel: ObservableObject {
 
     func downloadSelectedModel() {
         guard let model = settings.selectedModel,
-              canDownloadSelectedModel else {
+              canDownloadSelectedModel,
+              operationCoordinator.start(.modelDownload) else {
             return
         }
 
@@ -414,6 +418,7 @@ final class MainWindowViewModel: ObservableObject {
                 activeModelDownloadID = nil
                 modelDownloadTask = nil
             }
+            operationCoordinator.end(.modelDownload)
         }
     }
 
@@ -430,10 +435,10 @@ final class MainWindowViewModel: ObservableObject {
     /// 編集モードで内容が元の文字起こしから変わっているかを表す。
     /// ウィンドウ終了・ファイル差し替え前に確認するための dirty 状態。
     var hasUnsavedChanges: Bool {
-        guard let transcript = currentTranscript else { return false }
+        guard currentTranscript != nil else { return false }
         let normalizedEdited = transcriptText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedOriginal = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return hasSegmentTextEdits || normalizedEdited != normalizedOriginal
+        let normalizedBaseline = baselineTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedEdited != normalizedBaseline
     }
 
     func selectFile(url: URL, preferredFileName: String? = nil) {
@@ -488,6 +493,7 @@ final class MainWindowViewModel: ObservableObject {
             isEditingTranscript = false
             hasSegmentTextEdits = false
             currentTranscript = nil
+            baselineTranscriptText = ""
             transcriptText = ""
             selectedFile = info
             uiState = .idle
@@ -536,6 +542,16 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func startTranscription() {
+        guard operationCoordinator.activeOperation == nil else {
+            presentInlineError(
+                title: NSLocalizedString("処理中", comment: "Busy title"),
+                message: NSLocalizedString("別の処理を実行中のため開始できません。", comment: "Busy message"),
+                canRetry: false,
+                action: nil
+            )
+            return
+        }
+
         if (hasExistingResult || hasUnsavedChanges) && !isPendingTranscriptionRestart {
             isPendingTranscriptionRestart = true
             confirmFileImport = true
@@ -619,6 +635,7 @@ final class MainWindowViewModel: ObservableObject {
 
                 guard activeJobID == job.id else { return }
                 currentTranscript = transcript
+                baselineTranscriptText = transcript.fullText
                 try? historyStore.save(transcript)
                 try? historyStore.saveTemporary(transcript)
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
@@ -640,9 +657,8 @@ final class MainWindowViewModel: ObservableObject {
                 activeJobID = nil
                 transcriptionTask = nil
                 operationCoordinator.end(.transcription)
+                isPendingTranscriptionRestart = false
             }
-            operationCoordinator.end(.transcription)
-            isPendingTranscriptionRestart = false
         }
     }
 
@@ -663,9 +679,13 @@ final class MainWindowViewModel: ObservableObject {
 
     /// モデルダウンロードのみをキャンセルする（文字起こしは対象外）。
     func cancelModelDownload() {
+        let wasDownloading = operationCoordinator.activeOperation == .modelDownload
         modelDownloadTask?.cancel()
         modelDownloadTask = nil
         activeModelDownloadID = nil
+        if wasDownloading {
+            operationCoordinator.end(.modelDownload)
+        }
         uiState = .idle
         progressDisplay = .idle()
         lastAnnouncedPhase = nil
@@ -779,6 +799,11 @@ final class MainWindowViewModel: ObservableObject {
 
     func exportTranscript(format: ExportFormat) {
         guard var transcript = currentTranscript else { return }
+        transcript.fullText = transcriptText
+        // エクスポート時（最新の編集内容を反映）に updatedAt を更新し、編集済み状態を記録する。
+        transcript.updatedAt = Date()
+        currentTranscript = transcript
+        baselineTranscriptText = transcriptText
 
         let savedExportDirectory = fileAccess.loadLastExportDirectory()
         var didBeginSavedDirectoryAccess = false
