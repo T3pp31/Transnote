@@ -115,7 +115,12 @@ actor WhisperKitTranscriber: Transcriber {
             }
 
             // 長時間音声はチャンク単位で処理する（WhisperKit への一度の投入を避ける）。
-            let chunks = await splitAudioIntoChunks(url: job.audioFileURL, chunkDuration: job.chunkDuration)
+            let chunks = try await splitAudioIntoChunks(url: job.audioFileURL, chunkDuration: job.chunkDuration)
+            defer {
+                for chunk in chunks where chunk.url != job.audioFileURL {
+                    try? FileManager.default.removeItem(at: chunk.url)
+                }
+            }
             var allResults: [TranscriptionResult] = []
             var processedSeconds: TimeInterval = 0
             var totalSeconds: TimeInterval = chunks.count > 1
@@ -295,12 +300,29 @@ actor WhisperKitTranscriber: Transcriber {
 
     /// 長時間音声を指定チャンク長で分割して一時ファイルを返す。
     /// 分割不要（既にチャンク長以下）の場合は元ファイルを返す。
-    private struct AudioChunk {
+    struct ChunkExportFailure: LocalizedError {
+        let outputURL: URL
+        let statusText: String
+
+        var errorDescription: String? {
+            "チャンクの書き出しに失敗しました: \(outputURL.lastPathComponent) (\(statusText))"
+        }
+    }
+
+    struct AudioChunk: Sendable {
         let url: URL
         let startSeconds: TimeInterval
     }
 
-    private func splitAudioIntoChunks(url: URL, chunkDuration: TimeInterval) async -> [AudioChunk] {
+    func splitAudioIntoChunks(
+        url: URL,
+        chunkDuration: TimeInterval,
+        outputDirectory: URL = AppDirectories.checkpointDirectory,
+        makeExportSession: (AVAsset) -> AVAssetExportSession? = {
+            AVAssetExportSession(asset: $0, presetName: AVAssetExportPresetPassthrough)
+        }
+    ) async throws -> [AudioChunk] {
+        try Task.checkCancellation()
         guard chunkDuration > 0 else { return [AudioChunk(url: url, startSeconds: 0)] }
         let asset = AVURLAsset(url: url)
         guard let duration = try? await asset.load(.duration).seconds, duration > chunkDuration else {
@@ -310,22 +332,29 @@ actor WhisperKitTranscriber: Transcriber {
         // チャンク境界をまたぐ発話を失わないよう、隣接チャンクに1秒のオーバーラップを持たせる。
         let overlap = min(1.0, max(0.0, chunkDuration / 4))
         let stride = max(0.1, chunkDuration - overlap)
+        // 同時実行や前回の残留ファイルとの衝突を避ける。
+        let exportID = UUID().uuidString
         var outputChunks: [AudioChunk] = []
+        var createdURLs: [URL] = []
+        var completed = false
+        defer {
+            if !completed {
+                for outputURL in createdURLs {
+                    try? FileManager.default.removeItem(at: outputURL)
+                }
+            }
+        }
+        try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         var start: TimeInterval = 0
         var index = 0
         while start < duration {
+            try Task.checkCancellation()
             let end = min(start + chunkDuration, duration)
-            let outputURL = AppDirectories.checkpointDirectory
-                .appendingPathComponent("chunk-\(index).m4a")
-            try? FileManager.default.createDirectory(at: outputURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? FileManager.default.removeItem(at: outputURL)
+            let outputURL = outputDirectory.appendingPathComponent("chunk-\(exportID)-\(index).m4a")
+            createdURLs.append(outputURL)
 
-            guard let export = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
-                AppLogger.error(
-                    "Chunk export session could not be created for chunk \(index).",
-                    logger: AppLogger.transcription
-                )
-                continue
+            guard let export = makeExportSession(asset) else {
+                throw ChunkExportFailure(outputURL: outputURL, statusText: "export session unavailable")
             }
             export.outputURL = outputURL
             export.outputFileType = .m4a
@@ -334,12 +363,16 @@ actor WhisperKitTranscriber: Transcriber {
             let semaphore = DispatchSemaphore(value: 0)
             export.exportAsynchronously { semaphore.signal() }
             semaphore.wait()
-            if export.status == .completed {
-                outputChunks.append(AudioChunk(url: outputURL, startSeconds: start))
+            try Task.checkCancellation()
+            guard export.status == .completed else {
+                let statusMessage = export.error?.localizedDescription ?? "unknown error"
+                throw ChunkExportFailure(outputURL: outputURL, statusText: "\(export.status) \(statusMessage)")
             }
+            outputChunks.append(AudioChunk(url: outputURL, startSeconds: start))
             index += 1
             start += stride
         }
+        completed = true
         return outputChunks.isEmpty ? [AudioChunk(url: url, startSeconds: 0)] : outputChunks
     }
 

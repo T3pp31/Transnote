@@ -125,7 +125,6 @@ final class TranscriptModelTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         XCTAssertThrowsError(try decoder.decode(Transcript.self, from: data))
     }
-    }
     // MARK: - AppConfig / AppSettings (#245)
 
     func testAppConfigDefaultValues() {

@@ -381,6 +381,7 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                 lock.unlock()
                 throw CancellationError()
             }
+            lock.unlock()
 
             let task = Task<Transcript, Error> {
                 for (index, text) in partialTexts.enumerated() {
@@ -391,6 +392,9 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                     if isCancelled {
                         throw CancellationError()
                     }
+                    lock.lock()
+                    emittedPartialTexts += 1
+                    lock.unlock()
                     progressHandler?(
                         .make(
                             phase: .transcribing,
@@ -399,6 +403,9 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                             partialText: text
                         )
                     )
+                    if index < progressGates.count {
+                        await progressGates[index].wait()
+                    }
                     try await Task.sleep(nanoseconds: delayNanoseconds)
                 }
 
@@ -417,11 +424,6 @@ private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
                     sourceFileName: job.sourceFileName,
                     fullText: finalText
                 )
-                if index < progressGates.count {
-                    await progressGates[index].wait()
-                }
-
-                try await Task.sleep(nanoseconds: delayNanoseconds)
             }
 
             lock.lock()

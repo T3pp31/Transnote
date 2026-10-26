@@ -437,9 +437,8 @@ final class MainWindowViewModel: ObservableObject {
     var hasUnsavedChanges: Bool {
         guard currentTranscript != nil else { return false }
         let normalizedEdited = transcriptText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedOriginal = transcript.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalizedBaseline = baselineTranscriptText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return normalizedEdited != normalizedOriginal || normalizedEdited != normalizedBaseline
+        return normalizedEdited != normalizedBaseline
     }
 
     func selectFile(url: URL, preferredFileName: String? = nil) {

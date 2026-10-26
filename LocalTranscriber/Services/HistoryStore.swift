@@ -23,13 +23,13 @@ struct HistoryStore: Sendable {
     }
 
     func recent(limit: Int = 50) -> [Transcript] {
-        return loadAllTranscripts()
+        return loadAllTranscripts(limit: limit)
             .sorted { $0.createdAt > $1.createdAt }
             .prefix(limit)
             .map { $0 }
     }
 
-    private func loadAllTranscripts() -> [Transcript] {
+    private func loadAllTranscripts(limit: Int) -> [Transcript] {
         guard fileManager.fileExists(atPath: historyRoot.path) else { return [] }
         guard limit > 0 else { return [] }
         guard let enumerator = fileManager.enumerator(
