@@ -137,7 +137,7 @@ verify_app() {
 validate_signing_team() {
   local identities line fingerprint certificate_name matched=0
   local normalized_fingerprint=""
-  local identity_line_re='^[[:space:]]*[0-9]+\\)[[:space:]]+([[:xdigit:]]{40})[[:space:]]+"([^"]+)"'
+  local identity_line_re='^[[:space:]]*[0-9]+\)[[:space:]]+([[:xdigit:]]{40})[[:space:]]+"([^"]+)"'
 
   if ! identities="$(security find-identity -v -p codesigning)"; then
     echo "Could not list valid codesigning identities to validate --team" >&2
