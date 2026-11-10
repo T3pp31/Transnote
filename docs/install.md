@@ -84,6 +84,7 @@ bash "/Volumes/Transnote/インストール.command"
 
 DMG のボリューム名が `Transnote 1` などの場合は、Finder 左サイドバーの表示名に合わせてパスを変更してください。
 
+```bash
 bash "/Volumes/Transnote 1/インストール.command"
 ```
 
