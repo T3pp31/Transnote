@@ -903,8 +903,7 @@ final class MainWindowViewModel: ObservableObject {
     private func applyProgressUpdate(_ update: TranscriptionProgressUpdate) {
         progressDisplay = TranscriptionProgressDisplay.from(update: update)
 
-        if let partialText = update.partialText,
-           let presentable = TranscriptTextSanitizer.presentableText(from: partialText) {
+        if let presentable = progressDisplay.presentablePartialText {
             transcriptText = presentable
         }
 

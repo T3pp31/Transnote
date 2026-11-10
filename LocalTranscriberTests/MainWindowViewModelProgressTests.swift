@@ -70,6 +70,54 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptText, "final")
     }
 
+    func testPartialGuidanceAndTranscriptShareSanitizedResult() async throws {
+        let rawTexts = [
+            "<|ja|> こんにちは 🌏 <|endoftext|>",
+            "<｜nocaptions｜>",
+            " \t\n ",
+            "<|ja|>こんにちは 🌏   続き<｜endoftext｜>",
+        ]
+        let presentableTexts: [String?] = ["こんにちは 🌏", nil, nil, "こんにちは 🌏 続き"]
+        let gates = rawTexts.map { _ in ProgressGate() }
+        let mock = MockProgressTranscriber(
+            partialTexts: rawTexts,
+            finalText: "final",
+            delayNanoseconds: 0,
+            progressGates: gates
+        )
+        viewModel = MainWindowViewModel(transcriber: mock)
+        configureForTranscription()
+        defer {
+            gates.forEach { $0.open() }
+            viewModel.cancelTranscription()
+        }
+
+        viewModel.startTranscription()
+        var lastPresentableText = ""
+        let guidance = L("途中結果を表示中", comment: "Partial transcription guidance")
+        for index in rawTexts.indices {
+            let fraction = Double(index + 1) / Double(rawTexts.count + 1)
+            // emit 済みかではなく、メインアクターで適用済みかを待つ。
+            try await waitUntil { self.viewModel.progressDisplay.fraction == fraction }
+            let presentable = presentableTexts[index]
+            if let presentable {
+                lastPresentableText = presentable
+            }
+            let percent = Int(fraction * 100)
+            XCTAssertEqual(viewModel.transcriptText, lastPresentableText)
+            XCTAssertEqual(viewModel.progressDisplay.presentablePartialText, presentable)
+            XCTAssertEqual(
+                viewModel.progressDisplay.detailLabel,
+                presentable == nil ? "\(percent)%" : "\(guidance) · \(percent)%"
+            )
+            XCTAssertEqual(viewModel.uiState, .transcribing)
+            gates[index].open()
+        }
+
+        try await waitUntil { self.viewModel.uiState == .done }
+        XCTAssertEqual(viewModel.transcriptText, "final")
+    }
+
     func testStartTranscriptionClearsPreviousResult() async throws {
         // Given: 前回の文字起こし結果が残っている
         let mock = MockProgressTranscriber(
