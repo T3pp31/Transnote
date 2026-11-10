@@ -14,6 +14,13 @@ cp "$ROOT/.github/swift-format.json" "$REPO/.github/"
 printf 'LocalTranscriber/Allowed.swift\n' > "$REPO/.github/swift-format-allowlist.txt"
 touch "$REPO/LocalTranscriber/Allowed.swift" "$REPO/LocalTranscriberTests/New.swift"
 
+# 本体が使う BSD mktemp -t のテンプレートを Linux でも扱えるようにする。
+# xcrun と同様、export -f で子 Bash に渡して間接的に呼び出す。
+mktemp() {
+  [[ "$*" == '-t transnote-swift-format' ]] || return 2
+  command mktemp "${TMPDIR:-/tmp}/transnote-swift-format.XXXXXX"
+}
+
 xcrun() {
   printf '%s\n' "$PWD" "$@" > "$MOCK_INVOCATION"
   # 存在しない相対ターゲットでは診断なし・成功となるケースを再現する。
@@ -54,11 +61,6 @@ for location in root scripts unrelated; do
     status=0
     (
       cd "$cwd"
-      # 本体が使う BSD mktemp -t のテンプレートを Linux でも扱えるようにする。
-      mktemp() {
-        [[ "$*" == '-t transnote-swift-format' ]] || return 2
-        command mktemp "${TMPDIR:-/tmp}/transnote-swift-format.XXXXXX"
-      }
       export -f mktemp xcrun
       MOCK_INVOCATION="$WORK/invocation" MOCK_LINT_CASE="$lint_case" bash "$script"
     ) > "$WORK/output" 2>&1 || status=$?
