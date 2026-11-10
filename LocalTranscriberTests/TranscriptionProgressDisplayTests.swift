@@ -118,7 +118,7 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
             0
         )
 
-        for fraction in [Double.nan, .infinity, -.infinity] {
+        for fraction in [Double.nan, Double.infinity, -Double.infinity] {
             let update = TranscriptionProgressUpdate.make(
                 phase: .downloadingModel,
                 fraction: fraction,
@@ -151,7 +151,7 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
     }
 
     func testTranscribingWithoutPositiveProgressRemainsIndeterminate() {
-        for fraction in [Double.nan, -.infinity, -0.2, 0] {
+        for fraction in [Double.nan, -Double.infinity, -0.2, 0] {
             let update = TranscriptionProgressUpdate.make(
                 phase: .transcribing,
                 fraction: fraction
