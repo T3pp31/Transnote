@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WORK="$(mktemp -d)"
+WORK="$(command mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 # Bash 関数を export し、実ツールや一時ファイルの実行権限に依存せず検証する。
@@ -90,7 +90,32 @@ echo 'PASS: tool crash without error diagnostics fails'
 expect_unparseable_failure 127 'xcrun: command not found'
 echo 'PASS: tool lookup failure fails'
 
-expect_unparseable_failure 1 'LocalTranscriber/Domain/AppSettings.swift:1:1: warning: indentation'
+expect_unparseable_failure 1 'LocalTranscriber/Domain/AppSettings.swift:1:1: note: indentation'
 echo 'PASS: nonzero exit with unrecognized diagnostic format fails'
+
+# --strict は warning のみでも非ゼロになり、診断のパスは相対・絶対が混在する。
+ALLOWLISTED_WARNING='LocalTranscriber/Domain/AppSettings.swift:1:1: warning: [Indentation] indent by 4 spaces'
+expect_success 1 "$ALLOWLISTED_WARNING"
+echo 'PASS: allowlisted strict-mode warnings succeed'
+
+expect_success 1 "${ROOT}/${ALLOWLISTED_WARNING}
+${ALLOWLISTED_WARNING}
+${ALLOWLISTED}"
+echo 'PASS: mixed absolute/relative allowlisted warnings and errors succeed'
+
+UNEXPECTED_WARNING='LocalTranscriber/NewFile.swift:2:1: warning: [Indentation] indent by 4 spaces'
+expect_failure 1 "$UNEXPECTED_WARNING"
+grep -q 'Unexpected Swift format violations:' "$WORK/stderr" \
+  || fail 'non-allowlisted warning was not parsed'
+echo 'PASS: non-allowlisted strict-mode warnings fail'
+
+expect_failure 1 "${ROOT}/${UNEXPECTED_WARNING}"
+grep -qx 'LocalTranscriber/NewFile.swift' "$WORK/stderr" \
+  || fail 'absolute warning path was not normalized'
+echo 'PASS: non-allowlisted absolute warning paths fail'
+
+expect_failure 1 "${ALLOWLISTED}
+${UNEXPECTED_WARNING}"
+echo 'PASS: allowlisted errors do not hide non-allowlisted warnings'
 
 echo 'ALL SWIFT FORMAT SCRIPT TESTS PASSED'
