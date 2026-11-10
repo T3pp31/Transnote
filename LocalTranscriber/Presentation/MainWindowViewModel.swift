@@ -799,11 +799,6 @@ final class MainWindowViewModel: ObservableObject {
 
     func exportTranscript(format: ExportFormat) {
         guard var transcript = currentTranscript else { return }
-        transcript.fullText = transcriptText
-        // エクスポート時（最新の編集内容を反映）に updatedAt を更新し、編集済み状態を記録する。
-        transcript.updatedAt = Date()
-        currentTranscript = transcript
-        baselineTranscriptText = transcriptText
 
         let savedExportDirectory = fileAccess.loadLastExportDirectory()
         var didBeginSavedDirectoryAccess = false
@@ -833,16 +828,16 @@ final class MainWindowViewModel: ObservableObject {
         )
         guard let url else { return }
 
-        // 保存先が確定した後にのみ最新編集内容を反映し、キャンセル時は元の状態を保持する。
+        // 書き出し用のコピーに最新の編集内容を反映する。
         transcript.fullText = transcriptText
         transcript.updatedAt = Date()
-        currentTranscript = transcript
-
-        // 成功時に次回の初期ディレクトリとして bookmark を保存する
-        fileAccess.saveLastExportDirectoryBookmark(for: url.deletingLastPathComponent())
 
         do {
             try exportService.write(transcript: transcript, format: format, to: url)
+            // 書き出し成功後にのみ保存済み状態を確定し、失敗時は未保存変更を保持する。
+            currentTranscript = transcript
+            baselineTranscriptText = transcript.fullText
+            fileAccess.saveLastExportDirectoryBookmark(for: url.deletingLastPathComponent())
             showToast(
                 String(
                     format: NSLocalizedString("保存しました: %@", comment: "Export completed toast"),

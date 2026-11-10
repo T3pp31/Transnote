@@ -1,3 +1,4 @@
+import UniformTypeIdentifiers
 import XCTest
 @testable import LocalTranscriber
 
@@ -221,4 +222,135 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(content[segments...].contains("- [00:00:00.000 --> 00:00:01.000] text \\*italic\\* \\_under\\_ \\[link\\]"))
     }
 
+}
+
+@MainActor
+final class MainWindowViewModelExportTests: XCTestCase {
+    private var tempRoot: URL!
+    private var originalExportBookmark: Data?
+    private let originalTranscript = Transcript(
+        sourceFileName: "meeting.wav",
+        fullText: "元の文字起こし",
+        updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    private let editedText = "編集した文字起こし"
+
+    override func setUpWithError() throws {
+        tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        let key = SecurityScopedFileAccess.lastExportDirectoryKey
+        originalExportBookmark = UserDefaults.standard.data(forKey: key)
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
+    override func tearDownWithError() throws {
+        let key = SecurityScopedFileAccess.lastExportDirectoryKey
+        if let originalExportBookmark {
+            UserDefaults.standard.set(originalExportBookmark, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+        try? FileManager.default.removeItem(at: tempRoot)
+    }
+
+    func testCancelledExportPreservesUnsavedChanges() throws {
+        let viewModel = makeViewModel(exportURL: nil)
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+
+        viewModel.exportTranscript(format: .txt)
+
+        assertUnsavedStateUnchanged(viewModel)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNil(viewModel.toast)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: tempRoot.path).isEmpty)
+    }
+
+    func testFailedWritePreservesUnsavedChangesAndRetryCommitsLatestEdits() throws {
+        // 存在しない親ディレクトリで、権限や空き容量に依存せず実際の write を失敗させる。
+        let destination = tempRoot.appendingPathComponent("missing/result.txt")
+        let viewModel = makeViewModel(exportURL: destination)
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+
+        viewModel.exportTranscript(format: .txt)
+
+        assertUnsavedStateUnchanged(viewModel)
+        XCTAssertNotNil(viewModel.inlineErrorMessage)
+        XCTAssertTrue(viewModel.canRetryError)
+        XCTAssertNil(viewModel.toast)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: destination.path))
+
+        try FileManager.default.createDirectory(
+            at: destination.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let latestText = "失敗後にさらに編集した文字起こし"
+        viewModel.transcriptText = latestText
+        viewModel.retryLastAction()
+
+        XCTAssertEqual(try String(contentsOf: destination, encoding: .utf8), latestText)
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, latestText)
+        XCTAssertNotEqual(viewModel.currentTranscript?.updatedAt, originalTranscript.updatedAt)
+        XCTAssertEqual(viewModel.baselineTranscriptText, latestText)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNotNil(viewModel.toast)
+    }
+
+    func testSuccessfulExportCommitsTheWrittenTranscript() throws {
+        let destination = tempRoot.appendingPathComponent("result.json")
+        let viewModel = makeViewModel(exportURL: destination)
+
+        viewModel.exportTranscript(format: .json)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let exported = try decoder.decode(Transcript.self, from: Data(contentsOf: destination))
+        let committed = try XCTUnwrap(viewModel.currentTranscript)
+        XCTAssertEqual(exported.id, originalTranscript.id)
+        XCTAssertEqual(exported.fullText, editedText)
+        XCTAssertEqual(committed.fullText, exported.fullText)
+        let exportedDate = try XCTUnwrap(exported.updatedAt)
+        let committedDate = try XCTUnwrap(committed.updatedAt)
+        XCTAssertNotEqual(committedDate, originalTranscript.updatedAt)
+        // JSON の ISO 8601 日時は秒未満を含まない。
+        XCTAssertEqual(exportedDate.timeIntervalSince1970, committedDate.timeIntervalSince1970, accuracy: 1)
+        XCTAssertEqual(viewModel.baselineTranscriptText, exported.fullText)
+        XCTAssertEqual(viewModel.transcriptText, editedText)
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNotNil(viewModel.toast)
+    }
+
+    private func makeViewModel(exportURL: URL?) -> MainWindowViewModel {
+        let viewModel = MainWindowViewModel(
+            fileAccess: SecurityScopedFileAccess(),
+            savePanelPresenter: StubSavePanelPresenter(url: exportURL)
+        )
+        viewModel.currentTranscript = originalTranscript
+        viewModel.baselineTranscriptText = originalTranscript.fullText
+        viewModel.transcriptText = editedText
+        return viewModel
+    }
+
+    private func assertUnsavedStateUnchanged(
+        _ viewModel: MainWindowViewModel,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(viewModel.currentTranscript?.id, originalTranscript.id, file: file, line: line)
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, originalTranscript.fullText, file: file, line: line)
+        XCTAssertEqual(viewModel.currentTranscript?.updatedAt, originalTranscript.updatedAt, file: file, line: line)
+        XCTAssertEqual(viewModel.baselineTranscriptText, originalTranscript.fullText, file: file, line: line)
+        XCTAssertEqual(viewModel.transcriptText, editedText, file: file, line: line)
+        XCTAssertTrue(viewModel.hasUnsavedChanges, file: file, line: line)
+    }
+}
+
+private struct StubSavePanelPresenter: SavePanelPresenting {
+    let url: URL?
+
+    func presentSavePanel(defaultFileName: String, allowedContentTypes: [UTType], initialDirectoryURL: URL?) -> URL? {
+        url
+    }
 }
