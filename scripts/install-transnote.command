@@ -157,13 +157,17 @@ sleep 1
 # 途中で失敗した場合は旧バージョンを復元する。
 TMP_STAGE="${TMPDIR:-/tmp}/transnote-install-$$";
 BACKUP_DIR="${TMPDIR:-/tmp}/transnote-backup-$$";
+TARGET_COPY_STARTED=false
 mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
 
 rollback() {
   local code=$1
   rm -rf "$TMP_STAGE"
-  if [[ -d "${BACKUP_DIR}/${APP_NAME}.app" ]]; then
+  # 配置を開始した場合だけ、不完全な新バンドルを削除する（旧版の退避前は削除しない）。
+  if [[ "$TARGET_COPY_STARTED" == true ]]; then
     rm -rf "$TARGET_APP"
+  fi
+  if [[ -d "${BACKUP_DIR}/${APP_NAME}.app" ]]; then
     mv "${BACKUP_DIR}/${APP_NAME}.app" "$TARGET_APP"
   fi
   rm -rf "$BACKUP_DIR"
@@ -190,6 +194,7 @@ while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_
   legacy_index=$((legacy_index + 1))
 done
 
+TARGET_COPY_STARTED=true
 if ! ditto "${TMP_STAGE}/${APP_NAME}.app" "$TARGET_APP"; then
   fail "新バージョンの配置に失敗しました。旧バージョンを復元します。"
 fi
