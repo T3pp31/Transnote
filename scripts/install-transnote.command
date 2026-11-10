@@ -108,7 +108,7 @@ fi
 
 verify_dmg_checksum
 
-remove_installed_apps() {
+backup_installed_apps() {
   local base_name="$1"
   local candidate
   local expected_id="${BUNDLE_IDENTIFIER}"
@@ -116,7 +116,7 @@ remove_installed_apps() {
   shopt -s nullglob
   for candidate in "${APPLICATIONS_DIR}/${base_name}.app" "${APPLICATIONS_DIR}/${base_name} "*.app; do
     if [[ -d "$candidate" ]]; then
-      # 削除前に Bundle ID を検証し、同名の無関係アプリを誤って削除しない。
+      # 退避前に Bundle ID を検証し、同名の無関係アプリには触れない。
       local candidate_id
       candidate_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${candidate}/Contents/Info.plist" 2>/dev/null || true)"
       if [[ -z "$candidate_id" ]]; then
@@ -126,7 +126,7 @@ remove_installed_apps() {
         echo "Bundle ID mismatch: skip $candidate ($candidate_id != $expected_id)" >&2
         continue
       fi
-      rm -rf "$candidate"
+      mv "$candidate" "${BACKUP_DIR}/${candidate##*/}"
     fi
   done
   shopt -u nullglob
@@ -162,10 +162,13 @@ mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
 rollback() {
   local code=$1
   rm -rf "$TMP_STAGE"
-  if [[ -d "${BACKUP_DIR}/${APP_NAME}.app" ]]; then
-    rm -rf "$TARGET_APP"
-    mv "${BACKUP_DIR}/${APP_NAME}.app" "$TARGET_APP"
-  fi
+  local backup_app original_app
+  for backup_app in "${BACKUP_DIR}/"*.app; do
+    [[ -d "$backup_app" ]] || continue
+    original_app="${APPLICATIONS_DIR}/${backup_app##*/}"
+    rm -rf "$original_app"
+    mv "$backup_app" "$original_app"
+  done
   rm -rf "$BACKUP_DIR"
   exit "$code"
 }
@@ -186,7 +189,7 @@ fi
 
 legacy_index=0
 while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_index}" "$PLIST" 2>/dev/null)"; do
-  remove_installed_apps "$legacy_name"
+  backup_installed_apps "$legacy_name"
   legacy_index=$((legacy_index + 1))
 done
 
