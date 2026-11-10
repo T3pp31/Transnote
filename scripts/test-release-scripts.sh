@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Release / Pages 用スクリプトの自動テスト。
+# Release / Pages / CI 用スクリプトの自動テスト。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+python3 "$ROOT/scripts/test-ci-package-resolved.py"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
