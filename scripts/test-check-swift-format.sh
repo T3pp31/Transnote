@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WORK="$(mktemp -d)"
+WORK="$(command mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 REPO="$WORK/repository with spaces"
