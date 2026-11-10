@@ -24,6 +24,7 @@ struct ToastView: View {
         HStack(spacing: DesignTokens.Spacing.compactSpacing) {
             Image(systemName: message.icon)
                 .foregroundStyle(DesignTokens.Colors.success)
+                .accessibilityHidden(true)
             Text(message.text)
                 .font(.subheadline)
             if let action = message.action {
@@ -45,6 +46,5 @@ struct ToastView: View {
         }
         .shadow(color: DesignTokens.Colors.toastShadow(colorScheme), radius: 8, y: 2)
         .transition(.move(edge: .top).combined(with: .opacity))
-        .accessibilityLabel(message.text)
     }
 }
