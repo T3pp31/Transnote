@@ -8,6 +8,7 @@ final class ModelAvailabilityService: @unchecked Sendable {
     // モデルフォルダが変わった場合に備え、TTL（30秒）で再構築する。
     private let cacheLock = NSLock()
     private var cachedIndex: IndexEntry?
+    private var cacheGeneration: UInt64 = 0
 
     private struct IndexEntry {
         let timestamp: Date
@@ -75,13 +76,17 @@ final class ModelAvailabilityService: @unchecked Sendable {
         } else {
             cacheLock.lock()
             let cached = cachedIndex
+            let generation = cacheGeneration
             cacheLock.unlock()
             if let cached, Date().timeIntervalSince(cached.timestamp) < 30 {
                 allDirectories = cached.directories
             } else {
                 allDirectories = scanVariantDirectories(includingHidden: false)
                 cacheLock.lock()
-                cachedIndex = IndexEntry(timestamp: Date(), directories: allDirectories)
+                // 走査中に無効化された場合、古い結果でキャッシュを復活・上書きしない。
+                if generation == cacheGeneration {
+                    cachedIndex = IndexEntry(timestamp: Date(), directories: allDirectories)
+                }
                 cacheLock.unlock()
             }
         }
@@ -92,6 +97,7 @@ final class ModelAvailabilityService: @unchecked Sendable {
     /// モデル追加・削除後にキャッシュを破棄し、次回は再走査させる。
     func invalidateCache() {
         cacheLock.lock()
+        cacheGeneration &+= 1
         cachedIndex = nil
         cacheLock.unlock()
     }
