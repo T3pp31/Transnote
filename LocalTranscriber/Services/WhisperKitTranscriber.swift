@@ -74,20 +74,27 @@ actor WhisperKitTranscriber: Transcriber {
 
             let decodeOptions = makeDecodingOptions(languageID: job.languageID, vadEnabled: job.vadEnabled)
 
-            // チャンク全体の進捗を正規化するため、セグメント検出コールバックと
-            // transcribe コールバックのどちらでも同一スケールを使う。
-            let duration = (try? await AVURLAsset(url: job.audioFileURL).load(.duration).seconds) ?? 0
-            let chunkCount = max(1, Int((duration / max(job.chunkDuration, 1)).rounded(.up)))
-            let totalChunkCount = max(1, chunkCount)
-            var currentChunkIndex = 0
-            let normalizedOverallProgress: () -> Double = {
-                min(1.0, (Double(currentChunkIndex) + max(0, whisperKit.progress.fractionCompleted))
-                    / Double(totalChunkCount))
-            }
-
             progressHandler?(
                 .make(phase: .convertingAudio, fraction: 0, modelDisplayName: job.modelDisplayName)
             )
+
+            // 長時間音声はチャンク単位で処理する（WhisperKit への一度の投入を避ける）。
+            let chunks = try await splitAudioIntoChunks(url: job.audioFileURL, chunkDuration: job.chunkDuration)
+            defer {
+                for chunk in chunks where chunk.url != job.audioFileURL {
+                    try? FileManager.default.removeItem(at: chunk.url)
+                }
+            }
+
+            // オーバーラップを含む実際のチャンク数で正規化し、両コールバックで同じスケールを使う。
+            var currentChunkIndex = 0
+            let normalizedOverallProgress: () -> Double = {
+                Self.normalizedChunkProgress(
+                    chunks: chunks,
+                    currentChunkIndex: currentChunkIndex,
+                    chunkFraction: whisperKit.progress.fractionCompleted
+                )
+            }
 
             var completedText: String = ""
             whisperKit.segmentDiscoveryCallback = { segments in
@@ -114,13 +121,6 @@ actor WhisperKitTranscriber: Transcriber {
                 whisperKit.segmentDiscoveryCallback = nil
             }
 
-            // 長時間音声はチャンク単位で処理する（WhisperKit への一度の投入を避ける）。
-            let chunks = try await splitAudioIntoChunks(url: job.audioFileURL, chunkDuration: job.chunkDuration)
-            defer {
-                for chunk in chunks where chunk.url != job.audioFileURL {
-                    try? FileManager.default.removeItem(at: chunk.url)
-                }
-            }
             var allResults: [TranscriptionResult] = []
             var processedSeconds: TimeInterval = 0
             var totalSeconds: TimeInterval = chunks.count > 1
@@ -312,6 +312,14 @@ actor WhisperKitTranscriber: Transcriber {
     struct AudioChunk: Sendable {
         let url: URL
         let startSeconds: TimeInterval
+    }
+
+    nonisolated static func normalizedChunkProgress(
+        chunks: [AudioChunk],
+        currentChunkIndex: Int,
+        chunkFraction: Double
+    ) -> Double {
+        min(1.0, (Double(currentChunkIndex) + max(0, chunkFraction)) / Double(max(1, chunks.count)))
     }
 
     nonisolated func splitAudioIntoChunks(
