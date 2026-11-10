@@ -19,6 +19,12 @@ if [[ "$lint_status" -eq 0 ]]; then
 fi
 
 violating_files="$(awk -F: '/error:/ {print $1}' "$LOG_PATH" | sort -u)"
+if [[ -z "$violating_files" ]]; then
+  echo "swift-format failed without parseable diagnostics (exit status: $lint_status)" >&2
+  cat "$LOG_PATH" >&2
+  exit 1
+fi
+
 unexpected_files="$(comm -13 <(sort "$ALLOWLIST_PATH") <(printf '%s\n' "$violating_files" | sed '/^$/d'))"
 
 if [[ -n "$unexpected_files" ]]; then
