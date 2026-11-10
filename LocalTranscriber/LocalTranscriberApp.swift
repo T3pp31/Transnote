@@ -2,6 +2,8 @@ import SwiftUI
 
 @main
 struct LocalTranscriberApp: App {
+    @StateObject private var updateChecker = UpdateCheckViewModel()
+
     init() {
         AppDirectories.ensureDirectoriesExist()
         // Imports/ に残った古い一時ファイルや完了済み音声を自動クリーンアップする。
@@ -25,11 +27,11 @@ struct LocalTranscriberApp: App {
 
     var body: some Scene {
         WindowGroup("Transnote") {
-            MainWindowView()
+            MainWindowView(updateChecker: updateChecker)
         }
         .defaultSize(width: 800, height: 680)
         .commands {
-            TranscriptionCommands()
+            TranscriptionCommands(checkForUpdate: updateChecker.checkNow)
         }
     }
 }

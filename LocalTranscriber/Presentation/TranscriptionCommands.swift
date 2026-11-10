@@ -14,7 +14,6 @@ struct TranscriptionActionsValue {
     let copyTranscript: () -> Void
     let canOpenFile: Bool
     let openFile: () -> Void
-    let checkForUpdate: () -> Void
 }
 
 extension FocusedValues {
@@ -26,6 +25,8 @@ extension FocusedValues {
 
 struct TranscriptionCommands: Commands {
     @FocusedValue(\.transcriptionActions) private var actions: TranscriptionActionsValue?
+
+    let checkForUpdate: () -> Void
 
     var body: some Commands {
         CommandMenu("文字起こし") {
@@ -55,10 +56,7 @@ struct TranscriptionCommands: Commands {
 
             Divider()
 
-            Button("アップデートを確認…") {
-                actions?.checkForUpdate()
-            }
-            .disabled(actions == nil)
+            Button("アップデートを確認…", action: checkForUpdate)
         }
     }
 }
