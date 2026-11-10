@@ -181,6 +181,64 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertNotNil(settings.selectedLanguage)
     }
 
+    @MainActor
+    func testAppSettingsSelectionFallbackPriority() throws {
+        let suiteName = "AppSettingsSelectionTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let models = [
+            ModelOption(id: "tiny", displayName: "Tiny", whisperKitModelName: "tiny"),
+            ModelOption(id: "base", displayName: "Base", whisperKitModelName: "base"),
+            ModelOption(id: "small", displayName: "Small", whisperKitModelName: "small")
+        ]
+        // 先頭は既定言語 auto とは異なる値にし、配列順でのフォールバックを検証する。
+        let languages = [
+            LanguageOption(id: "ja", displayName: "Japanese"),
+            LanguageOption(id: "auto", displayName: "Auto"),
+            LanguageOption(id: "en", displayName: "English")
+        ]
+        let defaultCases: [(model: String, language: String, fallbackModel: String, fallbackLanguage: String)] = [
+            ("base", "auto", "base", "auto"),
+            ("large-v3", "fr", "tiny", "ja"),
+            ("", "", "tiny", "ja")
+        ]
+        let savedModelIDs: [String?] = [nil, "removed-model", "small"]
+        let savedLanguageIDs: [String?] = [nil, "removed-language", "en"]
+
+        for defaultCase in defaultCases {
+            let config = AppConfig(
+                supportedExtensions: ["wav"],
+                defaultModelID: defaultCase.model,
+                defaultLanguageID: defaultCase.language,
+                modelsDirectoryName: "Models",
+                models: models,
+                languages: languages,
+                updateCheckEnabled: true,
+                githubReleasesAPIURL: URL(string: "https://api.github.com/repos/T3pp31/Transnote/releases/latest")!,
+                updateDownloadFallbackURL: URL(string: "https://github.com/T3pp31/Transnote")!,
+                updateDMGAssetName: "Transnote.dmg"
+            )
+
+            for savedModelID in savedModelIDs {
+                for savedLanguageID in savedLanguageIDs {
+                    defaults.set(savedModelID, forKey: "selectedModelID")
+                    defaults.set(savedLanguageID, forKey: "selectedLanguageID")
+                    let settings = AppSettings(config: config, defaults: defaults)
+                    let expectedModelID = savedModelID == "small" ? "small" : defaultCase.fallbackModel
+                    let expectedLanguageID = savedLanguageID == "en" ? "en" : defaultCase.fallbackLanguage
+                    let context = "defaults=\(defaultCase.model)/\(defaultCase.language), "
+                        + "saved=\(savedModelID ?? "nil")/\(savedLanguageID ?? "nil")"
+
+                    XCTAssertEqual(settings.selectedModelID, expectedModelID, context)
+                    XCTAssertEqual(settings.selectedLanguageID, expectedLanguageID, context)
+                    XCTAssertEqual(settings.selectedModel, models.first { $0.id == expectedModelID }, context)
+                    XCTAssertEqual(settings.selectedLanguage, languages.first { $0.id == expectedLanguageID }, context)
+                }
+            }
+        }
+    }
+
     // MARK: - History store (#213)
 
     func testHistoryStoreSaveAndRecent() throws {
