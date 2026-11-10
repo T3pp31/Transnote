@@ -88,9 +88,11 @@ if [[ ! -d "$APP_PATH" ]]; then
 fi
 
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
-STAGING_DIR="$(mktemp -d)"
-DMG_RW="$(mktemp "${TMPDIR:-/tmp}/${APP_NAME}.XXXXXX")"
-trap 'rm -rf "$STAGING_DIR" "$DMG_RW"' EXIT
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+STAGING_DIR="${WORK_DIR}/staging"
+DMG_RW="${WORK_DIR}/${APP_NAME}.dmg"
+mkdir "$STAGING_DIR"
 
 cp -R "$APP_PATH" "${STAGING_DIR}/"
 cp "$DISTRIBUTION_PLIST" "${STAGING_DIR}/distribution.plist"
