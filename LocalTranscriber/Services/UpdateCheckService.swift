@@ -102,13 +102,10 @@ struct UpdateCheckService: UpdateChecking {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
 
-        if let expectedLength = try await expectedContentLength(for: request),
-           expectedLength > Self.maxResponseSize {
-            throw UpdateCheckError.responseTooLarge
-        }
-        let (data, response) = try await session.data(for: request)
-        // レスポンスサイズ上限（8 MB）
-        guard data.count <= Self.maxResponseSize else {
+        // 同じ GET のヘッダと本文をストリーミングで受け取り、全量バッファリングを避ける。
+        let (bytes, response) = try await session.bytes(for: request)
+        defer { bytes.task.cancel() }
+        guard response.expectedContentLength <= Int64(Self.maxResponseSize) else {
             throw UpdateCheckError.responseTooLarge
         }
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -121,16 +118,20 @@ struct UpdateCheckService: UpdateChecking {
             throw UpdateCheckError.httpStatus(httpResponse.statusCode)
         }
 
+        var data = Data()
+        for try await byte in bytes {
+            // Content-Length の欠落・過少申告時も、保持する本文は 8 MB までに制限する。
+            guard data.count < Self.maxResponseSize else {
+                throw UpdateCheckError.responseTooLarge
+            }
+            data.append(byte)
+        }
+
         let release = try JSONDecoder().decode(GitHubRelease.self, from: data)
         guard isValidRepository(release) else {
             throw UpdateCheckError.invalidResponse
         }
         return (release, httpResponse.value(forHTTPHeaderField: "ETag"))
-    }
-
-    private func expectedContentLength(for request: URLRequest) async throws -> Int64? {
-        let (_, response) = try await session.data(for: request)
-        return (response as? HTTPURLResponse)?.expectedContentLength
     }
 
     /// `repository.full_name` がある場合は期待値と一致すること。欠落・一致いずれでも `html_url` は必ず検証する。
