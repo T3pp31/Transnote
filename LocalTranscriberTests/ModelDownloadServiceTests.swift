@@ -42,6 +42,39 @@ final class ModelDownloadServiceTests: XCTestCase {
         XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
     }
 
+    func testDiskSpaceCheckRejectsZeroAndOtherCapacitiesBelowMinimum() {
+        let minimumRequired: Int64 = 5 * 1024 * 1024 * 1024
+        for available in [0, -1, 1, minimumRequired - 1] {
+            XCTAssertThrowsError(
+                try ModelDownloadService.ensureEnoughDiskSpace(availableCapacity: available),
+                "Expected insufficient disk space for \(available) bytes"
+            ) { error in
+                guard case AppError.transcriptionFailed(let message) = error else {
+                    XCTFail("Expected transcriptionFailed, got \(error)")
+                    return
+                }
+                XCTAssertEqual(
+                    message,
+                    L("モデルのダウンロードに必要な空き容量が不足しています。ディスクの空き容量を確認してください。")
+                )
+            }
+        }
+    }
+
+    func testDiskSpaceCheckAcceptsMinimumOrGreaterCapacity() {
+        let minimumRequired: Int64 = 5 * 1024 * 1024 * 1024
+        for available in [minimumRequired, minimumRequired + 1, Int64.max] {
+            XCTAssertNoThrow(
+                try ModelDownloadService.ensureEnoughDiskSpace(availableCapacity: available),
+                "Expected sufficient disk space for \(available) bytes"
+            )
+        }
+    }
+
+    func testDiskSpaceCheckSkipsUnavailableCapacity() {
+        XCTAssertNoThrow(try ModelDownloadService.ensureEnoughDiskSpace(availableCapacity: nil))
+    }
+
     func testCleanUpFailedDownloadRemovesNewlyCreatedVariantFolderOnly() throws {
         // Given: ダウンロード開始前に存在していた既存の完全なモデルフォルダ（削除してはならない）
         let existingFolder = temporaryRoot

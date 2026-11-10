@@ -41,8 +41,12 @@ struct ModelDownloadService: Sendable {
     /// 不足時は AppError.fileTooLarge ではなく専用エラーで通知する。
     private func ensureEnoughDiskSpace() throws {
         let resourceValues = try? modelsRoot.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        guard let available = resourceValues?.volumeAvailableCapacityForImportantUsage,
-              available > 0 else {
+        try Self.ensureEnoughDiskSpace(availableCapacity: resourceValues?.volumeAvailableCapacityForImportantUsage)
+    }
+
+    /// 実ディスクの状態に依存せず検証できるよう、取得した容量の判定を分離する。
+    static func ensureEnoughDiskSpace(availableCapacity: Int64?) throws {
+        guard let available = availableCapacity else {
             // 容量を取得できない場合は検査をスキップ（非ブロッキング）
             AppLogger.info("Could not determine free disk space; skipping check", logger: AppLogger.transcription)
             return
