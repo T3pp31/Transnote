@@ -312,6 +312,141 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(viewModel.hasUnsavedChanges)
     }
 
+    func testSegmentEditsMatchJoinedTextAcrossUnicodeAndEmptySegments() {
+        viewModel = MainWindowViewModel()
+        var segments = ["先頭\r", "", "e\u{301} 👨‍👩‍👧‍👦", "末尾\n行"].enumerated().map { index, text in
+            TranscriptSegment(startTime: Double(index), endTime: Double(index + 1), text: text)
+        }
+        // 初回編集は、セグメント結合と異なる全文も従来どおり置き換える。
+        viewModel.restoreTranscript(Transcript(sourceFileName: "test.wav", fullText: "別の全文", segments: segments))
+        let edits: [(Int, String)] = [
+            (0, "先頭\r更新"), (0, "先頭\r"), (0, ""),
+            (1, "\u{301}🇯🇵"), (1, "\n\n"), (1, ""),
+            (2, "👩🏽‍💻"), (2, "e\u{301}"), (2, ""),
+            (3, "末尾\r\n次の行"), (3, ""), (3, "復元"),
+            (0, "再び先頭"), (2, "中間"), (1, "空でなくなった行")
+        ]
+
+        for (index, text) in edits {
+            let snapshot = viewModel.currentTranscript
+            let oldTexts = snapshot?.segments.map(\.text)
+            segments[index].text = text
+            viewModel.updateSegmentText(id: segments[index].id, text: text)
+
+            let expected = segments.map(\.text).joined(separator: "\n")
+            XCTAssertEqual(viewModel.transcriptText, expected)
+            XCTAssertEqual(viewModel.currentTranscript?.fullText, expected)
+            XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), segments.map(\.text))
+            XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.id), segments.map(\.id))
+            XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.startTime), segments.map(\.startTime))
+            XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.endTime), segments.map(\.endTime))
+            XCTAssertEqual(snapshot?.segments.map(\.text), oldTexts, "既存のスナップショットを変更しない")
+        }
+        XCTAssertEqual(viewModel.baselineTranscriptText, "別の全文")
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+        XCTAssertTrue(viewModel.canExport)
+        XCTAssertTrue(viewModel.canCopyTranscript)
+    }
+
+    func testSegmentEditLocationIsInvalidatedByFullTextEditing() {
+        viewModel = MainWindowViewModel()
+        for count in [1, 3] {
+            var segments = (0..<count).map { index in
+                TranscriptSegment(startTime: Double(index), endTime: Double(index + 1), text: "行\(index)")
+            }
+            viewModel.restoreTranscript(Transcript(sourceFileName: "test.wav", fullText: "元の全文", segments: segments))
+            let index = count - 1
+            viewModel.updateSegmentText(id: segments[index].id, text: "最初の編集")
+            viewModel.updateTranscriptText("全文編集で長さが変わる 👨‍👩‍👧‍👦\n")
+            XCTAssertEqual(viewModel.currentTranscript?.fullText, viewModel.transcriptText)
+
+            segments[index].text = "セグメント編集へ戻る"
+            viewModel.updateSegmentText(id: segments[index].id, text: segments[index].text)
+            XCTAssertEqual(viewModel.transcriptText, segments.map(\.text).joined(separator: "\n"))
+            XCTAssertEqual(viewModel.currentTranscript?.fullText, viewModel.transcriptText)
+            // 再初期化後の差分置換も正しい位置へ適用する。
+            segments[index].text = "もう一文字"
+            viewModel.updateSegmentText(id: segments[index].id, text: segments[index].text)
+            XCTAssertEqual(viewModel.transcriptText, segments.map(\.text).joined(separator: "\n"))
+        }
+    }
+
+    func testSegmentEditLocationIsInvalidatedWhenTranscriptIsReplaced() {
+        viewModel = MainWindowViewModel()
+        let first = TranscriptSegment(startTime: 0, endTime: 1, text: "先頭")
+        var second = TranscriptSegment(startTime: 1, endTime: 2, text: "末尾")
+        var transcript = Transcript(sourceFileName: "test.wav", fullText: "先頭\n末尾", segments: [first, second])
+        viewModel.restoreTranscript(transcript)
+        viewModel.updateSegmentText(id: second.id, text: "末尾の編集")
+
+        // 同じ Transcript/segment ID でも、復元で順序と長さが変わり得る。
+        second.text = "復元後は先頭"
+        transcript.segments = [second, first]
+        viewModel.restoreTranscript(transcript)
+        viewModel.updateSegmentText(id: second.id, text: "復元後の編集")
+        XCTAssertEqual(viewModel.transcriptText, "復元後の編集\n先頭")
+
+        // 公開プロパティ経由の更新でも古い位置を使わない。
+        viewModel.currentTranscript?.segments[0].text = "外部更新で長くなったテキスト"
+        viewModel.updateSegmentText(id: second.id, text: "再編集")
+        XCTAssertEqual(viewModel.transcriptText, "再編集\n先頭")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, viewModel.transcriptText)
+    }
+
+    func testUnknownSegmentIDDoesNotChangeTranscriptOrEditLocation() {
+        viewModel = MainWindowViewModel()
+        viewModel.updateSegmentText(id: UUID(), text: "無視する")
+        XCTAssertNil(viewModel.currentTranscript)
+        XCTAssertEqual(viewModel.transcriptText, "")
+
+        viewModel.restoreTranscript(Transcript(sourceFileName: "test.wav", fullText: "全文のみ"))
+        viewModel.updateSegmentText(id: UUID(), text: "無視する")
+        XCTAssertEqual(viewModel.transcriptText, "全文のみ")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "全文のみ")
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+
+        let segment = TranscriptSegment(startTime: 0, endTime: 1, text: "元")
+        viewModel.restoreTranscript(Transcript(sourceFileName: "test.wav", fullText: "元", segments: [segment]))
+        viewModel.updateSegmentText(id: segment.id, text: "編集")
+        viewModel.updateSegmentText(id: UUID(), text: "無視する")
+        XCTAssertEqual(viewModel.transcriptText, "編集")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "編集")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.first?.text, "編集")
+        viewModel.updateSegmentText(id: segment.id, text: "")
+        XCTAssertEqual(viewModel.transcriptText, "")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "")
+        XCTAssertFalse(viewModel.canExport)
+        XCTAssertFalse(viewModel.canCopyTranscript)
+        viewModel.updateSegmentText(id: segment.id, text: "元")
+        XCTAssertEqual(viewModel.transcriptText, "元")
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+    }
+
+    // 外部音声・モデル不要の計測。固定の時間閾値は設けず、CI で連続入力のコストを記録する。
+    func testMeasureRepeatedSegmentTextEditsInLongTranscript() {
+        viewModel = MainWindowViewModel()
+        let segments = (0..<3_000).map { index in
+            TranscriptSegment(startTime: Double(index), endTime: Double(index + 1), text: "行\(index) 日本語と emoji 👩🏽‍💻")
+        }
+        let transcript = Transcript(
+            sourceFileName: "long.wav",
+            fullText: segments.map(\.text).joined(separator: "\n"),
+            segments: segments
+        )
+        let id = segments[segments.count - 1].id
+
+        measure {
+            viewModel.restoreTranscript(transcript)
+            for index in 0..<100 {
+                viewModel.updateSegmentText(id: id, text: "入力\(index)")
+            }
+        }
+        let expected = segments.dropLast().map(\.text).joined(separator: "\n") + "\n入力99"
+        XCTAssertEqual(viewModel.transcriptText, expected)
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, expected)
+        XCTAssertEqual(viewModel.currentTranscript?.segments.last?.text, "入力99")
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(

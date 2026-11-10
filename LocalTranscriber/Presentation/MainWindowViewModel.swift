@@ -84,7 +84,12 @@ final class MainWindowViewModel: ObservableObject {
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
     @Published var selectedFile: AudioFileInfo?
     @Published var transcriptText: String = ""
-    @Published var currentTranscript: Transcript?
+    @Published var currentTranscript: Transcript? {
+        didSet {
+            // 全文編集・復元・書き出しなど、セグメント編集以外の更新で位置情報を無効化する。
+            segmentTextEditLocation = nil
+        }
+    }
     @Published var baselineTranscriptText: String = ""
     @Published var playingSegmentID: UUID?
     @Published var playbackPositionText: String = ""
@@ -122,6 +127,15 @@ final class MainWindowViewModel: ObservableObject {
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
     private var hasSegmentTextEdits = false
+
+    private struct SegmentTextEditLocation {
+        let id: UUID
+        let index: Int
+        let utf8Offset: Int
+    }
+
+    // 同じ行への連続入力では、ID 検索と先行セグメントの走査も再実行しない。
+    private var segmentTextEditLocation: SegmentTextEditLocation?
 
     private let modelDownloadCoordinator = ModelDownloadCoordinator()
 
@@ -711,13 +725,35 @@ final class MainWindowViewModel: ObservableObject {
     /// セグメントのテキストを更新し、currentTranscript と全文に同期する。
     func updateSegmentText(id: UUID, text: String) {
         guard var transcript = currentTranscript else { return }
-        if let index = transcript.segments.firstIndex(where: { $0.id == id }) {
-            transcript.segments[index].text = text
-            hasSegmentTextEdits = true
-            transcript.fullText = transcript.segments.map(\.text).joined(separator: "\n")
-            currentTranscript = transcript
-            transcriptText = transcript.fullText
+        let previousLocation = segmentTextEditLocation
+        let index: Int
+        let utf8Offset: Int
+        if let previousLocation, previousLocation.id == id {
+            index = previousLocation.index
+            utf8Offset = previousLocation.utf8Offset
+        } else {
+            guard let segmentIndex = transcript.segments.firstIndex(where: { $0.id == id }) else { return }
+            index = segmentIndex
+            // セグメント間の区切りは 1 バイトの改行。本文中の改行も文字列長に含める。
+            utf8Offset = transcript.segments.prefix(index).reduce(index) { $0 + $1.text.utf8.count }
         }
+
+        let previousUTF8Count = transcript.segments[index].text.utf8.count
+        transcript.segments[index].text = text
+        if previousLocation == nil {
+            // 復元時や全文編集後は fullText がセグメント結合と異なる場合がある。
+            // 初回だけ従来どおり結合し、以後は変更した範囲のみ置換する。
+            transcript.fullText = transcript.segments.map(\.text).joined(separator: "\n")
+        } else {
+            let start = transcript.fullText.utf8.index(transcript.fullText.utf8.startIndex, offsetBy: utf8Offset)
+            let end = transcript.fullText.utf8.index(start, offsetBy: previousUTF8Count)
+            // CR + 区切りの LF が一つの Character になる場合も、セグメント境界で置換する。
+            transcript.fullText.unicodeScalars.replaceSubrange(start..<end, with: text.unicodeScalars)
+        }
+        hasSegmentTextEdits = true
+        currentTranscript = transcript
+        segmentTextEditLocation = SegmentTextEditLocation(id: id, index: index, utf8Offset: utf8Offset)
+        transcriptText = transcript.fullText
     }
 
     func copyTranscript() {
