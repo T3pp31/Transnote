@@ -157,6 +157,7 @@ for heading in (
 print("PASS: install.md code fences and subsequent sections")
 PY
 
+python3 "$ROOT/scripts/test-release-signing.py"
 bash "$ROOT/scripts/test-export-release-app.sh"
 bash "$ROOT/scripts/test-check-swift-format.sh"
 
