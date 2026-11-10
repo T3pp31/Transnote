@@ -72,13 +72,17 @@ final class TranscriptionSmokeTests: XCTestCase {
                 )
             ]
             for expected in errors {
+                var diagnostics: [String] = []
                 do {
-                    _ = try await downloadModelForSmokeTest { throw expected }
+                    _ = try await downloadModelForSmokeTest(logSkip: { diagnostics.append($0) }) {
+                        throw expected
+                    }
                     XCTFail("Expected a skip for \(expected)")
-                } catch let skip as XCTSkip {
-                    let diagnostic = String(describing: skip)
-                    XCTAssertTrue(diagnostic.contains(String(code.rawValue)))
-                    XCTAssertTrue(diagnostic.contains(String(describing: expected)))
+                } catch is XCTSkip {
+                    // XCTSkip 自体の文字列表現ではなく、実際にログへ渡した診断を検証する。
+                    XCTAssertEqual(diagnostics, [
+                        "Model download temporarily unavailable (URLError \(code.rawValue)): \(expected)"
+                    ])
                 } catch {
                     XCTFail("Expected XCTSkip, got \(error)")
                 }
@@ -134,14 +138,19 @@ final class TranscriptionSmokeTests: XCTestCase {
 
     /// スキップを一時的な通信断に限定し、モデルや保存先の異常はテスト失敗として伝播する。
     /// クロージャ注入により、fixture・ネットワークなしで実際の変換経路を検証する。
-    private func downloadModelForSmokeTest(_ download: () async throws -> URL) async throws -> URL {
+    private func downloadModelForSmokeTest(
+        logSkip: (String) -> Void = { print($0) },
+        _ download: () async throws -> URL
+    ) async throws -> URL {
         do {
             return try await download()
         } catch {
             guard let urlError = error as? URLError else { throw error }
             switch urlError.code {
             case .notConnectedToInternet, .timedOut, .networkConnectionLost:
-                throw XCTSkip("Model download temporarily unavailable (URLError \(urlError.code.rawValue)): \(error)")
+                let diagnostic = "Model download temporarily unavailable (URLError \(urlError.code.rawValue)): \(error)"
+                logSkip(diagnostic)
+                throw XCTSkip(diagnostic)
             default:
                 throw error
             }
