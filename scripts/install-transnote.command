@@ -149,15 +149,12 @@ remove_quarantine_attribute() {
   fi
 }
 
-osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
-sleep 1
-
 # --- transactional install ---
 # 新バージョンを一時ディレクトリへコピーし、成功を確認してから旧バージョンを退避・置換する。
 # 途中で失敗した場合は旧バージョンを復元する。
 TMP_STAGE="${TMPDIR:-/tmp}/transnote-install-$$";
 BACKUP_DIR="${TMPDIR:-/tmp}/transnote-backup-$$";
-mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
+LOCK_DIR="${APPLICATIONS_DIR}/.transnote-install.lock"
 
 rollback() {
   local code=$1
@@ -167,10 +164,26 @@ rollback() {
     mv "${BACKUP_DIR}/${APP_NAME}.app" "$TARGET_APP"
   fi
   rm -rf "$BACKUP_DIR"
+  rmdir "$LOCK_DIR"
   exit "$code"
 }
 
+# mkdir は原子的に成功するため、同じインストール先への多重起動を防げる。
+# 取得できなかったプロセスには cleanup を登録せず、他方のロックを削除しない。
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  if [[ -e "$LOCK_DIR" ]]; then
+    fail "既にインストール処理中です。完了後に再実行してください。"
+  fi
+  fail "インストール先のロックを作成できませんでした。書き込み権限を確認してください。"
+fi
 trap 'rollback $?' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
+osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
+sleep 1
 
 if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
   fail "新バージョンのコピーに失敗しました。"
@@ -200,7 +213,8 @@ remove_quarantine_attribute "$TARGET_APP"
 
 # 成功時はバックアップを破棄
 rm -rf "$BACKUP_DIR" "$TMP_STAGE"
-trap - EXIT
+# コミット後は復元せず、通知・起動が終わるまでロックだけを保持する。
+trap 'rmdir "$LOCK_DIR"' EXIT
 
 eject_installer_volume
 

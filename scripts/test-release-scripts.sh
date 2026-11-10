@@ -90,5 +90,6 @@ fi
 echo "PASS: missing MARKETING_VERSION rejected"
 
 bash "$ROOT/scripts/test-export-release-app.sh"
+python3 "$ROOT/scripts/test-install-transnote.py"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"
