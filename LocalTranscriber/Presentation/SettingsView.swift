@@ -287,9 +287,8 @@ private struct StorageRow: View {
     var modelsRevision: Int = 0
     let onCleared: (() -> Void)?
 
-    @State private var sizeText: String = "計算中…"
+    @State private var sizeState = StorageSizeState()
     @State private var isConfirmingClear = false
-    @State private var isClearing = false
 
     var body: some View {
         HStack {
@@ -297,7 +296,7 @@ private struct StorageRow: View {
                 .foregroundStyle(.secondary)
             Text(title)
             Spacer()
-            Text(sizeText)
+            Text(sizeState.sizeText)
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
             Button("クリア") {
@@ -305,7 +304,7 @@ private struct StorageRow: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(isBusy || isClearing || sizeText == "計算中…")
+            .disabled(isBusy || sizeState.isClearing || sizeState.isCalculating)
         }
         .confirmationDialog(
             "\(title)を空にしますか？",
@@ -327,30 +326,68 @@ private struct StorageRow: View {
         }
     }
 
+    @MainActor
     private func refreshSize() {
+        guard let generation = sizeState.beginRefresh() else { return }
         Task.detached(priority: .utility) { [directory] in
             let bytes = AppDirectories.directorySize(of: directory)
             await MainActor.run {
-                sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+                sizeState.finishRefresh(bytes: bytes, generation: generation)
             }
         }
     }
 
+    @MainActor
     private func clearDirectory() {
-        isClearing = true
-        sizeText = "計算中…"
-
+        let generation = sizeState.beginClear()
         Task.detached(priority: .userInitiated) { [directory] in
             let succeeded = AppDirectories.clearDirectory(directory)
             let bytes = succeeded ? AppDirectories.directorySize(of: directory) : 0
             await MainActor.run {
-                isClearing = false
-                if succeeded {
-                    sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
-                } else {
-                    sizeText = "削除できませんでした"
-                }
+                sizeState.finishClear(succeeded: succeeded, bytes: bytes, generation: generation)
             }
         }
+    }
+}
+
+/// StorageRow が MainActor 上で更新する表示状態。完了順ではなく開始世代で結果を選ぶ。
+struct StorageSizeState {
+    private(set) var sizeText = "計算中…"
+    private(set) var isCalculating = true
+    private(set) var isClearing = false
+    private var generation = 0
+
+    mutating func beginRefresh() -> Int? {
+        // クリア処理自身が削除後のサイズを測るため、途中の再計算は開始しない。
+        guard !isClearing else { return nil }
+        return beginCalculation()
+    }
+
+    mutating func finishRefresh(bytes: Int64, generation: Int) {
+        guard generation == self.generation else { return }
+        isCalculating = false
+        sizeText = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    mutating func beginClear() -> Int {
+        isClearing = true
+        // 確認ダイアログ表示中に始まった再計算も、この世代更新で無効にする。
+        return beginCalculation()
+    }
+
+    mutating func finishClear(succeeded: Bool, bytes: Int64, generation: Int) {
+        guard generation == self.generation else { return }
+        isClearing = false
+        isCalculating = false
+        sizeText = succeeded
+            ? ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            : "削除できませんでした"
+    }
+
+    private mutating func beginCalculation() -> Int {
+        generation += 1
+        isCalculating = true
+        sizeText = "計算中…"
+        return generation
     }
 }
