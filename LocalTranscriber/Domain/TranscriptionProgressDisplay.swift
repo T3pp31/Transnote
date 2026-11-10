@@ -50,11 +50,11 @@ struct TranscriptionProgressDisplay: Equatable {
         switch update.phase {
         case .downloadingModel:
             style = .determinate
-            fraction = min(1.0, max(0.0, update.fraction))
+            fraction = clampedFraction
         case .transcribing:
             if update.fraction > 0 {
                 style = .determinate
-                fraction = min(1.0, max(0.0, update.fraction))
+                fraction = clampedFraction
             } else {
                 // 実進捗が不明な場合は indeterminate 表示
                 style = .indeterminate
