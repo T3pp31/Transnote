@@ -154,6 +154,34 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(config.modelsDirectoryName, "Models")
     }
 
+    func testLargeV3ModelNamesMatchConfiguredVariants() throws {
+        let appBundle = Bundle(for: MainWindowViewModel.self)
+        let config = AppConfig(bundle: appBundle)
+        let expectedModels: [(id: String, displayName: String, variant: String)] = [
+            ("large-v3-compressed", "Large v3 (compressed)", "large-v3-v20240930_626MB"),
+            ("large-v3-turbo", "Large v3 Turbo", "large-v3-v20240930_turbo")
+        ]
+
+        for expected in expectedModels {
+            let model = try XCTUnwrap(config.models.first { $0.id == expected.id })
+            XCTAssertEqual(model.displayName, expected.displayName, expected.id)
+            XCTAssertEqual(model.whisperKitModelName, expected.variant, expected.id)
+
+            // 実行環境の優先言語に依存せず、設定画面が使う日英両方の表示名を検証する。
+            for language in ["ja", "en"] {
+                let localizationURL = try XCTUnwrap(
+                    appBundle.url(forResource: language, withExtension: "lproj")
+                )
+                let localizationBundle = try XCTUnwrap(Bundle(url: localizationURL))
+                XCTAssertEqual(
+                    localizationBundle.localizedString(forKey: "model.\(model.id)", value: nil, table: nil),
+                    expected.displayName,
+                    "\(model.id) (\(language))"
+                )
+            }
+        }
+    }
+
     func testAppConfigCustomInit() {
         let config = AppConfig(
             supportedExtensions: ["wav"],
