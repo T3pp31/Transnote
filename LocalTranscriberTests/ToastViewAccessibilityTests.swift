@@ -63,13 +63,13 @@ final class ToastViewAccessibilityTests: XCTestCase {
         return window
     }
 
-    private func accessibilityElements(in element: any NSAccessibility) -> [any NSAccessibility] {
-        let children = (element.accessibilityChildren() ?? []).compactMap { $0 as? any NSAccessibility }
-        let current: [any NSAccessibility] = element.isAccessibilityElement() ? [element] : []
+    private func accessibilityElements(in element: any NSAccessibilityProtocol) -> [any NSAccessibilityProtocol] {
+        let children = (element.accessibilityChildren() ?? []).compactMap { $0 as? any NSAccessibilityProtocol }
+        let current: [any NSAccessibilityProtocol] = element.isAccessibilityElement() ? [element] : []
         return current + children.flatMap { accessibilityElements(in: $0) }
     }
 
-    private func spokenText(of element: any NSAccessibility) -> String? {
+    private func spokenText(of element: any NSAccessibilityProtocol) -> String? {
         // AppKit はコントロールの種類に応じて label/title/value に読み上げ文言を格納する。
         [element.accessibilityLabel(), element.accessibilityTitle(), element.accessibilityValue() as? String]
             .compactMap { $0 }
