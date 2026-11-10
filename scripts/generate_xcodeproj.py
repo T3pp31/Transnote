@@ -55,6 +55,7 @@ APP_SOURCES = [
 TEST_SOURCES = [
     "LocalTranscriberTests/ExportServiceTests.swift",
     "LocalTranscriberTests/TranscriptModelTests.swift",
+    "LocalTranscriberTests/StorageSizeStateTests.swift",
     "LocalTranscriberTests/TranscriptionSmokeTests.swift",
     "LocalTranscriberTests/ModelAvailabilityServiceTests.swift",
     "LocalTranscriberTests/TranscriptionProgressDisplayTests.swift",
