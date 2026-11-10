@@ -20,7 +20,13 @@ enum TranscriptPartialTextBuilder {
         let windowText = joinedPresentableText(from: segmentTexts)
         guard !windowText.isEmpty else { return nil }
 
-        accumulated = accumulated.isEmpty ? windowText : accumulated + " " + windowText
+        if accumulated.isEmpty {
+            accumulated = windowText
+        } else {
+            // 一意参照なら累積バッファを再利用し、結合のたびに全体をコピーしない。
+            accumulated += " "
+            accumulated += windowText
+        }
         return accumulated
     }
 }
