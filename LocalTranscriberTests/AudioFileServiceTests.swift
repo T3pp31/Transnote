@@ -107,9 +107,9 @@ final class AudioFileServiceTests: XCTestCase {
 
     func testProbeDecodabilityReturnsTrueForRealWAV() async throws {
         let url = tempRoot.appendingPathComponent("real-silence.wav")
-        let wavHeader = Data([
+        var wavData = Data([
             0x52, 0x49, 0x46, 0x46, // RIFF
-            0x24, 0x00, 0x00, 0x00, // size
+            0x64, 0x06, 0x00, 0x00, // size 36 + 1600
             0x57, 0x41, 0x56, 0x45, // WAVE
             0x66, 0x6d, 0x74, 0x20, // fmt
             0x10, 0x00, 0x00, 0x00, // fmt size
@@ -120,9 +120,10 @@ final class AudioFileServiceTests: XCTestCase {
             0x02, 0x00, // block align
             0x10, 0x00, // bits
             0x64, 0x61, 0x74, 0x61, // data
-            0x00, 0x00, 0x00, 0x00  // data size 0
+            0x40, 0x06, 0x00, 0x00  // data size 1600
         ])
-        FileManager.default.createFile(atPath: url.path, contents: wavHeader)
+        wavData.append(Data(count: 1600)) // 0.1 秒の無音 PCM（800 フレーム）
+        try wavData.write(to: url)
 
         let isPlayable = await service.probeDecodability(url: url)
         XCTAssertTrue(isPlayable)
@@ -134,6 +135,57 @@ final class AudioFileServiceTests: XCTestCase {
 
         let isPlayable = await service.probeDecodability(url: url)
         XCTAssertFalse(isPlayable)
+    }
+
+    func testProbeDecodabilityRequiresBothAudioTrackAndPlayability() async {
+        for hasAudioTrack in [false, true] {
+            for isPlayable in [false, true] {
+                var didLoadIsPlayable = false
+                let result = await service.probeDecodability(
+                    loadHasAudioTrack: { hasAudioTrack },
+                    loadIsPlayable: {
+                        didLoadIsPlayable = true
+                        return isPlayable
+                    }
+                )
+
+                XCTAssertEqual(
+                    result, hasAudioTrack && isPlayable,
+                    "hasAudioTrack=\(hasAudioTrack), isPlayable=\(isPlayable)"
+                )
+                XCTAssertEqual(
+                    didLoadIsPlayable, hasAudioTrack,
+                    "音声トラックが存在する場合にだけ再生可否を読み込むこと"
+                )
+            }
+        }
+    }
+
+    func testProbeDecodabilityReturnsFalseWhenTracksFailToLoad() async {
+        let result = await service.probeDecodability(
+            loadHasAudioTrack: { throw CocoaError(.fileReadCorruptFile) },
+            loadIsPlayable: {
+                XCTFail("トラックの読み込み失敗後に再生可否を読み込んではならない")
+                return true
+            }
+        )
+
+        XCTAssertFalse(result)
+    }
+
+    func testProbeDecodabilityReturnsFalseWhenPlayabilityFailsToLoad() async {
+        let result = await service.probeDecodability(
+            loadHasAudioTrack: { true },
+            loadIsPlayable: { throw CocoaError(.fileReadCorruptFile) }
+        )
+
+        XCTAssertFalse(result)
+    }
+
+    func testProbeDecodabilityReturnsFalseForMissingFile() async {
+        let result = await service.probeDecodability(url: tempRoot.appendingPathComponent("missing.wav"))
+
+        XCTAssertFalse(result)
     }
 
     func testSHA256ReturnsNilForMissingFile() {
