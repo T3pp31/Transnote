@@ -118,6 +118,50 @@ expect_failure() {
   fi
 }
 
+# First exports must create missing output directories before resolving their paths.
+for new_output in "$WORK/new output/nested" 'relative output/nested'; do
+  (
+    cd "$WORK"
+    [[ ! -e "$new_output" ]] || fail 'output fixture already exists'
+    expect_success --output "$new_output"
+    [[ ! -s "$WORK/stderr" ]] || fail 'new output directory produced an error'
+    cmp "$ARCHIVE/Products/Applications/Transnote.app/marker" \
+      "$new_output/Transnote.app/marker" || fail 'new output has incorrect bundle contents'
+  )
+done
+echo 'PASS: missing absolute and relative output directories are created without errors'
+
+# Resolving an existing output, including a symlink alias, must still protect the source.
+ln -s "$ARCHIVE/Products/Applications" "$WORK/source applications"
+for overlapping_output in "$ARCHIVE/Products/Applications" "$WORK/source applications"; do
+  expect_failure --output "$overlapping_output"
+  grep -q -- '--output overlaps the source app' "$WORK/stderr" || fail 'missing overlap error'
+  [[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'overlapping output ran a macOS tool'
+  [[ "$(cat "$ARCHIVE/Products/Applications/Transnote.app/marker")" == 'original bundle' ]] \
+    || fail 'overlapping output modified the source app'
+done
+echo 'PASS: source overlap is rejected for direct and symlink paths'
+
+# An output app that would contain the archive must not be removed either.
+NESTED_ARCHIVE="$WORK/overlap/Transnote.app/Transnote.xcarchive"
+mkdir -p "$(dirname "$NESTED_ARCHIVE")"
+cp -R "$ARCHIVE" "$NESTED_ARCHIVE"
+expect_failure --archive "$NESTED_ARCHIVE" --output "$WORK/overlap"
+grep -q -- '--output overlaps the source app' "$WORK/stderr" || fail 'missing ancestor overlap error'
+[[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'ancestor overlap ran a macOS tool'
+[[ "$(cat "$NESTED_ARCHIVE/Products/Applications/Transnote.app/marker")" == 'original bundle' ]] \
+  || fail 'ancestor overlap modified the source app'
+echo 'PASS: output containing the source archive is rejected'
+
+# Directory creation failures must stop the export before copying or verification.
+printf 'not a directory\n' > "$WORK/blocked-output"
+expect_failure --output "$WORK/blocked-output/nested"
+[[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'failed directory creation ran a macOS tool'
+[[ "$(cat "$WORK/blocked-output")" == 'not a directory' ]] || fail 'blocking file was modified'
+[[ "$(cat "$ARCHIVE/Products/Applications/Transnote.app/marker")" == 'original bundle' ]] \
+  || fail 'failed directory creation modified the source app'
+echo 'PASS: output directory creation failure stops the export'
+
 # Providing both flags must never replace the requested certificate with Team ID.
 expect_success --sign "$IDENTITY" --team "$TEAM"
 [[ "$(cat "$MOCK_SIGN_LOG")" == "$IDENTITY" ]] || fail 'certificate name was overwritten'
