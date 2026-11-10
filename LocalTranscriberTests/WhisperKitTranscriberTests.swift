@@ -155,6 +155,21 @@ final class WhisperKitTranscriberTests: XCTestCase {
         }
     }
 
+    func testChunkWithOverlapButNoRemovedSegmentsPreservesText() {
+        let chunk = WhisperKitTranscriber.AudioChunk(
+            url: temporaryRoot, startSeconds: 599, overlapSeconds: 1
+        )
+        let originalText = " 境界をまたぐ発話  次の発話 "
+        let result = makeResult(segments: [
+            makeSegment(start: 0.9, end: 1.5, text: "境界をまたぐ発話"),
+            makeSegment(start: 1.5, end: 2, text: "次の発話"),
+        ], text: originalText)
+
+        let adjusted = chunk.adjustedResult(result)
+        XCTAssertEqual(adjusted.text, originalText)
+        XCTAssertEqual(adjusted.segments.map(\.text), ["境界をまたぐ発話", "次の発話"])
+    }
+
     func testPartialTextFiltersOverlapAcrossDiscoveryWindows() {
         let firstChunk = WhisperKitTranscriber.AudioChunk(url: temporaryRoot, startSeconds: 0)
         let nextChunk = WhisperKitTranscriber.AudioChunk(

@@ -327,9 +327,11 @@ actor WhisperKitTranscriber: Transcriber {
         }
 
         func adjustedResult(_ result: TranscriptionResult) -> TranscriptionResult {
+            // 入出力が同じ参照でも、更新前の件数を基準に除外を判定する。
+            let originalSegmentCount = result.segments.count
             var adjusted = result
             adjusted.segments = adjustedSegments(result.segments)
-            if adjusted.segments.count != result.segments.count {
+            if adjusted.segments.count != originalSegmentCount {
                 // セグメントだけでなく、マージに渡す全文からも除外する。
                 adjusted.text = adjusted.segments.map(\.text).joined(separator: " ")
             }
