@@ -75,6 +75,8 @@ if (cd "$WORK" && python3 scripts/verify-xcode-project.py >/dev/null 2>&1); then
 fi
 echo "PASS: unresolved Frameworks phase rejected"
 
+python3 "$ROOT/scripts/test_verify_xcode_project.py"
+
 NO_MATCH_WORK=$(mktemp -d)
 trap 'rm -rf "$WORK" "$NO_MATCH_WORK"' EXIT
 mkdir -p "$NO_MATCH_WORK/LocalTranscriber.xcodeproj"
