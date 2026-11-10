@@ -104,8 +104,14 @@ final class ErrorMapperTests: XCTestCase {
     func testURLErrorCancelledClassifiedAsCancelled() {
         let message = ErrorMapper.userMessage(for: URLError(.cancelled))
 
+        // 両方のキャンセル型が汎用メッセージに退行しても検出できるよう、文言を直接確認する
+        XCTAssertEqual(
+            message,
+            L("処理がキャンセルされました。", comment: "Operation cancelled")
+        )
         XCTAssertEqual(message, ErrorMapper.userMessage(for: CancellationError()))
         XCTAssertNotEqual(message, ErrorMapper.userMessage(for: URLError(.notConnectedToInternet)))
+        XCTAssertNotEqual(message, ErrorMapper.userMessage(for: UnknownTestError()))
     }
 
     func testErrorContainingNetworkKeywordIsNotClassifiedAsNetwork() {
