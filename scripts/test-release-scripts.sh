@@ -89,6 +89,7 @@ if (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 >/dev/nul
 fi
 echo "PASS: missing MARKETING_VERSION rejected"
 
+python3 "$ROOT/scripts/test-release-signing.py"
 bash "$ROOT/scripts/test-export-release-app.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"
