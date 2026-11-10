@@ -73,15 +73,15 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     let languages: [LanguageOption]
     let supportedExtensions: [String]
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
     private let modelKey = "selectedModelID"
     private let languageKey = "selectedLanguageID"
     private let updateCheckKey = "updateCheckEnabled"
     private let defaultExportFormatKey = "defaultExportFormat"
     private let vadKey = "vadEnabled"
 
-    private init() {
-        let config = AppConfig.shared
+    init(config: AppConfig = .shared, defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         models = config.models
         languages = config.languages
         supportedExtensions = config.supportedExtensions
@@ -100,11 +100,16 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
         }
         vadEnabled = defaults.object(forKey: vadKey) as? Bool ?? false
 
+        // 既定 ID も一覧に存在しない場合は、利用可能な先頭の選択肢へ戻す。
         if !models.contains(where: { $0.id == selectedModelID }) {
-            selectedModelID = defaultModel
+            selectedModelID = models.first(where: { $0.id == defaultModel })?.id
+                ?? models.first?.id
+                ?? defaultModel
         }
         if !languages.contains(where: { $0.id == selectedLanguageID }) {
-            selectedLanguageID = defaultLanguage
+            selectedLanguageID = languages.first(where: { $0.id == defaultLanguage })?.id
+                ?? languages.first?.id
+                ?? defaultLanguage
         }
     }
 
