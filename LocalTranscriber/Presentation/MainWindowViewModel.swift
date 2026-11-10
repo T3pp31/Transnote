@@ -461,13 +461,13 @@ final class MainWindowViewModel: ObservableObject {
 
     func applyPendingFileImport() {
         let shouldStartTranscription = isPendingTranscriptionRestart
-        isPendingTranscriptionRestart = false
-        guard let pending = pendingFileImport else { return }
-        confirmFileImport = false
-        pendingFileImport = nil
-        applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+        let pending = pendingFileImport
+        cancelPendingFileImport()
+        if let pending {
+            applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+        }
         if shouldStartTranscription {
-            startTranscription()
+            startTranscription(replacingExistingResult: true)
         }
     }
 
@@ -542,6 +542,10 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func startTranscription() {
+        startTranscription(replacingExistingResult: false)
+    }
+
+    private func startTranscription(replacingExistingResult: Bool) {
         guard operationCoordinator.activeOperation == nil else {
             presentInlineError(
                 title: NSLocalizedString("処理中", comment: "Busy title"),
@@ -552,7 +556,7 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
-        if (hasExistingResult || hasUnsavedChanges) && !isPendingTranscriptionRestart {
+        if (hasExistingResult || hasUnsavedChanges) && !replacingExistingResult {
             isPendingTranscriptionRestart = true
             confirmFileImport = true
             return
