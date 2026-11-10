@@ -46,7 +46,12 @@ final class UpdateCheckServiceTests: XCTestCase {
     // When: checkForUpdate を実行
     // Then: UpdateOffer を返す
     func testCheckForUpdateReturnsOfferWhenNewerVersionExists() async {
-        MockURLProtocol.requestHandler = { _ in
+        defaults.set("\"previous-etag\"", forKey: "updateETag")
+        MockURLProtocol.requestHandler = { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "Accept"), "application/vnd.github+json")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "Transnote")
+            XCTAssertEqual(request.value(forHTTPHeaderField: "If-None-Match"), "\"previous-etag\"")
             let json = """
             {
               "tag_name": "v0.2.0",
@@ -88,6 +93,12 @@ final class UpdateCheckServiceTests: XCTestCase {
             URL(string: "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg")
         )
         XCTAssertEqual(offer?.releaseNotes, "Bug fixes")
+        XCTAssertEqual(MockURLProtocol.requestCount, 1)
+        XCTAssertNotNil(defaults.object(forKey: "lastUpdateCheckDate") as? Date)
+
+        let repeatedOffer = await service.checkForUpdate()
+        XCTAssertNil(repeatedOffer)
+        XCTAssertEqual(MockURLProtocol.requestCount, 1)
     }
 
     // Given: 現在版と同じリリース
@@ -650,14 +661,14 @@ final class UpdateCheckServiceTests: XCTestCase {
 
         let offer = await service.checkForUpdate()
         XCTAssertNil(offer)
+        XCTAssertEqual(MockURLProtocol.requestCount, 1)
+        XCTAssertNil(defaults.object(forKey: "lastUpdateCheckDate"))
     }
 
     func testCheckForUpdateUpdatesThrottleOnNotModified() async {
+        defaults.set("\"etag-304\"", forKey: "updateETag")
         MockURLProtocol.requestHandler = { request in
-            let ifNoneMatch = request.value(forHTTPHeaderField: "If-None-Match")
-            if let ifNoneMatch {
-                XCTAssertEqual(ifNoneMatch, "\"etag-304\"")
-            }
+            XCTAssertEqual(request.value(forHTTPHeaderField: "If-None-Match"), "\"etag-304\"")
             let response = HTTPURLResponse(
                 url: self.config.githubReleasesAPIURL,
                 statusCode: 304,
@@ -672,12 +683,151 @@ final class UpdateCheckServiceTests: XCTestCase {
             session: session,
             currentVersionProvider: { "0.1.0" },
             checkInterval: 6 * 60 * 60,
-            defaults: .standard
+            defaults: defaults
         )
 
         let offer = await service.checkForUpdate()
         XCTAssertNil(offer)
-        XCTAssertNotNil(UserDefaults.standard.object(forKey: "lastUpdateCheckDate") as? Date)
+        XCTAssertEqual(MockURLProtocol.requestCount, 1)
+        XCTAssertNotNil(defaults.object(forKey: "lastUpdateCheckDate") as? Date)
+        XCTAssertEqual(defaults.string(forKey: "updateETag"), "\"etag-304\"")
+
+        let repeatedOffer = await service.checkForUpdate()
+        XCTAssertNil(repeatedOffer)
+        XCTAssertEqual(MockURLProtocol.requestCount, 1)
+    }
+
+    func testCheckForUpdateAcceptsResponsesUpToSizeLimit() async {
+        let limit = 8 * 1024 * 1024
+        for size in [limit - 1, limit] {
+            let data = releaseData(paddedTo: size)
+            MockURLProtocol.requestHandler = { _ in
+                let response = HTTPURLResponse(
+                    url: self.config.githubReleasesAPIURL,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Length": String(size), "ETag": "\"boundary-etag\""]
+                )!
+                return (response, data)
+            }
+            let service = UpdateCheckService(
+                config: config,
+                session: session,
+                currentVersionProvider: { "0.1.0" },
+                checkInterval: 0,
+                defaults: defaults
+            )
+
+            let offer = await service.checkForUpdate()
+
+            XCTAssertEqual(offer?.latestVersion, "0.2.0", "size: \(size)")
+            XCTAssertEqual(defaults.string(forKey: "updateETag"), "\"boundary-etag\"")
+        }
+        XCTAssertEqual(MockURLProtocol.requestCount, 2)
+    }
+
+    func testCheckForUpdateRejectsOversizedContentLengthBeforeBodyArrives() async {
+        await assertRejectsUnfinishedResponse(
+            headerFields: ["Content-Length": String(8 * 1024 * 1024 + 1)]
+        )
+    }
+
+    func testCheckForUpdateCancelsOversizedBodyWithoutContentLength() async {
+        await assertRejectsUnfinishedResponse(
+            headerFields: [:],
+            data: releaseData(paddedTo: 8 * 1024 * 1024 + 1)
+        )
+    }
+
+    func testCheckForUpdateCancelsOversizedBodyWithUnderreportedContentLength() async {
+        await assertRejectsUnfinishedResponse(
+            headerFields: ["Content-Length": "1"],
+            data: releaseData(paddedTo: 8 * 1024 * 1024 + 1)
+        )
+    }
+
+    func testCheckForUpdateReturnsNilWhenBodyStreamFails() async {
+        defaults.set("\"previous-etag\"", forKey: "updateETag")
+        MockURLProtocol.loadingHandler = { urlProtocol in
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["ETag": "\"incomplete-etag\""]
+            )!
+            urlProtocol.client?.urlProtocol(urlProtocol, didReceive: response, cacheStoragePolicy: .notAllowed)
+            urlProtocol.client?.urlProtocol(urlProtocol, didLoad: Data("{\"tag_name\":".utf8))
+            urlProtocol.client?.urlProtocol(urlProtocol, didFailWithError: URLError(.networkConnectionLost))
+        }
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
+        )
+
+        let offer = await service.checkForUpdate()
+
+        XCTAssertNil(offer)
+        XCTAssertEqual(MockURLProtocol.requestCount, 1)
+        XCTAssertNil(defaults.object(forKey: "lastUpdateCheckDate"))
+        XCTAssertEqual(defaults.string(forKey: "updateETag"), "\"previous-etag\"")
+    }
+
+    private func releaseData(paddedTo size: Int) -> Data {
+        let json = """
+        {
+          "tag_name": "v0.2.0",
+          "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+          "assets": []
+        }
+        """
+        var data = Data(json.utf8)
+        data.append(Data(repeating: 0x20, count: size - data.count))
+        return data
+    }
+
+    private func assertRejectsUnfinishedResponse(
+        headerFields: [String: String],
+        data: Data? = nil,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        defaults.set("\"previous-etag\"", forKey: "updateETag")
+        let cancelled = expectation(description: "本文の受信完了を待たずにリクエストをキャンセルする")
+        MockURLProtocol.stopLoadingHandler = { cancelled.fulfill() }
+        MockURLProtocol.loadingHandler = { urlProtocol in
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: headerFields
+            )!
+            urlProtocol.client?.urlProtocol(urlProtocol, didReceive: response, cacheStoragePolicy: .notAllowed)
+            if let data {
+                let split = data.count / 2
+                urlProtocol.client?.urlProtocol(urlProtocol, didLoad: data.prefix(split))
+                urlProtocol.client?.urlProtocol(urlProtocol, didLoad: data.dropFirst(split))
+            }
+            // EOF を送らない。全量を待つ実装ではタイムアウトし、早期中断を検出できる。
+        }
+        let service = UpdateCheckService(
+            config: config,
+            session: session,
+            currentVersionProvider: { "0.1.0" },
+            defaults: defaults
+        )
+        let check = Task { await service.checkForUpdate() }
+
+        await fulfillment(of: [cancelled], timeout: 30)
+        // 回帰時にタイムアウトしても、未完了の通信を残さない。
+        check.cancel()
+        let offer = await check.value
+
+        XCTAssertNil(offer, file: file, line: line)
+        XCTAssertEqual(MockURLProtocol.requestCount, 1, file: file, line: line)
+        XCTAssertNil(defaults.object(forKey: "lastUpdateCheckDate"), file: file, line: line)
+        XCTAssertEqual(defaults.string(forKey: "updateETag"), "\"previous-etag\"", file: file, line: line)
     }
 
     // Given: 更新チェックが無効
@@ -719,11 +869,17 @@ final class UpdateCheckServiceTests: XCTestCase {
 
 private final class MockURLProtocol: URLProtocol {
     static var requestHandler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
+    static var loadingHandler: ((MockURLProtocol) -> Void)?
+    static var stopLoadingHandler: (() -> Void)?
     static var didReceiveRequest = false
+    static var requestCount = 0
 
     static func reset() {
         requestHandler = nil
+        loadingHandler = nil
+        stopLoadingHandler = nil
         didReceiveRequest = false
+        requestCount = 0
     }
 
     override class func canInit(with request: URLRequest) -> Bool {
@@ -735,6 +891,11 @@ private final class MockURLProtocol: URLProtocol {
     }
 
     override func startLoading() {
+        Self.requestCount += 1
+        if let loadingHandler = Self.loadingHandler {
+            loadingHandler(self)
+            return
+        }
         guard let handler = Self.requestHandler else {
             client?.urlProtocol(self, didFailWithError: URLError(.badURL))
             return
@@ -750,5 +911,7 @@ private final class MockURLProtocol: URLProtocol {
         }
     }
 
-    override func stopLoading() {}
+    override func stopLoading() {
+        Self.stopLoadingHandler?()
+    }
 }
