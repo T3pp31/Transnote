@@ -155,9 +155,12 @@ sleep 1
 # --- transactional install ---
 # 新バージョンを一時ディレクトリへコピーし、成功を確認してから旧バージョンを退避・置換する。
 # 途中で失敗した場合は旧バージョンを復元する。
-TMP_STAGE="${TMPDIR:-/tmp}/transnote-install-$$";
-BACKUP_DIR="${TMPDIR:-/tmp}/transnote-backup-$$";
-mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
+# 既存パス（シンボリックリンクを含む）を再利用せず、所有者だけが使える領域を作る。
+TMP_STAGE="$(mktemp -d "${TMPDIR:-/tmp}/transnote-install.XXXXXX")" || fail "一時ステージディレクトリを作成できませんでした。"
+if ! BACKUP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/transnote-backup.XXXXXX")"; then
+  rm -rf "$TMP_STAGE"
+  fail "バックアップディレクトリを作成できませんでした。"
+fi
 
 rollback() {
   local code=$1
