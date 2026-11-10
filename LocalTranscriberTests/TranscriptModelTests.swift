@@ -263,6 +263,62 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(recent.first?.fullText, "こんにちは")
     }
 
+    func testHistoryStoreSearchLimitsByCreationDateInsteadOfModificationDate() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let older = Transcript(sourceFileName: "older.wav", createdAt: baseDate, fullText: "needle")
+        let middle = Transcript(
+            sourceFileName: "middle.wav", createdAt: baseDate.addingTimeInterval(100), fullText: "needle"
+        )
+        let newest = Transcript(
+            sourceFileName: "newest.wav", createdAt: baseDate.addingTimeInterval(200), fullText: "needle"
+        )
+
+        // 古い履歴の再保存を模し、作成日時と逆順の更新日時を明示して走査順を固定する。
+        for (transcript, offset) in [(older, 600.0), (middle, 500.0), (newest, 400.0)] {
+            try store.save(transcript)
+            try FileManager.default.setAttributes(
+                [.modificationDate: baseDate.addingTimeInterval(offset)],
+                ofItemAtPath: root.appendingPathComponent("\(transcript.id.uuidString).json").path
+            )
+        }
+
+        XCTAssertEqual(store.search(query: "needle", limit: 1).map(\.id), [newest.id])
+        XCTAssertEqual(store.search(query: "needle", limit: 2).map(\.id), [newest.id, middle.id])
+        XCTAssertEqual(store.search(query: "needle", limit: 10).map(\.id), [newest.id, middle.id, older.id])
+        XCTAssertEqual(store.search(query: "needle", limit: 2).map(\.id), store.recent(limit: 2).map(\.id))
+    }
+
+    func testHistoryStoreSearchMatchesTextAndFileNameAndSkipsInvalidJSON() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+        XCTAssertTrue(store.search(query: "needle").isEmpty)
+
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let textMatch = Transcript(sourceFileName: "meeting.wav", createdAt: baseDate, fullText: "A Needle appears")
+        let fileNameMatch = Transcript(
+            sourceFileName: "NEEDLE-recording.wav", createdAt: baseDate.addingTimeInterval(100), fullText: "other text"
+        )
+        let nonMatch = Transcript(
+            sourceFileName: "unrelated.wav", createdAt: baseDate.addingTimeInterval(200), fullText: "other text"
+        )
+        for transcript in [textMatch, fileNameMatch, nonMatch] {
+            try store.save(transcript)
+        }
+        try Data("not valid JSON".utf8).write(to: root.appendingPathComponent("broken.json"))
+
+        XCTAssertEqual(store.search(query: "nEeDlE", limit: 10).map(\.id), [fileNameMatch.id, textMatch.id])
+        XCTAssertEqual(store.search(query: "nEeDlE", limit: 1).map(\.id), [fileNameMatch.id])
+        XCTAssertTrue(store.search(query: "absent").isEmpty)
+        XCTAssertTrue(store.search(query: "needle", limit: 0).isEmpty)
+        XCTAssertEqual(store.search(query: "", limit: 2).map(\.id), [nonMatch.id, fileNameMatch.id])
+    }
+
     func testHistoryStoreDelete() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
