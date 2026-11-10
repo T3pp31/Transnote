@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Release / Pages 用スクリプトの自動テスト。
+# Release / Pages / CI 用スクリプトの自動テスト。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -90,5 +90,6 @@ fi
 echo "PASS: missing MARKETING_VERSION rejected"
 
 bash "$ROOT/scripts/test-export-release-app.sh"
+python3 "$ROOT/scripts/test-nightly-workflow.py"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"
