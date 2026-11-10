@@ -49,17 +49,28 @@ struct AudioFileService {
         )
     }
 
-    /// AVFoundation で実際にデコード可能かを軽くプローブする。
-    /// 拡張子チェックだけでは見逃す破損ファイルを検出するための補助。
+    /// 音声トラックの有無と AVFoundation の再生可否を軽くプローブする。
+    /// 拡張子チェックだけでは見逃す破損ファイルを検出するための補助（全体のデコードは行わない）。
     /// - Parameter url: プローブ対象のファイル URL
-    /// - Returns: デコード可能なら true
+    /// - Returns: 音声トラックが存在し、再生可能なら true
     func probeDecodability(url: URL) async -> Bool {
         let asset = AVURLAsset(url: url)
+        return await probeDecodability(
+            loadHasAudioTrack: { try await asset.load(.tracks).contains(where: { $0.mediaType == .audio }) },
+            loadIsPlayable: { try await asset.load(.isPlayable) }
+        )
+    }
+
+    // 非対応コーデックなどの環境依存を避け、プロパティ読み込みの結果と失敗を個別に検証できるようにする。
+    func probeDecodability(
+        loadHasAudioTrack: () async throws -> Bool,
+        loadIsPlayable: () async throws -> Bool
+    ) async -> Bool {
         do {
-            if try await asset.load(.tracks).contains(where: { $0.mediaType == .audio }) {
-                return true
+            guard try await loadHasAudioTrack() else {
+                return false
             }
-            return try await asset.load(.isPlayable)
+            return try await loadIsPlayable()
         } catch {
             return false
         }
