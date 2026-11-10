@@ -101,6 +101,51 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         XCTAssertTrue(display.detailLabel?.contains("50%") == true)
     }
 
+    func testPartialGuidanceUsesPresentableTextRatherThanRawNonemptyText() {
+        let cases: [(raw: String?, presentable: String?)] = [
+            (nil, nil),
+            ("", nil),
+            (" \t\n ", nil),
+            ("<|startoftranscript|><|endoftext|>", nil),
+            ("<｜nocaptions｜>", nil),
+            ("<| |> <｜ ｜>", nil),
+            ("<|ja|> こんにちは 🌏 <｜endoftext｜>", "こんにちは 🌏"),
+        ]
+        let guidance = NSLocalizedString("途中結果を表示中", comment: "Partial transcription guidance")
+
+        for (raw, presentable) in cases {
+            for fraction in [0.0, 0.5] {
+                let display = TranscriptionProgressDisplay.from(update: .make(
+                    phase: .transcribing,
+                    fraction: fraction,
+                    partialText: raw
+                ))
+                let percent = Int(fraction * 100)
+                let expectedDetail: String?
+                if presentable != nil {
+                    expectedDetail = percent > 0 ? "\(guidance) · \(percent)%" : guidance
+                } else {
+                    expectedDetail = percent > 0 ? "\(percent)%" : nil
+                }
+
+                XCTAssertEqual(display.presentablePartialText, presentable, "raw: \(String(describing: raw))")
+                XCTAssertEqual(display.detailLabel, expectedDetail, "raw: \(String(describing: raw))")
+            }
+        }
+    }
+
+    func testPartialTextRemainsAvailableOutsideTranscribingPhase() {
+        let display = TranscriptionProgressDisplay.from(update: .make(
+            phase: .convertingAudio,
+            fraction: 0,
+            partialText: "<|ja|>こんにちは"
+        ))
+
+        XCTAssertEqual(display.presentablePartialText, "こんにちは")
+        XCTAssertNil(TranscriptionProgressDisplay.idle().presentablePartialText)
+        XCTAssertNil(TranscriptionProgressDisplay.done().presentablePartialText)
+    }
+
     func testProgressLabelsClampOutOfRangeFraction() {
         let update = TranscriptionProgressUpdate.make(
             phase: .downloadingModel,
