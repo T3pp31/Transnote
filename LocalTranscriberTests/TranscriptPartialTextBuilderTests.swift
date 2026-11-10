@@ -40,6 +40,59 @@ final class TranscriptPartialTextBuilderTests: XCTestCase {
         XCTAssertTrue(accumulated.isEmpty)
     }
 
+    func testAppendPresentableWindowTextIgnoresEmptyWindowsAfterText() {
+        let original = String(repeating: "既存のテキスト🙂", count: 32)
+        var accumulated = original
+        let emptyWindows: [[String]] = [
+            [],
+            ["", " \t\n "],
+            ["<|startoftranscript|><|nocaptions|><|endoftext|>"],
+        ]
+
+        for window in emptyWindows {
+            let result = TranscriptPartialTextBuilder.appendPresentableWindowText(
+                from: window,
+                to: &accumulated
+            )
+            XCTAssertNil(result)
+            XCTAssertEqual(accumulated, original)
+        }
+
+        let result = TranscriptPartialTextBuilder.appendPresentableWindowText(
+            from: [" 次のテキスト "],
+            to: &accumulated
+        )
+        XCTAssertEqual(result, original + " 次のテキスト")
+        XCTAssertEqual(accumulated, original + " 次のテキスト")
+    }
+
+    func testAppendPresentableWindowTextAccumulatesManyUnicodeWindows() {
+        let windowTexts = (0..<1_000).map { index in
+            "窓\(index) " + String(repeating: "日本語🙂e\u{301}", count: 16)
+        }
+        var accumulated = ""
+        for window in windowTexts {
+            // 戻り値を保持せず、一意参照の累積バッファへの追記を繰り返す。
+            _ = TranscriptPartialTextBuilder.appendPresentableWindowText(
+                from: [" <|ja|>\(window)<|endoftext|> "],
+                to: &accumulated
+            )
+        }
+
+        let expected = windowTexts.joined(separator: " ")
+        XCTAssertEqual(accumulated, expected)
+
+        // ヒープ上の累積テキストを共有していても、前のスナップショットは変化しない。
+        let snapshot = accumulated
+        let result = TranscriptPartialTextBuilder.appendPresentableWindowText(
+            from: ["最後"],
+            to: &accumulated
+        )
+        XCTAssertEqual(snapshot, expected)
+        XCTAssertEqual(result, expected + " 最後")
+        XCTAssertEqual(accumulated, expected + " 最後")
+    }
+
     // MARK: - Differential tests (legacy [String] impl vs new String impl)
 
     /// 旧実装のインライン復元。新実装と挙動同一を検証するために使用。
