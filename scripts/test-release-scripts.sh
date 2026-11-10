@@ -79,15 +79,39 @@ NO_MATCH_WORK=$(mktemp -d)
 trap 'rm -rf "$WORK" "$NO_MATCH_WORK"' EXIT
 mkdir -p "$NO_MATCH_WORK/LocalTranscriber.xcodeproj"
 mkdir -p "$NO_MATCH_WORK/scripts"
-printf 'CURRENT_PROJECT_VERSION = 1;
-' \
-  > "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"
 cp "$ROOT/scripts/set-marketing-version.sh" "$NO_MATCH_WORK/scripts/"
-if (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 >/dev/null 2>&1); then
-  echo "FAIL: missing MARKETING_VERSION should fail" >&2
-  exit 1
-fi
-echo "PASS: missing MARKETING_VERSION rejected"
+for fixture in \
+  'CURRENT_PROJECT_VERSION = 1;' \
+  'MARKETING_VERSION=0.1.5;' \
+  'MARKETING_VERSION  = 0.1.5;'; do
+  printf '%s\n' "$fixture" > "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"
+  cp "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj" "$NO_MATCH_WORK/project-before"
+
+  status=0
+  (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 \
+    >stdout 2>stderr) || status=$?
+  if [[ "$status" -ne 1 ]]; then
+    echo "FAIL: unmatched MARKETING_VERSION should exit 1: $fixture" >&2
+    exit 1
+  fi
+  if ! grep -qF 'No matching MARKETING_VERSION = ...; entry found' "$NO_MATCH_WORK/stderr"; then
+    echo "FAIL: unmatched MARKETING_VERSION should report the cause: $fixture" >&2
+    exit 1
+  fi
+  if ! grep -qF 'Failed to update MARKETING_VERSION in LocalTranscriber.xcodeproj/project.pbxproj' "$NO_MATCH_WORK/stderr"; then
+    echo "FAIL: unmatched MARKETING_VERSION should report the project path: $fixture" >&2
+    exit 1
+  fi
+  if [[ -s "$NO_MATCH_WORK/stdout" ]]; then
+    echo "FAIL: unmatched MARKETING_VERSION should not report success: $fixture" >&2
+    exit 1
+  fi
+  if ! cmp -s "$NO_MATCH_WORK/project-before" "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
+    echo "FAIL: unmatched MARKETING_VERSION should preserve the project: $fixture" >&2
+    exit 1
+  fi
+done
+echo "PASS: missing or unmatched MARKETING_VERSION rejected with diagnostics"
 
 bash "$ROOT/scripts/test-export-release-app.sh"
 
