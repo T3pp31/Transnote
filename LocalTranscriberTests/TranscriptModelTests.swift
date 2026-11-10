@@ -109,6 +109,60 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(AppDirectories.directorySize(of: root), 20)
     }
 
+    func testAppDirectoriesDirectorySizeIncludesDotFilesAndHiddenDescendants() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("nested", isDirectory: true)
+        let hiddenNested = root.appendingPathComponent(".cache/deeper", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: hiddenNested, withIntermediateDirectories: true)
+
+        let files = [
+            (root.appendingPathComponent("visible.bin"), 5),
+            (root.appendingPathComponent(".hidden.bin"), 7),
+            (nested.appendingPathComponent(".hidden.bin"), 11),
+            (hiddenNested.appendingPathComponent("payload.bin"), 13)
+        ]
+        for (url, size) in files {
+            try Data(repeating: 1, count: size).write(to: url)
+        }
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 36)
+    }
+
+    func testAppDirectoriesDirectorySizeIncludesHiddenAttributeFilesAndDirectories() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let hiddenDirectory = root.appendingPathComponent("cache", isDirectory: true)
+        try FileManager.default.createDirectory(at: hiddenDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let hiddenFile = root.appendingPathComponent("hidden.bin")
+        try Data(repeating: 1, count: 9).write(to: hiddenFile)
+        try Data(repeating: 2, count: 15).write(to: hiddenDirectory.appendingPathComponent("payload.bin"))
+
+        // ドット名ではなく、macOS の隠し属性を持つエントリも集計する。
+        var values = URLResourceValues()
+        values.isHidden = true
+        for var url in [hiddenFile, hiddenDirectory] {
+            try url.setResourceValues(values)
+            XCTAssertEqual(try url.resourceValues(forKeys: [.isHiddenKey]).isHidden, true)
+        }
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 24)
+    }
+
+    func testAppDirectoriesDirectorySizeReturnsZeroForEmptyAndMissingDirectories() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 0)
+        XCTAssertEqual(AppDirectories.directorySize(of: root.appendingPathComponent("missing", isDirectory: true)), 0)
+    }
+
     func testAppDirectoriesClearDirectoryReturnsResultAndPreservesDirectory() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
