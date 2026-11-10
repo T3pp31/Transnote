@@ -3,6 +3,7 @@ import Foundation
 final class ModelAvailabilityService: @unchecked Sendable {
     private let modelsRoot: URL
     private let fileManager: FileManager
+    private let directoryScanner: (@Sendable (Bool) -> [URL])?
 
     // 毎回の再帰走査を避けるためのインメモリインデックス。
     // モデルフォルダが変わった場合に備え、TTL（30秒）で再構築する。
@@ -17,12 +18,15 @@ final class ModelAvailabilityService: @unchecked Sendable {
 
     private static let requiredModelNames = ["MelSpectrogram", "AudioEncoder", "TextDecoder"]
 
+    /// - Parameter directoryScanner: 走査と無効化の競合を検証するための差し替え。nil は通常のファイル走査を使う。
     init(
         modelsRoot: URL = AppDirectories.modelsDirectory,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        directoryScanner: (@Sendable (Bool) -> [URL])? = nil
     ) {
         self.modelsRoot = modelsRoot
         self.fileManager = fileManager
+        self.directoryScanner = directoryScanner
     }
 
     func isDownloaded(whisperKitModelName: String) -> Bool {
@@ -104,6 +108,9 @@ final class ModelAvailabilityService: @unchecked Sendable {
 
     /// モデルルート以下を再帰走査してバリアント候補ディレクトリを返す（キャッシュ用）。
     private func scanVariantDirectories(includingHidden: Bool) -> [URL] {
+        if let directoryScanner {
+            return directoryScanner(includingHidden)
+        }
         guard fileManager.fileExists(atPath: modelsRoot.path) else { return [] }
 
         guard let enumerator = fileManager.enumerator(

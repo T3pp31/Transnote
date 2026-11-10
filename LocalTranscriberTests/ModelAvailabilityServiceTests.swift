@@ -153,11 +153,16 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         let scanPaused = expectation(description: "空の走査結果を取得済み")
         let scanFinished = expectation(description: "無効化前の走査が完了")
         let resumeScan = DispatchSemaphore(value: 0)
-        let fileManager = PausingEmptyScanFileManager {
+        let scanner = PausingEmptyDirectoryScanner(
+            directories: [temporaryRoot.appendingPathComponent("openai_whisper-base", isDirectory: true)]
+        ) {
             scanPaused.fulfill()
             XCTAssertEqual(resumeScan.wait(timeout: .now() + 10), .success)
         }
-        let availability = ModelAvailabilityService(modelsRoot: temporaryRoot, fileManager: fileManager)
+        let availability = ModelAvailabilityService(
+            modelsRoot: temporaryRoot,
+            directoryScanner: { scanner.scan(includingHidden: $0) }
+        )
 
         DispatchQueue.global().async {
             // 開始済みの問い合わせ自体は古いスナップショットを返してよい。
@@ -184,7 +189,7 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
         XCTAssertEqual(standardize(availability.modelFolder(for: "base")), standardize(folder))
         // 新世代のキャッシュは破棄・上書きせず、以後の問い合わせで再走査しない。
-        XCTAssertEqual(fileManager.enumerationCount, 2)
+        XCTAssertEqual(scanner.scanCount, 2)
         XCTAssertGreaterThan(availability.diskUsage(whisperKitModelName: "base"), 0)
     }
 
@@ -357,45 +362,36 @@ final class ModelAvailabilityServiceTests: XCTestCase {
     }
 }
 
-/// 最初の空の列挙だけを末尾まで進めて停止し、書き戻し直前の競合を決定的に再現する。
-private final class PausingEmptyScanFileManager: FileManager, @unchecked Sendable {
+/// 最初の空の走査結果を返す直前に停止し、無効化・書き戻しの競合を決定的に再現する。
+private final class PausingEmptyDirectoryScanner: @unchecked Sendable {
     private let lock = NSLock()
     private var count = 0
+    private let directories: [URL]
     private let onFirstScan: @Sendable () -> Void
 
-    init(onFirstScan: @escaping @Sendable () -> Void) {
+    init(directories: [URL], onFirstScan: @escaping @Sendable () -> Void) {
+        self.directories = directories
         self.onFirstScan = onFirstScan
-        super.init()
     }
 
-    var enumerationCount: Int {
+    var scanCount: Int {
         lock.lock()
         defer { lock.unlock() }
         return count
     }
 
-    override func enumerator(
-        at url: URL,
-        includingPropertiesForKeys keys: [URLResourceKey]?,
-        options mask: FileManager.DirectoryEnumerationOptions = [],
-        errorHandler handler: ((URL, Error) -> Bool)? = nil
-    ) -> FileManager.DirectoryEnumerator? {
+    func scan(includingHidden: Bool) -> [URL] {
+        XCTAssertFalse(includingHidden)
         lock.lock()
         count += 1
         let isFirstScan = count == 1
         lock.unlock()
 
-        let enumerator = super.enumerator(
-            at: url,
-            includingPropertiesForKeys: keys,
-            options: mask,
-            errorHandler: handler
-        )
         if isFirstScan {
-            // 実ファイルシステムの列挙を完了させ、再開後に新規フォルダが混入しないようにする。
-            XCTAssertEqual(enumerator?.allObjects.count, 0)
             onFirstScan()
+            // 無効化後に再開しても、最初に取得した空のスナップショットを返す。
+            return []
         }
-        return enumerator
+        return directories
     }
 }
