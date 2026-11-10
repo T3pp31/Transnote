@@ -130,5 +130,6 @@ print("PASS: install.md code fences and subsequent sections")
 PY
 
 bash "$ROOT/scripts/test-export-release-app.sh"
+bash "$ROOT/scripts/test-check-swift-format.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"
