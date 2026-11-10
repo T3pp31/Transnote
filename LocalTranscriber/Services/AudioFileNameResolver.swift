@@ -138,7 +138,9 @@ enum AudioFileNameResolver {
         }
 
         guard data.count >= 8, String(data: data[4 ..< 8], encoding: .ascii) == "ftyp" else {
-            if String(data: data[0 ..< 4], encoding: .ascii) == "RIFF" {
+            if data.count >= 12,
+               String(data: data[0 ..< 4], encoding: .ascii) == "RIFF",
+               String(data: data[8 ..< 12], encoding: .ascii) == "WAVE" {
                 return supportedExtensions.contains("wav") ? "wav" : nil
             }
             if data.prefix(3) == Data("ID3".utf8) || (data.count >= 2 && data[0] == 0xFF && (data[1] & 0xE0) == 0xE0) {

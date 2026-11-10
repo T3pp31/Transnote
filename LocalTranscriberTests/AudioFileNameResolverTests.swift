@@ -53,6 +53,62 @@ final class AudioFileNameResolverTests: XCTestCase {
         XCTAssertFalse(resolved.contains(".."))
     }
 
+    func testResolveDetectsWaveMagicBytes() throws {
+        let sourceURL = tempDirectory.appendingPathComponent("recording.bin")
+        let header = Data("RIFF".utf8) + Data([0x04, 0x00, 0x00, 0x00]) + Data("WAVE".utf8)
+        try header.write(to: sourceURL)
+
+        let resolved = AudioFileNameResolver.resolve(
+            sourceURL: sourceURL,
+            supportedExtensions: supportedExtensions
+        )
+
+        XCTAssertEqual(resolved, "recording.wav")
+    }
+
+    func testResolveRejectsNonWaveRIFFMagicBytes() throws {
+        for formType in ["AVI ", "WEBP", "RMID", "????"] {
+            let sourceURL = tempDirectory.appendingPathComponent("recording-\(UUID().uuidString).bin")
+            let header = Data("RIFF".utf8) + Data([0x04, 0x00, 0x00, 0x00]) + Data(formType.utf8)
+            try header.write(to: sourceURL)
+
+            let resolved = AudioFileNameResolver.resolve(
+                sourceURL: sourceURL,
+                supportedExtensions: supportedExtensions
+            )
+
+            XCTAssertEqual(resolved, "imported-audio", "RIFF form type: \(formType)")
+        }
+    }
+
+    func testResolveRejectsTruncatedRIFFMagicBytes() throws {
+        let header = Data("RIFF".utf8) + Data([0x04, 0x00, 0x00, 0x00]) + Data("WAVE".utf8)
+        for byteCount in 0 ..< header.count {
+            let sourceURL = tempDirectory.appendingPathComponent("truncated-\(byteCount).bin")
+            try Data(header.prefix(byteCount)).write(to: sourceURL)
+
+            let resolved = AudioFileNameResolver.resolve(
+                sourceURL: sourceURL,
+                supportedExtensions: supportedExtensions
+            )
+
+            XCTAssertEqual(resolved, "imported-audio", "Header length: \(byteCount)")
+        }
+    }
+
+    func testResolveDoesNotDetectWaveWhenExtensionIsUnsupported() throws {
+        let sourceURL = tempDirectory.appendingPathComponent("recording.bin")
+        let header = Data("RIFF".utf8) + Data([0x04, 0x00, 0x00, 0x00]) + Data("WAVE".utf8)
+        try header.write(to: sourceURL)
+
+        let resolved = AudioFileNameResolver.resolve(
+            sourceURL: sourceURL,
+            supportedExtensions: ["mp3", "m4a", "flac"]
+        )
+
+        XCTAssertEqual(resolved, "imported-audio")
+    }
+
     func testResolveAcceptsNormalPreferredFileName() throws {
         let sourceURL = tempDirectory.appendingPathComponent("source.wav")
         try Data("RIFF".utf8).write(to: sourceURL)
