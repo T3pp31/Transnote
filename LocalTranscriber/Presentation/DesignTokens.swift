@@ -5,9 +5,13 @@ enum DesignTokens {
         static let horizontalPadding: CGFloat = 20
         static let topPadding: CGFloat = 20
         static let bottomPadding: CGFloat = 16
+        // 既存の呼び出し側と共有するトークン名を維持する。
+        // swift-format-ignore: DontRepeatTypeInStaticProperties
         static let sectionSpacing: CGFloat = 16
         static let footerVerticalPadding: CGFloat = 10
+        // swift-format-ignore: DontRepeatTypeInStaticProperties
         static let controlSpacing: CGFloat = 12
+        // swift-format-ignore: DontRepeatTypeInStaticProperties
         static let compactSpacing: CGFloat = 8
     }
 

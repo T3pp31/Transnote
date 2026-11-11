@@ -8,6 +8,8 @@ trap 'rm -rf "$WORK"' EXIT
 
 # Bash 関数を export し、実ツールや一時ファイルの実行権限に依存せず検証する。
 xcrun() {
+  [[ "$PWD" == "$MOCK_EXPECTED_ROOT" ]] || return 2
+  [[ "$*" == "swift-format lint --strict --configuration $MOCK_EXPECTED_ROOT/.github/swift-format.json --recursive LocalTranscriber LocalTranscriberTests" ]] || return 2
   cat "$MOCK_DIAGNOSTICS"
   return "$MOCK_LINT_STATUS"
 }
@@ -21,10 +23,11 @@ export -f xcrun mktemp
 
 run_check() {
   printf '%s' "$2" > "$WORK/diagnostics"
-  (cd "$ROOT" && MOCK_DIAGNOSTICS="$WORK/diagnostics" \
+  (cd "${3:-$ROOT}" && MOCK_DIAGNOSTICS="$WORK/diagnostics" \
+    MOCK_EXPECTED_ROOT="$ROOT" \
     MOCK_LINT_STATUS="$1" \
     MOCK_LOG_PATH="$WORK/lint.log" \
-    bash scripts/check-swift-format.sh) > "$WORK/stdout" 2> "$WORK/stderr"
+    bash "$ROOT/scripts/check-swift-format.sh") > "$WORK/stdout" 2> "$WORK/stderr"
 }
 
 fail() {
@@ -117,5 +120,12 @@ echo 'PASS: non-allowlisted absolute warning paths fail'
 expect_failure 1 "${ALLOWLISTED}
 ${UNEXPECTED_WARNING}"
 echo 'PASS: allowlisted errors do not hide non-allowlisted warnings'
+
+for directory in "$ROOT" "$ROOT/scripts" "$WORK"; do
+  expect_success 0 '' "$directory"
+  expect_success 1 "$ALLOWLISTED" "$directory"
+  expect_failure 1 "$UNEXPECTED" "$directory"
+  echo "PASS: lint cwd and arguments are independent of invocation directory: $directory"
+done
 
 echo 'ALL SWIFT FORMAT SCRIPT TESTS PASSED'

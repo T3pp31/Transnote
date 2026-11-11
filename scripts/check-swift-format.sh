@@ -8,6 +8,8 @@ ALLOWLIST_PATH="${ROOT_DIR}/.github/swift-format-allowlist.txt"
 LOG_PATH="$(mktemp -t transnote-swift-format)"
 trap 'rm -f "$LOG_PATH"' EXIT
 
+cd "$ROOT_DIR"
+
 set +e
 xcrun swift-format lint --strict --configuration "$CONFIG_PATH" \
   --recursive LocalTranscriber LocalTranscriberTests > "$LOG_PATH" 2>&1

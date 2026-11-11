@@ -90,5 +90,6 @@ fi
 echo "PASS: missing MARKETING_VERSION rejected"
 
 bash "$ROOT/scripts/test-export-release-app.sh"
+bash "$ROOT/scripts/test-check-swift-format.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"
