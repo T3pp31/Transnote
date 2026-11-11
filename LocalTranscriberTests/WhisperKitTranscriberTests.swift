@@ -121,12 +121,8 @@ final class WhisperKitTranscriberTests: XCTestCase {
         let second = try await transcriber.splitAudioIntoChunks(
             url: source, chunkDuration: 0.4, outputDirectory: output
         )
-        XCTAssertGreaterThan(first.count, 1)
+        assertChunkOffsets(first)
         XCTAssertEqual(first.count, second.count)
-        XCTAssertEqual(first.first?.startSeconds, 0)
-        XCTAssertEqual(first[1].startSeconds, 0.3, accuracy: 0.001)
-        XCTAssertEqual(first[0].overlapSeconds, 0)
-        XCTAssertEqual(first[1].overlapSeconds, 0.1, accuracy: 0.001)
         XCTAssertTrue(Set(first.map(\.url)).isDisjoint(with: second.map(\.url)))
         for chunk in first + second {
             XCTAssertNotEqual(chunk.url, source)
@@ -290,6 +286,35 @@ final class WhisperKitTranscriberTests: XCTestCase {
             language: "ja",
             timings: TranscriptionTimings()
         )
+    }
+
+    func testChunkOffsetAssertionReportsFailureForEmptyChunks() {
+        XCTExpectFailure("Empty chunks must report an assertion failure without trapping") {
+            assertChunkOffsets([])
+        }
+    }
+
+    func testChunkOffsetAssertionReportsFailureForSingleChunk() {
+        let chunk = WhisperKitTranscriber.AudioChunk(
+            url: temporaryRoot.appendingPathComponent("source.m4a"), startSeconds: 0
+        )
+        XCTExpectFailure("A single chunk must report an assertion failure without trapping") {
+            assertChunkOffsets([chunk])
+        }
+    }
+
+    private func assertChunkOffsets(
+        _ chunks: [WhisperKitTranscriber.AudioChunk],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard chunks.count > 1 else {
+            return XCTFail("Expected multiple chunks, got \(chunks.count)", file: file, line: line)
+        }
+        XCTAssertEqual(chunks.first?.startSeconds, 0, file: file, line: line)
+        XCTAssertEqual(chunks[1].startSeconds, 0.3, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(chunks[0].overlapSeconds, 0, file: file, line: line)
+        XCTAssertEqual(chunks[1].overlapSeconds, 0.1, accuracy: 0.001, file: file, line: line)
     }
 
     func testMissingExportSessionThrowsWithoutLeavingPartialChunks() async throws {
