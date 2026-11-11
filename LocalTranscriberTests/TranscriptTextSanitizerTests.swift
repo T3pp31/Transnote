@@ -40,6 +40,40 @@ final class TranscriptTextSanitizerTests: XCTestCase {
         )
     }
 
+    func testSanitizationPreservesUnicodeAndExistingWhitespaceRules() {
+        let cases: [(raw: String, expected: String)] = [
+            ("<｜ja｜>こんにちは<｜2.00｜>", "こんにちは"),
+            ("🌏<|ja|>  こんにちは<｜endoftext｜>👩🏽‍💻", "🌏 こんにちは👩🏽‍💻"),
+            ("<|ja|>e\u{301}<|2.00|>🌏", "e\u{301}🌏"),
+            (" \tこんにちは  世界\n次\tの行 \n", "こんにちは 世界\n次\tの行"),
+            ("<|broken", "broken"),
+            ("broken|>", "broken"),
+            ("<｜broken", "broken"),
+            ("broken｜>", "broken"),
+            ("<|a|b|>", "a|b"),
+            ("<| |> <｜ ｜>", ""),
+            ("<|ja|>$1 \\ text", "$1 \\ text"),
+        ]
+
+        for (raw, expected) in cases {
+            XCTAssertEqual(TranscriptTextSanitizer.sanitize(raw), expected, "raw: \(raw)")
+            XCTAssertEqual(
+                TranscriptTextSanitizer.presentableText(from: raw),
+                expected.isEmpty ? nil : expected,
+                "raw: \(raw)"
+            )
+        }
+    }
+
+    func testArtifactDetectionHandlesFullWidthAndIncompleteTokens() {
+        for text in ["<|ja|>", "<｜ja｜>", "<|broken", "broken|>", "<｜broken", "broken｜>"] {
+            XCTAssertTrue(TranscriptTextSanitizer.containsSpecialTokenArtifacts(text), text)
+        }
+        for text in ["", "🌏こんにちは👩🏽‍💻", "a | b", "<html>", "｜"] {
+            XCTAssertFalse(TranscriptTextSanitizer.containsSpecialTokenArtifacts(text), text)
+        }
+    }
+
     func testPresentableTextReturnsCleanText() {
         XCTAssertEqual(
             TranscriptTextSanitizer.presentableText(

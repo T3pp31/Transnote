@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct MainWindowView: View {
     @StateObject private var viewModel = MainWindowViewModel()
-    @StateObject private var updateChecker = UpdateCheckViewModel()
+    @ObservedObject var updateChecker: UpdateCheckViewModel
     @ObservedObject private var settings = AppSettings.shared
     @State private var showingSettings = false
     @State private var showingHistory = false
@@ -142,8 +142,7 @@ struct MainWindowView: View {
             canCopy: viewModel.canCopyTranscript,
             copyTranscript: viewModel.copyTranscript,
             canOpenFile: !viewModel.isBusy,
-            openFile: openFilePanel,
-            checkForUpdate: updateChecker.checkNow
+            openFile: openFilePanel
         ))
     }
 
