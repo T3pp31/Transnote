@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import LocalTranscriber
 
 final class SecurityScopedFileAccessTests: XCTestCase {
@@ -127,9 +128,9 @@ final class SecurityScopedFileAccessTests: XCTestCase {
             stopAccessing: { stoppedURLs.append($0) }
         )
 
-        try access.beginAccess(url: tempRoot) // スコープ不要
-        try access.beginAccess(url: tempRoot) // スコープ開始成功
-        try access.beginAccess(url: tempRoot) // 同じ URL でも開始回数分の終了が必要
+        try access.beginAccess(url: tempRoot)  // スコープ不要
+        try access.beginAccess(url: tempRoot)  // スコープ開始成功
+        try access.beginAccess(url: tempRoot)  // 同じ URL でも開始回数分の終了が必要
         XCTAssertEqual(startCount, 3)
 
         access.endAccess(url: tempRoot)
