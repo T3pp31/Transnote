@@ -91,7 +91,7 @@ for fixture in \
   printf '%s\n' "$fixture" > "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"
   cp "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj" "$NO_MATCH_WORK/project-before"
 
-bash "$ROOT/scripts/test-install-transnote.sh"
+bash "$ROOT/scripts/test-install-transnote-temp.sh"
   status=0
   (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 \
     >stdout 2>stderr) || status=$?
