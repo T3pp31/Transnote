@@ -26,13 +26,13 @@ enum AppDirectories {
         applicationSupport.appendingPathComponent("History", isDirectory: true)
     }
 
-    /// 指定ディレクトリ配下の合計サイズ（バイト）を計算する。
+    /// 隠しファイルを含む、指定ディレクトリ配下の通常ファイルの合計サイズ（バイト）を計算する。
     static func directorySize(of directory: URL) -> Int64 {
         let keys: Set<URLResourceKey> = [.fileSizeKey, .isRegularFileKey]
         guard let enumerator = FileManager.default.enumerator(
             at: directory,
             includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
+            options: []
         ) else { return 0 }
 
         var total: Int64 = 0
