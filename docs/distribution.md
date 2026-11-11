@@ -51,6 +51,8 @@ git push origin v0.1.0
 | `Config/distribution.plist` | 配布時のアプリ名・旧名・インストールスクリプト名 |
 | `Config/sbom.plist` | SBOM 生成設定（Syft バージョン・出力形式・パス） |
 
+配布物のアプリ名の正本は `Config/distribution.plist` の `AppName` です。Release workflow のアプリ名・archive パス、export、DMG、Release / CI の SBOM ファイル名と Release の既定スキャン対象はこの値を参照します。`Config/sbom.plist` にはアプリ名を定義せず、`{AppName}` を使って出力名を指定します（`generate-sbom.sh --config` で SBOM 設定を差し替えた場合も同様）。Xcode の製品名やユーザー向けドキュメントの改名は別途必要です。
+
 ### archive の例
 
 ```bash
@@ -79,7 +81,7 @@ xcodebuild archive \
 
 ### SBOM の例
 
-CI では `Package.resolved`（宣言依存のロックファイル）を Ubuntu 上で、Release では配布用 `Transnote.app` を macOS 上でスキャンします。Whisper モデルなどランタイムで取得するコンポーネントは SBOM 対象外です。`generate-sbom.sh` は macOS では PlistBuddy、Linux では python3 + plistlib で `Config/sbom.plist` を読みます。
+CI では `Package.resolved`（宣言依存のロックファイル）を Ubuntu 上で、Release では配布用 `Transnote.app` を macOS 上でスキャンします。Whisper モデルなどランタイムで取得するコンポーネントは SBOM 対象外です。`generate-sbom.sh` は macOS では PlistBuddy、Linux では python3 + plistlib で `Config/sbom.plist` と `Config/distribution.plist` を読みます。`--print AppName` は配布設定の値を返し、その他の `--print` キーは従来どおり SBOM 設定の値を返します。
 
 ```bash
 # CI 相当（依存ロックのみ）
