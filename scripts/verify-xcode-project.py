@@ -25,18 +25,31 @@ def main():
         )
     }
 
+    # Extract complete target objects before looking for buildPhases so a
+    # missing list cannot consume the next target's references.
+    targets = {
+        match.group(1): match.group(2)
+        for match in re.finditer(
+            r"^\t\t([A-F0-9]{24})(?: /\*[^\n]*?\*/)? = \{\n"
+            r"\t\t\tisa = PBXNativeTarget;\n(.*?)^\t\t};",
+            text,
+            re.MULTILINE | re.DOTALL,
+        )
+    }
+    target_ids = {object_id for object_id, isa in definitions.items() if isa == "PBXNativeTarget"}
+    if targets.keys() != target_ids:
+        return fail("could not extract all PBXNativeTarget objects")
+
     phase_references = []
-    for target in re.finditer(
-        r"^\t\t([A-F0-9]{24}) /\* [^*]+ \*/ = \{\n"
-        r"\t\t\tisa = PBXNativeTarget;\n.*?"
-        r"\t\t\tbuildPhases = \((.*?)\);",
-        text,
-        re.MULTILINE | re.DOTALL,
-    ):
-        target_id = target.group(1)
+    for target_id, body in targets.items():
+        phases = re.search(
+            r"^\t\t\tbuildPhases = \((.*?)\);", body, re.MULTILINE | re.DOTALL
+        )
+        if phases is None:
+            return fail(f"target {target_id} has no readable buildPhases list")
         phase_references.extend(
             (target_id, phase_id)
-            for phase_id in re.findall(r"([A-F0-9]{24})(?: /\*.*?\*/)?", target.group(2))
+            for phase_id in re.findall(r"([A-F0-9]{24})(?: /\*.*?\*/)?", phases.group(1))
         )
 
     if not phase_references:

@@ -107,6 +107,7 @@ struct HistoryStore: Sendable {
 
         candidates.sort { $0.modificationDate > $1.modificationDate }
 
+        // 更新日時と createdAt は一致しないため、全候補を検索してから作成日時順で件数を絞る。
         var matches: [Transcript] = []
         for candidate in candidates {
             guard let data = try? Data(contentsOf: candidate.url),
@@ -118,9 +119,6 @@ struct HistoryStore: Sendable {
                 || transcript.sourceFileName.lowercased().contains(normalized)
             guard isMatch else { continue }
             matches.append(transcript)
-            if matches.count >= limit {
-                break
-            }
         }
 
         return matches
