@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SettingsView: View {
+    // 設定編集画面は SwiftUI の監視・双方向 Binding と推奨モデル表示のため、具象設定を使う。
     @ObservedObject private var settings = AppSettings.shared
     @Environment(\.dismiss) private var dismiss
     let isBusy: Bool

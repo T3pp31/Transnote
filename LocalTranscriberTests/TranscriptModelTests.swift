@@ -264,6 +264,45 @@ final class TranscriptModelTests: XCTestCase {
     }
 
     @MainActor
+    func testAppSettingsProtocolPersistsUpdateAndExportPreferences() throws {
+        let suiteName = "AppSettingsPreferencesTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let config = AppConfig()
+        let settings: any AppSettingsProviding = AppSettings(config: config, defaults: defaults)
+        XCTAssertEqual(settings.updateCheckEnabled, config.updateCheckEnabled)
+        XCTAssertEqual(settings.defaultExportFormat, .txt)
+
+        for enabled in [false, true] {
+            for format in ExportFormat.allCases {
+                settings.updateCheckEnabled = enabled
+                settings.defaultExportFormat = format
+                settings.persist()
+
+                let restored: any AppSettingsProviding = AppSettings(config: config, defaults: defaults)
+                XCTAssertEqual(restored.updateCheckEnabled, enabled)
+                XCTAssertEqual(restored.defaultExportFormat, format)
+                XCTAssertEqual(defaults.object(forKey: "updateCheckEnabled") as? Bool, enabled)
+                XCTAssertEqual(defaults.string(forKey: "defaultExportFormat"), format.rawValue)
+            }
+        }
+    }
+
+    @MainActor
+    func testAppSettingsProtocolFallsBackForUnknownExportFormat() throws {
+        let suiteName = "AppSettingsInvalidPreferencesTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("unsupported-format", forKey: "defaultExportFormat")
+        defaults.set(false, forKey: "updateCheckEnabled")
+
+        let settings: any AppSettingsProviding = AppSettings(defaults: defaults)
+        XCTAssertEqual(settings.defaultExportFormat, .txt)
+        XCTAssertFalse(settings.updateCheckEnabled)
+    }
+
+    @MainActor
     func testAppSettingsSelectionFallbackPriority() throws {
         let suiteName = "AppSettingsSelectionTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
