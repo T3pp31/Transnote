@@ -119,19 +119,21 @@ struct HistoryStore: Sendable {
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let visited = Set(candidates.map(\.url))
+        var visited: Set<String> = []
         // 更新日時と createdAt は一致しないため、全候補を検索してから作成日時順で件数を絞る。
         var matches: [Transcript] = []
         for candidate in candidates {
             let url = candidate.url
+            let key = SearchCache.key(for: url)
+            visited.insert(key)
             let entry: SearchCache.Entry
-            if let cached = searchCache.entries[url],
+            if let cached = searchCache.entries[key],
                cached.modificationDate == candidate.modificationDate, cached.fileSize == candidate.fileSize {
                 entry = cached
             } else {
                 // 読み込み失敗は次回再試行する。破損 JSON は変更されるまでデコードし直さない。
                 guard let data = try? searchDataLoader(url) else {
-                    searchCache.entries.removeValue(forKey: url)
+                    searchCache.entries.removeValue(forKey: key)
                     continue
                 }
                 entry = SearchCache.Entry(
@@ -139,7 +141,7 @@ struct HistoryStore: Sendable {
                     fileSize: candidate.fileSize,
                     transcript: try? decoder.decode(Transcript.self, from: data)
                 )
-                searchCache.entries[url] = entry
+                searchCache.entries[key] = entry
             }
 
             guard let transcript = entry.transcript,
@@ -158,7 +160,13 @@ struct HistoryStore: Sendable {
     /// entries は必ず lock の内側で参照・更新する。HistoryStore のコピー間でも共有する。
     private final class SearchCache: @unchecked Sendable {
         let lock = NSLock()
-        var entries: [URL: Entry] = [:]
+        var entries: [String: Entry] = [:]
+
+        // enumerator が返す URL と save/delete で組み立てる URL は、同じファイルでも
+        // 基準 URL が異なり得る。登録・参照・無効化には同じ絶対パスを使う。
+        static func key(for url: URL) -> String {
+            url.standardizedFileURL.path
+        }
 
         struct Entry {
             let modificationDate: Date
@@ -179,7 +187,7 @@ struct HistoryStore: Sendable {
         func invalidate(_ url: URL) {
             lock.lock()
             defer { lock.unlock() }
-            entries.removeValue(forKey: url)
+            entries.removeValue(forKey: Self.key(for: url))
         }
     }
 

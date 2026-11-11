@@ -501,8 +501,11 @@ final class TranscriptModelTests: XCTestCase {
     func testHistoryStoreSearchInvalidatesOwnSavesAndDeletesWithUnchangedMetadata() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
+        // 同じディレクトリでも基準 URL や ./ の有無が違う表現を明示的に使う。
+        let relativeRoot = try XCTUnwrap(URL(string: "./", relativeTo: root))
+        XCTAssertEqual(relativeRoot.standardizedFileURL.path, root.standardizedFileURL.path)
         let reads = HistorySearchReadRecorder()
-        let store = HistoryStore(historyRoot: root, searchDataLoader: { try reads.load($0) })
+        let store = HistoryStore(historyRoot: relativeRoot, searchDataLoader: { try reads.load($0) })
         var transcript = Transcript(sourceFileName: "notes.wav", fullText: "alpha")
         let url = root.appendingPathComponent("\(transcript.id.uuidString).json")
         let date = Date(timeIntervalSince1970: 1_700_000_000)
@@ -572,7 +575,7 @@ final class TranscriptModelTests: XCTestCase {
 /// ストアと検索 ViewModel の回帰テストで、実ファイルの読み込み回数を検証する。
 final class HistorySearchReadRecorder: @unchecked Sendable {
     private let lock = NSLock()
-    private var counts: [URL: Int] = [:]
+    private var counts: [String: Int] = [:]
 
     var total: Int {
         lock.lock()
@@ -583,12 +586,12 @@ final class HistorySearchReadRecorder: @unchecked Sendable {
     func count(for url: URL) -> Int {
         lock.lock()
         defer { lock.unlock() }
-        return counts[url, default: 0]
+        return counts[url.standardizedFileURL.path, default: 0]
     }
 
     func load(_ url: URL) throws -> Data {
         lock.lock()
-        counts[url, default: 0] += 1
+        counts[url.standardizedFileURL.path, default: 0] += 1
         lock.unlock()
         return try Data(contentsOf: url)
     }
