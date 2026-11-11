@@ -21,9 +21,16 @@ if [ ! -f "$project" ]; then
   exit 1
 fi
 
-VERSION="$version" perl -pi -e 'BEGIN { $count = 0; $version = $ENV{VERSION} } s/^([ \t]*MARKETING_VERSION = )[^;]*;/${1}$version;/g and $count++; END { if ($count == 0) { exit 1 } }' "$project"
-
-if ! grep -qF "MARKETING_VERSION = ${version};" "$project"; then
+if ! VERSION="$version" perl -pi -e '
+  BEGIN { $count = 0; $version = $ENV{VERSION} }
+  s/^([ \t]*MARKETING_VERSION = )[^;]*;/${1}$version;/g and $count++;
+  END {
+    if ($count == 0) {
+      warn "No matching MARKETING_VERSION = ...; entry found\n";
+      exit 1;
+    }
+  }
+' "$project"; then
   echo "Failed to update MARKETING_VERSION in $project" >&2
   exit 1
 fi
