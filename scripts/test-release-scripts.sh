@@ -149,6 +149,9 @@ print("PASS: install.md code fences and subsequent sections")
 PY
 python3 "$ROOT/scripts/test-release-signing.py"
 bash "$ROOT/scripts/test-export-release-app.sh"
+python3 "$ROOT/scripts/test-install-transnote.py"
+bash "$ROOT/scripts/test-install-transnote-fresh.sh"
+bash "$ROOT/scripts/test-install-transnote.sh"
 bash "$ROOT/scripts/test-check-swift-format.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"

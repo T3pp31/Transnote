@@ -108,7 +108,7 @@ fi
 
 verify_dmg_checksum
 
-remove_installed_apps() {
+backup_installed_apps() {
   local base_name="$1"
   local candidate
   local expected_id="${BUNDLE_IDENTIFIER}"
@@ -116,7 +116,7 @@ remove_installed_apps() {
   shopt -s nullglob
   for candidate in "${APPLICATIONS_DIR}/${base_name}.app" "${APPLICATIONS_DIR}/${base_name} "*.app; do
     if [[ -d "$candidate" ]]; then
-      # 削除前に Bundle ID を検証し、同名の無関係アプリを誤って削除しない。
+      # 退避前に Bundle ID を検証し、同名の無関係アプリには触れない。
       local candidate_id
       candidate_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${candidate}/Contents/Info.plist" 2>/dev/null || true)"
       if [[ -z "$candidate_id" ]]; then
@@ -126,7 +126,7 @@ remove_installed_apps() {
         echo "Bundle ID mismatch: skip $candidate ($candidate_id != $expected_id)" >&2
         continue
       fi
-      rm -rf "$candidate"
+      mv "$candidate" "${BACKUP_DIR}/${candidate##*/}"
     fi
   done
   shopt -u nullglob
@@ -149,31 +149,54 @@ remove_quarantine_attribute() {
   fi
 }
 
-osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
-sleep 1
-
 # --- transactional install ---
 # 新バージョンを一時ディレクトリへコピーし、成功を確認してから旧バージョンを退避・置換する。
 # 途中で失敗した場合は旧バージョンを復元する。
-# 既存パス（シンボリックリンクを含む）を再利用せず、所有者だけが使える領域を作る。
-TMP_STAGE="$(mktemp -d "${TMPDIR:-/tmp}/transnote-install.XXXXXX")" || fail "一時ステージディレクトリを作成できませんでした。"
-if ! BACKUP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/transnote-backup.XXXXXX")"; then
-  rm -rf "$TMP_STAGE"
-  fail "バックアップディレクトリを作成できませんでした。"
-fi
+# ロック取得後に一時領域を作り、作成途中の失敗も EXIT trap で片付ける。
+TMP_STAGE=""
+BACKUP_DIR=""
+LOCK_DIR="${APPLICATIONS_DIR}/.transnote-install.lock"
+TARGET_COPY_STARTED=false
 
 rollback() {
   local code=$1
   rm -rf "$TMP_STAGE"
-  if [[ -d "${BACKUP_DIR}/${APP_NAME}.app" ]]; then
+  # 配置を開始した場合だけ、不完全な新バンドルを削除する（旧版の退避前は削除しない）。
+  if [[ "$TARGET_COPY_STARTED" == true ]]; then
     rm -rf "$TARGET_APP"
-    mv "${BACKUP_DIR}/${APP_NAME}.app" "$TARGET_APP"
+  fi
+  local backup_app original_app
+  if [[ -n "$BACKUP_DIR" ]]; then
+    for backup_app in "${BACKUP_DIR}/"*.app; do
+      [[ -d "$backup_app" ]] || continue
+      original_app="${APPLICATIONS_DIR}/${backup_app##*/}"
+      rm -rf "$original_app"
+      mv "$backup_app" "$original_app"
+    done
   fi
   rm -rf "$BACKUP_DIR"
+  rmdir "$LOCK_DIR"
   exit "$code"
 }
 
+# mkdir は原子的に成功するため、同じインストール先への多重起動を防げる。
+# 取得できなかったプロセスには cleanup を登録せず、他方のロックを削除しない。
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  if [[ -e "$LOCK_DIR" ]]; then
+    fail "既にインストール処理中です。完了後に再実行してください。"
+  fi
+  fail "インストール先のロックを作成できませんでした。書き込み権限を確認してください。"
+fi
 trap 'rollback $?' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+# 既存パス（シンボリックリンクを含む）を再利用せず、所有者だけが使える領域を作る。
+TMP_STAGE="$(mktemp -d "${TMPDIR:-/tmp}/transnote-install.XXXXXX")" || fail "一時ステージディレクトリを作成できませんでした。"
+BACKUP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/transnote-backup.XXXXXX")" || fail "バックアップディレクトリを作成できませんでした。"
+osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
+sleep 1
 
 if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
   fail "新バージョンのコピーに失敗しました。"
@@ -189,10 +212,11 @@ fi
 
 legacy_index=0
 while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_index}" "$PLIST" 2>/dev/null)"; do
-  remove_installed_apps "$legacy_name"
+  backup_installed_apps "$legacy_name"
   legacy_index=$((legacy_index + 1))
 done
 
+TARGET_COPY_STARTED=true
 if ! ditto "${TMP_STAGE}/${APP_NAME}.app" "$TARGET_APP"; then
   fail "新バージョンの配置に失敗しました。旧バージョンを復元します。"
 fi
@@ -203,7 +227,8 @@ remove_quarantine_attribute "$TARGET_APP"
 
 # 成功時はバックアップを破棄
 rm -rf "$BACKUP_DIR" "$TMP_STAGE"
-trap - EXIT
+# コミット後は復元せず、通知・起動が終わるまでロックだけを保持する。
+trap 'rmdir "$LOCK_DIR"' EXIT
 
 eject_installer_volume
 
