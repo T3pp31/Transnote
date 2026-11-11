@@ -197,15 +197,7 @@ jobs:
 
       - name: Run tests
         run: |
-          xcodebuild test \
-            -project LocalTranscriber.xcodeproj \
-            -scheme LocalTranscriber \
-            -destination 'platform=macOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            -derivedDataPath DerivedData \
-            -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
-            -skip-testing:LocalTranscriberUITests \
-            -skip-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
+          bash scripts/run-tests.sh ci
 
       # Save with the run_id-scoped primary key only when this run did not restore
       # that exact key (a cache-hit on the primary key means the entry already exists).
