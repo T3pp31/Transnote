@@ -158,7 +158,7 @@ final class WhisperKitTranscriberTests: XCTestCase {
             makeSegment(start: 599.4, end: 600, text: "境界内"),
         ])
         let overlapOnly = makeResult(segments: [
-            makeSegment(start: 0.1, end: 0.3, text: "重複"),
+            makeSegment(start: 0.1, end: 0.3, text: "重複")
         ])
         let mixed = makeResult(segments: [
             makeSegment(start: 0.4, end: 1, text: "境界内"),
@@ -190,10 +190,11 @@ final class WhisperKitTranscriberTests: XCTestCase {
     }
 
     func testChunkWithoutOverlapPreservesTextAndAllSegments() throws {
-        let result = makeResult(segments: [
-            makeSegment(start: 0, end: 0, text: "先頭"),
-            makeSegment(start: 0.2, end: 1, text: "発話"),
-        ], text: " 先頭  発話 ")
+        let result = makeResult(
+            segments: [
+                makeSegment(start: 0, end: 0, text: "先頭"),
+                makeSegment(start: 0.2, end: 1, text: "発話"),
+            ], text: " 先頭  発話 ")
 
         for startSeconds in [0.0, 599.0] {
             let chunk = WhisperKitTranscriber.AudioChunk(url: temporaryRoot, startSeconds: startSeconds)
@@ -212,10 +213,11 @@ final class WhisperKitTranscriberTests: XCTestCase {
             url: temporaryRoot, startSeconds: 599, overlapSeconds: 1
         )
         let originalText = " 境界をまたぐ発話  次の発話 "
-        let result = makeResult(segments: [
-            makeSegment(start: 0.9, end: 1.5, text: "境界をまたぐ発話"),
-            makeSegment(start: 1.5, end: 2, text: "次の発話"),
-        ], text: originalText)
+        let result = makeResult(
+            segments: [
+                makeSegment(start: 0.9, end: 1.5, text: "境界をまたぐ発話"),
+                makeSegment(start: 1.5, end: 2, text: "次の発話"),
+            ], text: originalText)
 
         let adjusted = chunk.adjustedResult(result)
         XCTAssertEqual(adjusted.text, originalText)
@@ -230,7 +232,7 @@ final class WhisperKitTranscriberTests: XCTestCase {
         var completedText = ""
         let firstText = TranscriptPartialTextBuilder.appendPresentableWindowText(
             from: firstChunk.adjustedSegments([
-                makeSegment(start: 599.2, end: 600, text: "重複"),
+                makeSegment(start: 599.2, end: 600, text: "重複")
             ]).map(\.text),
             to: &completedText
         )
@@ -238,7 +240,7 @@ final class WhisperKitTranscriberTests: XCTestCase {
 
         let overlapText = TranscriptPartialTextBuilder.appendPresentableWindowText(
             from: nextChunk.adjustedSegments([
-                makeSegment(start: 0.2, end: 1, text: "重複"),
+                makeSegment(start: 0.2, end: 1, text: "重複")
             ]).map(\.text),
             to: &completedText
         )
@@ -260,10 +262,11 @@ final class WhisperKitTranscriberTests: XCTestCase {
         let tail = WhisperKitTranscriber.AudioChunk(
             url: temporaryRoot, startSeconds: 0.9, overlapSeconds: 0.05
         )
-        let adjusted = tail.adjustedResult(makeResult(segments: [
-            makeSegment(start: 0, end: 0.05, text: "重複"),
-            makeSegment(start: 0.04, end: 0.06, text: "またぐ"),
-        ]))
+        let adjusted = tail.adjustedResult(
+            makeResult(segments: [
+                makeSegment(start: 0, end: 0.05, text: "重複"),
+                makeSegment(start: 0.04, end: 0.06, text: "またぐ"),
+            ]))
         XCTAssertEqual(adjusted.text, "またぐ")
         XCTAssertEqual(adjusted.segments.count, 1)
         let segment = try XCTUnwrap(adjusted.segments.first)

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import LocalTranscriber
 
 final class AudioFileNameResolverTests: XCTestCase {
@@ -83,7 +84,7 @@ final class AudioFileNameResolverTests: XCTestCase {
 
     func testResolveRejectsTruncatedRIFFMagicBytes() throws {
         let header = Data("RIFF".utf8) + Data([0x04, 0x00, 0x00, 0x00]) + Data("WAVE".utf8)
-        for byteCount in 0 ..< header.count {
+        for byteCount in 0..<header.count {
             let sourceURL = tempDirectory.appendingPathComponent("truncated-\(byteCount).bin")
             try Data(header.prefix(byteCount)).write(to: sourceURL)
 

@@ -20,7 +20,20 @@ if [[ "$lint_status" -eq 0 ]]; then
   exit 0
 fi
 
-violating_files="$(awk -F: '/error:/ {print $1}' "$LOG_PATH" | sort -u)"
+# --strict では warning も失敗要因になる。絶対パスは allowlist と同じ相対パスに揃える。
+violating_files="$(awk -F: -v root="${ROOT_DIR}/" '
+  /^[^:]+:[0-9]+:[0-9]+: (warning|error):/ {
+    path = $1
+    if (index(path, root) == 1) path = substr(path, length(root) + 1)
+    print path
+  }
+' "$LOG_PATH" | sort -u)"
+if [[ -z "$violating_files" ]]; then
+  echo "swift-format failed without parseable diagnostics (exit status: $lint_status)" >&2
+  cat "$LOG_PATH" >&2
+  exit 1
+fi
+
 unexpected_files="$(comm -13 <(sort "$ALLOWLIST_PATH") <(printf '%s\n' "$violating_files" | sed '/^$/d'))"
 
 if [[ -n "$unexpected_files" ]]; then
