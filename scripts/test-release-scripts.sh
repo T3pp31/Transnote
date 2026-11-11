@@ -91,7 +91,6 @@ for fixture in \
   printf '%s\n' "$fixture" > "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"
   cp "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj" "$NO_MATCH_WORK/project-before"
 
-bash "$ROOT/scripts/test-install-transnote-temp.sh"
   status=0
   (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 \
     >stdout 2>stderr) || status=$?
@@ -101,12 +100,20 @@ bash "$ROOT/scripts/test-install-transnote-temp.sh"
   fi
   if ! grep -qF 'No matching MARKETING_VERSION = ...; entry found' "$NO_MATCH_WORK/stderr"; then
     echo "FAIL: unmatched MARKETING_VERSION should report the cause: $fixture" >&2
+    exit 1
+  fi
   if ! grep -qF 'Failed to update MARKETING_VERSION in LocalTranscriber.xcodeproj/project.pbxproj' "$NO_MATCH_WORK/stderr"; then
     echo "FAIL: unmatched MARKETING_VERSION should report the project path: $fixture" >&2
+    exit 1
+  fi
   if [[ -s "$NO_MATCH_WORK/stdout" ]]; then
     echo "FAIL: unmatched MARKETING_VERSION should not report success: $fixture" >&2
+    exit 1
+  fi
   if ! cmp -s "$NO_MATCH_WORK/project-before" "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
     echo "FAIL: unmatched MARKETING_VERSION should preserve the project: $fixture" >&2
+    exit 1
+  fi
 done
 echo "PASS: missing or unmatched MARKETING_VERSION rejected with diagnostics"
 
@@ -114,6 +121,7 @@ echo "PASS: missing or unmatched MARKETING_VERSION rejected with diagnostics"
 python3 - "$ROOT/docs/install.md" <<'PY'
 import sys
 from pathlib import Path
+
 # この文書で使う、行頭の三連バッククォートのフェンスを追跡する。
 language = None
 code = []
@@ -131,6 +139,7 @@ for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
         code = []
     else:
         code.append(line)
+
 assert language is None, "install.md: unclosed code fence"
 assert ("bash", 'bash "/Volumes/Transnote 1/インストール.command"') in blocks, \
     "install.md: alternate volume command must be in its own bash block"
@@ -147,11 +156,13 @@ for heading in (
     assert heading in prose, f"install.md: expected outside code blocks: {heading}"
 print("PASS: install.md code fences and subsequent sections")
 PY
+
 python3 "$ROOT/scripts/test-release-signing.py"
 bash "$ROOT/scripts/test-export-release-app.sh"
 python3 "$ROOT/scripts/test-install-transnote.py"
 bash "$ROOT/scripts/test-install-transnote-fresh.sh"
 bash "$ROOT/scripts/test-install-transnote.sh"
+bash "$ROOT/scripts/test-install-transnote-temp.sh"
 bash "$ROOT/scripts/test-check-swift-format.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"
