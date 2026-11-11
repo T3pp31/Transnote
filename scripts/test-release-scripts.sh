@@ -77,6 +77,64 @@ if (cd "$WORK" && python3 scripts/verify-xcode-project.py >/dev/null 2>&1); then
 fi
 echo "PASS: unresolved Frameworks phase rejected"
 
+python3 - "$ROOT" "$WORK" <<'PY'
+from pathlib import Path
+import subprocess
+import sys
+
+root, work = map(Path, sys.argv[1:])
+source = (root / "LocalTranscriber.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
+project = work / "LocalTranscriber.xcodeproj/project.pbxproj"
+target_id = "C03E9C1AA4674E7DAF75E1B4"
+sources_id = "6B91BF9C51B949F8AA3BFE2B"
+frameworks_id = "EC0C833371EA488DACBD3DC3"
+def check_phase_type(phase_id, label, original_isa, isa, should_pass):
+    # Keep the ID and target reference intact; only change the referenced object's type.
+    definition = f"\t\t{phase_id} /* {label} */ = {{\n\t\t\tisa = {original_isa};"
+    if source.count(definition) != 1:
+        raise AssertionError(f"could not locate unique {label} phase fixture")
+    replacement = definition.replace(f"isa = {original_isa};", f"isa = {isa};")
+    project.write_text(source.replace(definition, replacement), encoding="utf-8")
+    result = subprocess.run(
+        [sys.executable, str(work / "scripts/verify-xcode-project.py")],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if should_pass:
+        if result.returncode != 0 or not result.stdout.startswith("OK:"):
+            raise AssertionError(f"valid {isa} rejected: {result.stdout}{result.stderr}")
+    else:
+        expected = (
+            f"FAIL: target {target_id} references non-build-phase {phase_id} (isa = {isa})"
+        )
+        if result.returncode != 1 or expected not in result.stderr:
+            raise AssertionError(f"expected {expected!r}: {result.stdout}{result.stderr}")
+    print(f"PASS: {label} reference to {isa} {'accepted' if should_pass else 'rejected'}")
+for isa in (
+    "PBXBuildFile",
+    "PBXFileReference",
+    "PBXGroup",
+    "XCBuildConfiguration",
+    "PBXUnknownBuildPhase",
+):
+    check_phase_type(sources_id, "Sources", "PBXSourcesBuildPhase", isa, False)
+# Other real Frameworks phases remain, so the existing Frameworks set comparison
+# alone cannot detect that this referenced phase now has a non-phase type.
+check_phase_type(frameworks_id, "Frameworks", "PBXFrameworksBuildPhase", "PBXBuildFile", False)
+for isa in (
+    "PBXAppleScriptBuildPhase",
+    "PBXCopyFilesBuildPhase",
+    "PBXFrameworksBuildPhase",
+    "PBXHeadersBuildPhase",
+    "PBXResourcesBuildPhase",
+    "PBXRezBuildPhase",
+    "PBXShellScriptBuildPhase",
+    "PBXSourcesBuildPhase",
+):
+    check_phase_type(sources_id, "Sources", "PBXSourcesBuildPhase", isa, True)
+PY
 python3 "$ROOT/scripts/test_verify_xcode_project.py"
 
 NO_MATCH_WORK=$(mktemp -d)
@@ -179,6 +237,7 @@ PY
 
 python3 "$ROOT/scripts/test-release-signing.py"
 bash "$ROOT/scripts/test-export-release-app.sh"
+python3 "$ROOT/scripts/test-nightly-workflow.py"
 bash "$ROOT/scripts/test-check-swift-format.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"
