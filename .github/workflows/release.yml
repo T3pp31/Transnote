@@ -89,6 +89,39 @@ jobs:
             -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
             -skip-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
 
+      - name: Run real-model tests (release gate)
+        timeout-minutes: 120
+        env:
+          RUN_MODEL_INTEGRATION_TESTS: '1'
+        run: |
+          set -euo pipefail
+          # Validate selectors separately so one passing suite cannot hide an
+          # unmatched selector or a test skipped by its environment guard.
+          for TEST_IDENTIFIER in \
+            LocalTranscriberTests/ModelDownloadIntegrationTests \
+            LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
+          do
+            RESULT_BUNDLE="$DERIVED_DATA_PATH/TestResults/ReleaseModelTests-${TEST_IDENTIFIER##*/}.xcresult"
+            rm -rf "$RESULT_BUNDLE"
+            xcodebuild test \
+              -project "$PROJECT" \
+              -scheme "$SCHEME" \
+              -destination 'platform=macOS' \
+              CODE_SIGNING_ALLOWED=NO \
+              -derivedDataPath "$DERIVED_DATA_PATH" \
+              -resultBundlePath "$RESULT_BUNDLE" \
+              "-only-testing:$TEST_IDENTIFIER"
+
+            summary="$(xcrun xcresulttool get test-results summary --path "$RESULT_BUNDLE" --compact)"
+            total="$(echo "$summary" | python3 -c 'import json,sys; print(json.load(sys.stdin)["totalTestCount"])')"
+            executed="$(echo "$summary" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(sum(item["passedTests"] + item["failedTests"] + item["expectedFailures"] for item in data["devicesAndConfigurations"]))')"
+            echo "Executed tests for $TEST_IDENTIFIER: $executed (total: $total)"
+            if [[ "$total" -eq 0 || "$executed" -eq 0 ]]; then
+              echo "FAIL: release real-model tests did not execute for $TEST_IDENTIFIER" >&2
+              exit 1
+            fi
+          done
+
       - name: Archive Release build
         run: |
           set -euo pipefail
