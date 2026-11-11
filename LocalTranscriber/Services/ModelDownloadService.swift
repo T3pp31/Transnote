@@ -71,6 +71,7 @@ struct ModelDownloadService: Sendable {
         }
         AppLogger.info("Deleting model folder: \(folder.lastPathComponent)", logger: AppLogger.transcription)
         try fileManager.removeItem(at: folder)
+        modelAvailability.invalidateCache()
     }
 
     private func download(
