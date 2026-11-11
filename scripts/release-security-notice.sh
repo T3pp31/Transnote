@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Source from release.yml and create-dmg.sh so both describe the same build state.
 # SIGNED and NOTARIZED are set by the release workflow after successful signing.
+# security_notice and signature_note are outputs read by the sourcing callers.
+# shellcheck disable=SC2034
 if [[ "${NOTARIZED:-0}" == "1" ]]; then
   security_notice="Developer ID で署名・公証済みのビルドです。"
   signature_note="このビルドは Developer ID で署名・公証済みです。"
