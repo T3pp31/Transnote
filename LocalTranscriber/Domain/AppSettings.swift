@@ -165,6 +165,7 @@ struct AppConfig {
     let updateDownloadFallbackURL: URL
     let updateDMGAssetName: String
     let allowedUpdateDownloadHosts: [String]
+    let historySearchDebounceNanoseconds: UInt64
     let maxImportFileSizeBytes: Int64
 
     private static let fallbackModels = [
@@ -245,6 +246,7 @@ struct AppConfig {
         updateDMGAssetName = data["UpdateDMGAssetName"] as? String ?? "Transnote.dmg"
         allowedUpdateDownloadHosts = data["AllowedUpdateDownloadHosts"] as? [String]
             ?? ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"]
+        historySearchDebounceNanoseconds = UInt64(max(0, Self.int64(from: data["HistorySearchDebounceNanoseconds"], fallback: 0)))
         maxImportFileSizeBytes = Self.int64(from: data["MaxImportFileSizeBytes"], fallback: 524_288_000)
     }
 
@@ -261,7 +263,8 @@ struct AppConfig {
         updateDownloadFallbackURL: URL,
         updateDMGAssetName: String,
         allowedUpdateDownloadHosts: [String] = ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"],
-        maxImportFileSizeBytes: Int64 = 524_288_000
+        maxImportFileSizeBytes: Int64 = 524_288_000,
+        historySearchDebounceNanoseconds: UInt64 = 0
     ) {
         self.supportedExtensions = supportedExtensions
         self.defaultModelID = defaultModelID
@@ -276,6 +279,7 @@ struct AppConfig {
         self.updateDMGAssetName = updateDMGAssetName
         self.allowedUpdateDownloadHosts = allowedUpdateDownloadHosts
         self.maxImportFileSizeBytes = maxImportFileSizeBytes
+        self.historySearchDebounceNanoseconds = historySearchDebounceNanoseconds
     }
 
 
