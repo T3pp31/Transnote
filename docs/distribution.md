@@ -17,6 +17,14 @@ vX.Y.Z タグ push または workflow_dispatch
 
 GitHub Pages は `main` ブランチの `site/` 更新時に自動デプロイされ、[releases/latest](https://github.com/T3pp31/Transnote/releases/latest) へ誘導します。
 
+## 共通の Xcode バージョン
+
+CI・Release・Nightly は `Config/toolchain.plist` の `XcodeVersion` を共通で使用します。更新時はこの値を変更してください（`major.minor` または `major.minor.patch` 形式）。`scripts/read-xcode-version.py` が設定を読み、各ワークフローの Xcode 選択とキャッシュキーに同じ値を渡します。リポジトリ変数の追加設定は不要です。
+
+```bash
+python3 scripts/read-xcode-version.py
+```
+
 ## GitHub Secrets
 
 未署名配布では **GitHub Secrets は不要** です。Release workflow はそのまま実行できます。

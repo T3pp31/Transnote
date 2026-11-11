@@ -17,7 +17,6 @@ permissions:
   attestations: write
 
 env:
-  XCODE_VERSION: '16.4'
   SCHEME: LocalTranscriber
   PROJECT: LocalTranscriber.xcodeproj
   APP_NAME: Transnote
@@ -40,9 +39,16 @@ jobs:
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
 
+      - name: Read Xcode version
+        id: xcode_config
+        run: |
+          set -euo pipefail
+          version="$(python3 scripts/read-xcode-version.py)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ steps.xcode_config.outputs.version }}
 
       - name: Resolve release version
         id: version

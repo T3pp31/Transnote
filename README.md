@@ -89,7 +89,7 @@ bash "/Volumes/Transnote/インストール.command"
 | 設定 | `Config/Defaults.plist` + UserDefaults |
 | データ永続化 | ファイルシステム（`~/Library/Containers/com.transnote.LocalTranscriber/Data/Library/Application Support/LocalTranscriber/`） |
 | テスト | XCTest |
-| CI/CD | GitHub Actions（macOS 15, Xcode 16.4） |
+| CI/CD | GitHub Actions（macOS 15, Xcode は [共通設定](Config/toolchain.plist) で固定） |
 | 配布 | 未署名 DMG + `インストール.command` |
 
 Python や Rust は採用しない。Xcode プロジェクトの再生成に Python 3 を使用する。
@@ -99,7 +99,7 @@ Python や Rust は採用しない。Xcode プロジェクトの再生成に Pyt
 | 項目 | バージョン |
 | --- | --- |
 | macOS | 14.0 以降 |
-| Xcode | 16.0 以降（CI は 16.4） |
+| Xcode | 16.0 以降（CI は [共通設定](Config/toolchain.plist) を使用） |
 
 WhisperKit は `argmaxinc/argmax-oss-swift` の Swift Package として提供され、`LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` でバージョン 0.18.0（revision `e2adabb`）に固定している。前提環境は公式 README に準拠する。
 

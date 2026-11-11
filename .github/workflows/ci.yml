@@ -124,22 +124,27 @@ jobs:
   test:
     runs-on: macos-15
     timeout-minutes: 20
-    env:
-      XCODE_VERSION: '16.4'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
+      - name: Read Xcode version
+        id: xcode_config
+        run: |
+          set -euo pipefail
+          version="$(python3 scripts/read-xcode-version.py)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
-          xcode-version: ${{ env.XCODE_VERSION }}
+          xcode-version: ${{ steps.xcode_config.outputs.version }}
 
       - name: Cache SPM repositories
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          key: spm-${{ runner.os }}-xcode-${{ steps.xcode_config.outputs.version }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
 
       # The cache whitelists DerivedData subdirectories needed for incremental
       # builds (paths kept literal; actions/cache inputs are safest without
@@ -167,9 +172,9 @@ jobs:
             DerivedData/SourcePackages
             DerivedData/ModuleCache.noindex
             DerivedData/Index.noindex
-          key: dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ github.run_id }}
+          key: dd-${{ runner.os }}-xcode-${{ steps.xcode_config.outputs.version }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-${{ github.run_id }}
           restore-keys: |
-            dd-${{ runner.os }}-xcode-${{ env.XCODE_VERSION }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
+            dd-${{ runner.os }}-xcode-${{ steps.xcode_config.outputs.version }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}-
 
       - name: Resolve Swift Package dependencies
         run: |
