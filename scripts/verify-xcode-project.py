@@ -7,6 +7,16 @@ from pathlib import Path
 
 
 PBXPROJ = Path("LocalTranscriber.xcodeproj/project.pbxproj")
+BUILD_PHASE_ISAS = {
+    "PBXAppleScriptBuildPhase",
+    "PBXCopyFilesBuildPhase",
+    "PBXFrameworksBuildPhase",
+    "PBXHeadersBuildPhase",
+    "PBXResourcesBuildPhase",
+    "PBXRezBuildPhase",
+    "PBXShellScriptBuildPhase",
+    "PBXSourcesBuildPhase",
+}
 
 
 def fail(message):
@@ -58,6 +68,11 @@ def main():
     for target_id, phase_id in phase_references:
         if phase_id not in definitions:
             return fail(f"target {target_id} references undefined build phase {phase_id}")
+        isa = definitions[phase_id]
+        if isa not in BUILD_PHASE_ISAS:
+            return fail(
+                f"target {target_id} references non-build-phase {phase_id} (isa = {isa})"
+            )
 
     frameworks_phases = {
         phase_id
