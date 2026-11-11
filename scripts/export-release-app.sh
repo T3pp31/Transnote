@@ -195,14 +195,16 @@ if [[ -n "$TEAM_ID" ]]; then
   validate_signing_team
 fi
 
+mkdir -p "$OUTPUT_DIR"
 resolved_output_path="$(cd "$(dirname "$APP_PATH")" && pwd -P)/$(basename "$APP_PATH")"
 resolved_source_path="$(cd "$SOURCE_APP" && pwd -P)"
-if [[ "$resolved_output_path" == "$resolved_source_path" || "$resolved_source_path" == "$resolved_output_path"/* ]]; then
+if [[ "$resolved_output_path" == "$resolved_source_path" ||
+      "$resolved_source_path" == "$resolved_output_path"/* ||
+      "$resolved_output_path" == "$resolved_source_path"/* ]]; then
   echo "--output overlaps the source app inside the archive: $OUTPUT_DIR" >&2
   exit 1
 fi
 
-mkdir -p "$OUTPUT_DIR"
 rm -rf "$APP_PATH"
 ditto "$SOURCE_APP" "$APP_PATH"
 

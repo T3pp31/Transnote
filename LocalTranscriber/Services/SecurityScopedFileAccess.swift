@@ -3,32 +3,50 @@ import Foundation
 final class SecurityScopedFileAccess: @unchecked Sendable {
   static let shared = SecurityScopedFileAccess()
 
+  private struct ActiveAccess {
+    let url: URL
+    let didStart: Bool
+  }
+
   private let lock = NSLock()
-  private var activeURLs: [URL] = []
+  private var activeAccesses: [ActiveAccess] = []
+  private let startAccessing: (URL) -> Bool
+  private let stopAccessing: (URL) -> Void
+
+  init(
+    startAccessing: @escaping (URL) -> Bool = { $0.startAccessingSecurityScopedResource() },
+    stopAccessing: @escaping (URL) -> Void = { $0.stopAccessingSecurityScopedResource() }
+  ) {
+    self.startAccessing = startAccessing
+    self.stopAccessing = stopAccessing
+  }
 
   func beginAccess(url: URL) throws {
     lock.lock()
     defer { lock.unlock() }
 
-    guard url.startAccessingSecurityScopedResource() else {
-      throw AppError.fileAccessDenied
-    }
+    // スコープ不要の URL でも false になるため、実際のアクセス可否は呼び出し元の I/O に委ねる。
+    let didStart = startAccessing(url)
 
     guard FileManager.default.fileExists(atPath: url.path) else {
-      url.stopAccessingSecurityScopedResource()
+      if didStart {
+        stopAccessing(url)
+      }
       throw AppError.fileNotFound
     }
 
-    activeURLs.append(url)
+    activeAccesses.append(ActiveAccess(url: url, didStart: didStart))
   }
 
   func endAccess(url: URL) {
     lock.lock()
     defer { lock.unlock() }
 
-    if let index = activeURLs.firstIndex(where: { $0 == url }) {
-      url.stopAccessingSecurityScopedResource()
-      activeURLs.remove(at: index)
+    if let index = activeAccesses.firstIndex(where: { $0.url == url }) {
+      let access = activeAccesses.remove(at: index)
+      if access.didStart {
+        stopAccessing(access.url)
+      }
     }
   }
 
@@ -36,10 +54,10 @@ final class SecurityScopedFileAccess: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
 
-    for url in activeURLs {
-      url.stopAccessingSecurityScopedResource()
+    for access in activeAccesses where access.didStart {
+      stopAccessing(access.url)
     }
-    activeURLs.removeAll()
+    activeAccesses.removeAll()
   }
 
   func createBookmark(for url: URL) throws -> Data {
