@@ -68,7 +68,8 @@ struct ExportService {
         }
         lines.append("## Full Text")
         lines.append("")
-        lines.append(transcript.fullText)
+        // 全文の Markdown 書式は維持し、生 HTML のみテキストとして扱う。
+        lines.append(escapeHTML(transcript.fullText))
         lines.append("")
         lines.append("## Segments")
         lines.append("")
@@ -83,15 +84,26 @@ struct ExportService {
     }
 
     /// Markdown の見出し・リスト・リンクを壊さないよう、
-    /// ファイル名・セグメントテキストに含まれる特殊文字をエスケープする。
+    /// ファイル名・言語・セグメントテキストに含まれる特殊文字と生 HTML をエスケープする。
     private func escapeMarkdown(_ text: String) -> String {
-        text
+        let escaped = text
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "*", with: "\\*")
             .replacingOccurrences(of: "_", with: "\\_")
             .replacingOccurrences(of: "[", with: "\\[")
             .replacingOccurrences(of: "]", with: "\\]")
             .replacingOccurrences(of: "#", with: "\\#")
+        // 生成する文字参照の # を Markdown エスケープしないよう、HTML は最後に処理する。
+        return escapeHTML(escaped)
+    }
+
+    private func escapeHTML(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&#39;")
     }
     private func exportJSON(_ transcript: Transcript) throws -> String {
         let encoder = JSONEncoder()
