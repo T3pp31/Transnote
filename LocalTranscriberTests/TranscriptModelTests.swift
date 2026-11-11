@@ -109,6 +109,60 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(AppDirectories.directorySize(of: root), 20)
     }
 
+    func testAppDirectoriesDirectorySizeIncludesDotFilesAndHiddenDescendants() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("nested", isDirectory: true)
+        let hiddenNested = root.appendingPathComponent(".cache/deeper", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: hiddenNested, withIntermediateDirectories: true)
+
+        let files = [
+            (root.appendingPathComponent("visible.bin"), 5),
+            (root.appendingPathComponent(".hidden.bin"), 7),
+            (nested.appendingPathComponent(".hidden.bin"), 11),
+            (hiddenNested.appendingPathComponent("payload.bin"), 13)
+        ]
+        for (url, size) in files {
+            try Data(repeating: 1, count: size).write(to: url)
+        }
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 36)
+    }
+
+    func testAppDirectoriesDirectorySizeIncludesHiddenAttributeFilesAndDirectories() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let hiddenDirectory = root.appendingPathComponent("cache", isDirectory: true)
+        try FileManager.default.createDirectory(at: hiddenDirectory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let hiddenFile = root.appendingPathComponent("hidden.bin")
+        try Data(repeating: 1, count: 9).write(to: hiddenFile)
+        try Data(repeating: 2, count: 15).write(to: hiddenDirectory.appendingPathComponent("payload.bin"))
+
+        // ドット名ではなく、macOS の隠し属性を持つエントリも集計する。
+        var values = URLResourceValues()
+        values.isHidden = true
+        for var url in [hiddenFile, hiddenDirectory] {
+            try url.setResourceValues(values)
+            XCTAssertEqual(try url.resourceValues(forKeys: [.isHiddenKey]).isHidden, true)
+        }
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 24)
+    }
+
+    func testAppDirectoriesDirectorySizeReturnsZeroForEmptyAndMissingDirectories() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        XCTAssertEqual(AppDirectories.directorySize(of: root), 0)
+        XCTAssertEqual(AppDirectories.directorySize(of: root.appendingPathComponent("missing", isDirectory: true)), 0)
+    }
+
     func testAppDirectoriesClearDirectoryReturnsResultAndPreservesDirectory() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -261,6 +315,62 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(recent.count, 1)
         XCTAssertEqual(recent.first?.sourceFileName, "meeting.wav")
         XCTAssertEqual(recent.first?.fullText, "こんにちは")
+    }
+
+    func testHistoryStoreSearchLimitsByCreationDateInsteadOfModificationDate() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let older = Transcript(sourceFileName: "older.wav", createdAt: baseDate, fullText: "needle")
+        let middle = Transcript(
+            sourceFileName: "middle.wav", createdAt: baseDate.addingTimeInterval(100), fullText: "needle"
+        )
+        let newest = Transcript(
+            sourceFileName: "newest.wav", createdAt: baseDate.addingTimeInterval(200), fullText: "needle"
+        )
+
+        // 古い履歴の再保存を模し、作成日時と逆順の更新日時を明示して走査順を固定する。
+        for (transcript, offset) in [(older, 600.0), (middle, 500.0), (newest, 400.0)] {
+            try store.save(transcript)
+            try FileManager.default.setAttributes(
+                [.modificationDate: baseDate.addingTimeInterval(offset)],
+                ofItemAtPath: root.appendingPathComponent("\(transcript.id.uuidString).json").path
+            )
+        }
+
+        XCTAssertEqual(store.search(query: "needle", limit: 1).map(\.id), [newest.id])
+        XCTAssertEqual(store.search(query: "needle", limit: 2).map(\.id), [newest.id, middle.id])
+        XCTAssertEqual(store.search(query: "needle", limit: 10).map(\.id), [newest.id, middle.id, older.id])
+        XCTAssertEqual(store.search(query: "needle", limit: 2).map(\.id), store.recent(limit: 2).map(\.id))
+    }
+
+    func testHistoryStoreSearchMatchesTextAndFileNameAndSkipsInvalidJSON() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+        XCTAssertTrue(store.search(query: "needle").isEmpty)
+
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let textMatch = Transcript(sourceFileName: "meeting.wav", createdAt: baseDate, fullText: "A Needle appears")
+        let fileNameMatch = Transcript(
+            sourceFileName: "NEEDLE-recording.wav", createdAt: baseDate.addingTimeInterval(100), fullText: "other text"
+        )
+        let nonMatch = Transcript(
+            sourceFileName: "unrelated.wav", createdAt: baseDate.addingTimeInterval(200), fullText: "other text"
+        )
+        for transcript in [textMatch, fileNameMatch, nonMatch] {
+            try store.save(transcript)
+        }
+        try Data("not valid JSON".utf8).write(to: root.appendingPathComponent("broken.json"))
+
+        XCTAssertEqual(store.search(query: "nEeDlE", limit: 10).map(\.id), [fileNameMatch.id, textMatch.id])
+        XCTAssertEqual(store.search(query: "nEeDlE", limit: 1).map(\.id), [fileNameMatch.id])
+        XCTAssertTrue(store.search(query: "absent").isEmpty)
+        XCTAssertTrue(store.search(query: "needle", limit: 0).isEmpty)
+        XCTAssertEqual(store.search(query: "", limit: 2).map(\.id), [nonMatch.id, fileNameMatch.id])
     }
 
     func testHistoryStoreDelete() throws {

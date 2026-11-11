@@ -124,6 +124,75 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         XCTAssertNil(service.modelFolder(for: "tiny"))
     }
 
+    // MARK: - キャッシュの無効化
+
+    func testVariantDirectoriesCachesUntilInvalidatedAfterAdditionAndDeletion() throws {
+        XCTAssertTrue(service.variantDirectories(named: "base").isEmpty)
+        let folder = try makeVariantFolder("openai_whisper-base", modificationDate: nil)
+
+        // TTL 内は既存キャッシュを使い、無効化後に追加を反映する。
+        XCTAssertFalse(service.isDownloaded(whisperKitModelName: "base"))
+        service.invalidateCache()
+        XCTAssertTrue(service.isDownloaded(whisperKitModelName: "base"))
+
+        try FileManager.default.removeItem(at: folder)
+        XCTAssertFalse(service.variantDirectories(named: "base").isEmpty)
+        service.invalidateCache()
+        XCTAssertTrue(service.variantDirectories(named: "base").isEmpty)
+    }
+
+    func testInvalidationDuringScanPreventsStaleCacheFromBeingRestored() throws {
+        try assertInvalidationDuringScan(populateNewCacheBeforeResuming: false)
+    }
+
+    func testInvalidatedScanDoesNotOverwriteNewGenerationCache() throws {
+        try assertInvalidationDuringScan(populateNewCacheBeforeResuming: true)
+    }
+
+    private func assertInvalidationDuringScan(populateNewCacheBeforeResuming: Bool) throws {
+        let scanPaused = expectation(description: "空の走査結果を取得済み")
+        let scanFinished = expectation(description: "無効化前の走査が完了")
+        let resumeScan = DispatchSemaphore(value: 0)
+        let scanner = PausingEmptyDirectoryScanner(
+            directories: [temporaryRoot.appendingPathComponent("openai_whisper-base", isDirectory: true)]
+        ) {
+            scanPaused.fulfill()
+            XCTAssertEqual(resumeScan.wait(timeout: .now() + 10), .success)
+        }
+        let availability = ModelAvailabilityService(
+            modelsRoot: temporaryRoot,
+            directoryScanner: { scanner.scan(includingHidden: $0) }
+        )
+
+        DispatchQueue.global().async {
+            // 開始済みの問い合わせ自体は古いスナップショットを返してよい。
+            XCTAssertTrue(availability.variantDirectories(named: "base").isEmpty)
+            scanFinished.fulfill()
+        }
+
+        let folder: URL
+        do {
+            // 作成に失敗した場合も走査を解放し、一時ディレクトリ削除前に完了を待つ。
+            defer {
+                resumeScan.signal()
+                wait(for: [scanFinished], timeout: 5)
+            }
+            wait(for: [scanPaused], timeout: 5)
+            folder = try makeVariantFolder("openai_whisper-base", modificationDate: nil)
+            availability.invalidateCache()
+            if populateNewCacheBeforeResuming {
+                XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+            }
+        }
+
+        // 古い走査の書き戻し後も TTL を待たずに追加済みモデルを参照できる。
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+        XCTAssertEqual(standardize(availability.modelFolder(for: "base")), standardize(folder))
+        // 新世代のキャッシュは破棄・上書きせず、以後の問い合わせで再走査しない。
+        XCTAssertEqual(scanner.scanCount, 2)
+        XCTAssertGreaterThan(availability.diskUsage(whisperKitModelName: "base"), 0)
+    }
+
     // MARK: - 同スコア時の決定的な選択
 
     /// /var は /private/var へのシンボリックリンクのため、enumerator の返す URL と
@@ -290,5 +359,39 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         // When / Then
         XCTAssertTrue(service.isDownloaded(whisperKitModelName: "base"))
         XCTAssertNotNil(service.modelFolder(for: "base"))
+    }
+}
+
+/// 最初の空の走査結果を返す直前に停止し、無効化・書き戻しの競合を決定的に再現する。
+private final class PausingEmptyDirectoryScanner: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    private let directories: [URL]
+    private let onFirstScan: @Sendable () -> Void
+
+    init(directories: [URL], onFirstScan: @escaping @Sendable () -> Void) {
+        self.directories = directories
+        self.onFirstScan = onFirstScan
+    }
+
+    var scanCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func scan(includingHidden: Bool) -> [URL] {
+        XCTAssertFalse(includingHidden)
+        lock.lock()
+        count += 1
+        let isFirstScan = count == 1
+        lock.unlock()
+
+        if isFirstScan {
+            onFirstScan()
+            // 無効化後に再開しても、最初に取得した空のスナップショットを返す。
+            return []
+        }
+        return directories
     }
 }

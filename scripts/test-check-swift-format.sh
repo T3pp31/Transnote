@@ -128,4 +128,5 @@ for directory in "$ROOT" "$ROOT/scripts" "$WORK"; do
   echo "PASS: lint cwd and arguments are independent of invocation directory: $directory"
 done
 
+bash "$ROOT/scripts/test-check-swift-format-cwd.sh"
 echo 'ALL SWIFT FORMAT SCRIPT TESTS PASSED'

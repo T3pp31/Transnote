@@ -185,6 +185,10 @@ jobs:
             echo "Package.resolved not found at $RESOLVED"
             exit 1
           fi
+          if ! git ls-files --error-unmatch -- "$RESOLVED" >/dev/null 2>&1; then
+            echo "Package.resolved is not tracked. Commit $RESOLVED before running CI."
+            exit 1
+          fi
           if ! git diff --quiet -- "$RESOLVED"; then
             echo "Package.resolved is out of date. Run xcodebuild -resolvePackageDependencies and commit the result."
             git diff -- "$RESOLVED"

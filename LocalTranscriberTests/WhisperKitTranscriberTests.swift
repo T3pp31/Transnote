@@ -1,4 +1,5 @@
 import AVFoundation
+import WhisperKit
 import XCTest
 
 @testable import LocalTranscriber
@@ -52,6 +53,7 @@ final class WhisperKitTranscriberTests: XCTestCase {
         let chunks = try await transcriber.splitAudioIntoChunks(url: source, chunkDuration: 10)
         XCTAssertEqual(chunks.map(\.url), [source])
         XCTAssertEqual(chunks.map(\.startSeconds), [0])
+        XCTAssertEqual(chunks.map(\.overlapSeconds), [0])
     }
 
     func testSplitAudioPreservesOffsetsAndUsesUniqueFiles() async throws {
@@ -67,6 +69,8 @@ final class WhisperKitTranscriberTests: XCTestCase {
         XCTAssertEqual(first.count, second.count)
         XCTAssertEqual(first.first?.startSeconds, 0)
         XCTAssertEqual(first[1].startSeconds, 0.3, accuracy: 0.001)
+        XCTAssertEqual(first[0].overlapSeconds, 0)
+        XCTAssertEqual(first[1].overlapSeconds, 0.1, accuracy: 0.001)
         XCTAssertTrue(Set(first.map(\.url)).isDisjoint(with: second.map(\.url)))
         for chunk in first + second {
             XCTAssertNotEqual(chunk.url, source)
@@ -74,6 +78,162 @@ final class WhisperKitTranscriberTests: XCTestCase {
             let duration = try await AVURLAsset(url: chunk.url).load(.duration).seconds
             XCTAssertGreaterThan(duration, 0)
         }
+    }
+
+    func testSplitTracksActualOverlapForFullyCoveredTail() async throws {
+        let source = try makeAudioFile(name: "tail.m4a")
+        let duration = try await AVURLAsset(url: source).load(.duration).seconds
+        let chunks = try await transcriber.splitAudioIntoChunks(
+            url: source, chunkDuration: duration * 0.6,
+            outputDirectory: temporaryRoot.appendingPathComponent("tail-chunks", isDirectory: true)
+        )
+
+        XCTAssertEqual(chunks.count, 3)
+        let tail = try XCTUnwrap(chunks.last)
+        XCTAssertEqual(tail.overlapSeconds, duration - tail.startSeconds, accuracy: 0.001)
+        XCTAssertGreaterThan(tail.overlapSeconds, 0)
+        XCTAssertLessThan(tail.overlapSeconds, duration * 0.15)
+    }
+
+    func testChunkResultsRemoveOverlapFromBothTextAndSegmentsBeforeMerge() throws {
+        let firstChunk = WhisperKitTranscriber.AudioChunk(url: temporaryRoot, startSeconds: 0)
+        let nextChunk = WhisperKitTranscriber.AudioChunk(
+            url: temporaryRoot, startSeconds: 599, overlapSeconds: 1
+        )
+        let first = makeResult(segments: [
+            makeSegment(start: 0, end: 1, text: "はじめ"),
+            makeSegment(start: 599.1, end: 599.3, text: "重複"),
+            makeSegment(start: 599.4, end: 600, text: "境界内"),
+        ])
+        let overlapOnly = makeResult(segments: [
+            makeSegment(start: 0.1, end: 0.3, text: "重複"),
+        ])
+        let mixed = makeResult(segments: [
+            makeSegment(start: 0.4, end: 1, text: "境界内"),
+            makeSegment(start: 0.8, end: 1.5, text: "境界をまたぐ発話"),
+            // 同じ文字列でも、重複区間外での実際の繰り返しは残す。
+            makeSegment(start: 1.5, end: 2, text: "重複"),
+        ])
+
+        let adjustedFirst = firstChunk.adjustedResult(first)
+        let adjustedOverlap = nextChunk.adjustedResult(overlapOnly)
+        let adjustedMixed = nextChunk.adjustedResult(mixed)
+        XCTAssertTrue(adjustedOverlap.segments.isEmpty)
+        XCTAssertEqual(adjustedOverlap.text, "")
+        XCTAssertEqual(adjustedMixed.text, "境界をまたぐ発話 重複")
+        XCTAssertEqual(adjustedMixed.language, mixed.language)
+        let crossing = try XCTUnwrap(adjustedMixed.segments.first)
+        let repeated = try XCTUnwrap(adjustedMixed.segments.last)
+        XCTAssertEqual(crossing.start, 599.8, accuracy: 0.001)
+        XCTAssertEqual(crossing.end, 600.5, accuracy: 0.001)
+        XCTAssertEqual(repeated.start, 600.5, accuracy: 0.001)
+        XCTAssertEqual(repeated.end, 601, accuracy: 0.001)
+
+        let merged = TranscriptionUtilities.mergeTranscriptionResults([
+            adjustedFirst, adjustedOverlap, adjustedMixed,
+        ])
+        XCTAssertEqual(merged.segments.map(\.text), ["はじめ", "重複", "境界内", "境界をまたぐ発話", "重複"])
+        XCTAssertEqual(merged.text.components(separatedBy: "重複").count - 1, 2)
+        XCTAssertEqual(merged.text.components(separatedBy: "境界内").count - 1, 1)
+    }
+
+    func testChunkWithoutOverlapPreservesTextAndAllSegments() throws {
+        let result = makeResult(segments: [
+            makeSegment(start: 0, end: 0, text: "先頭"),
+            makeSegment(start: 0.2, end: 1, text: "発話"),
+        ], text: " 先頭  発話 ")
+
+        for startSeconds in [0.0, 599.0] {
+            let chunk = WhisperKitTranscriber.AudioChunk(url: temporaryRoot, startSeconds: startSeconds)
+            let adjusted = chunk.adjustedResult(result)
+            XCTAssertEqual(adjusted.text, result.text)
+            XCTAssertEqual(adjusted.segments.map(\.text), result.segments.map(\.text))
+            let first = try XCTUnwrap(adjusted.segments.first)
+            let last = try XCTUnwrap(adjusted.segments.last)
+            XCTAssertEqual(first.start, Float(startSeconds), accuracy: 0.001)
+            XCTAssertEqual(last.end, Float(startSeconds + 1), accuracy: 0.001)
+        }
+    }
+
+    func testChunkWithOverlapButNoRemovedSegmentsPreservesText() {
+        let chunk = WhisperKitTranscriber.AudioChunk(
+            url: temporaryRoot, startSeconds: 599, overlapSeconds: 1
+        )
+        let originalText = " 境界をまたぐ発話  次の発話 "
+        let result = makeResult(segments: [
+            makeSegment(start: 0.9, end: 1.5, text: "境界をまたぐ発話"),
+            makeSegment(start: 1.5, end: 2, text: "次の発話"),
+        ], text: originalText)
+
+        let adjusted = chunk.adjustedResult(result)
+        XCTAssertEqual(adjusted.text, originalText)
+        XCTAssertEqual(adjusted.segments.map(\.text), ["境界をまたぐ発話", "次の発話"])
+    }
+
+    func testPartialTextFiltersOverlapAcrossDiscoveryWindows() {
+        let firstChunk = WhisperKitTranscriber.AudioChunk(url: temporaryRoot, startSeconds: 0)
+        let nextChunk = WhisperKitTranscriber.AudioChunk(
+            url: temporaryRoot, startSeconds: 599, overlapSeconds: 1
+        )
+        var completedText = ""
+        let firstText = TranscriptPartialTextBuilder.appendPresentableWindowText(
+            from: firstChunk.adjustedSegments([
+                makeSegment(start: 599.2, end: 600, text: "重複"),
+            ]).map(\.text),
+            to: &completedText
+        )
+        XCTAssertEqual(firstText, "重複")
+
+        let overlapText = TranscriptPartialTextBuilder.appendPresentableWindowText(
+            from: nextChunk.adjustedSegments([
+                makeSegment(start: 0.2, end: 1, text: "重複"),
+            ]).map(\.text),
+            to: &completedText
+        )
+        XCTAssertNil(overlapText)
+        XCTAssertEqual(completedText, "重複")
+
+        let nextText = TranscriptPartialTextBuilder.appendPresentableWindowText(
+            from: nextChunk.adjustedSegments([
+                makeSegment(start: 0.9, end: 1.5, text: "境界をまたぐ発話"),
+                makeSegment(start: 1.5, end: 2, text: "新しい発話"),
+            ]).map(\.text),
+            to: &completedText
+        )
+        XCTAssertEqual(nextText, "重複 境界をまたぐ発話 新しい発話")
+        XCTAssertEqual(completedText, nextText)
+    }
+
+    func testShortTailUsesActualOverlapBoundary() throws {
+        let tail = WhisperKitTranscriber.AudioChunk(
+            url: temporaryRoot, startSeconds: 0.9, overlapSeconds: 0.05
+        )
+        let adjusted = tail.adjustedResult(makeResult(segments: [
+            makeSegment(start: 0, end: 0.05, text: "重複"),
+            makeSegment(start: 0.04, end: 0.06, text: "またぐ"),
+        ]))
+        XCTAssertEqual(adjusted.text, "またぐ")
+        XCTAssertEqual(adjusted.segments.count, 1)
+        let segment = try XCTUnwrap(adjusted.segments.first)
+        XCTAssertEqual(segment.start, 0.94, accuracy: 0.001)
+        XCTAssertEqual(segment.end, 0.96, accuracy: 0.001)
+    }
+
+    private func makeSegment(start: Float, end: Float, text: String) -> TranscriptionSegment {
+        TranscriptionSegment(
+            id: 0, seek: 0, start: start, end: end, text: text,
+            tokens: [], tokenLogProbs: [], temperature: 0, avgLogprob: 0,
+            compressionRatio: 0, noSpeechProb: 0
+        )
+    }
+
+    private func makeResult(segments: [TranscriptionSegment], text: String? = nil) -> TranscriptionResult {
+        TranscriptionResult(
+            text: text ?? segments.map(\.text).joined(separator: " "),
+            segments: segments,
+            language: "ja",
+            timings: TranscriptionTimings()
+        )
     }
 
     func testMissingExportSessionThrowsWithoutLeavingPartialChunks() async throws {

@@ -5,14 +5,9 @@ import XCTest
 
 /// 調査用の速度計測プローブ（回帰テスト／閾値アサーションではない）。
 /// - 結果は print するだけで、環境差に依存する閾値は設けない
-/// - テスト用 wav が無い環境（CI 含む）では XCTSkip する
+/// - テスト用 wav または実行可能な ffmpeg が無い環境（CI 含む）では XCTSkip する
 /// - フィクスチャの追加候補は環境変数 TRANSNOTE_BENCH_FIXTURE で上書きできる
 final class PerformanceBaselineTests: XCTestCase {
-    private struct FFmpegUnavailableError: LocalizedError {
-        let errorDescription: String?
-    }
-
-
     private let modelsRoot = AppDirectories.modelsDirectory
 
     private var fixtureWAVURL: URL?
@@ -75,7 +70,22 @@ final class PerformanceBaselineTests: XCTestCase {
         return max(1, Int((Double(targetSeconds) / sourceDuration).rounded(.up)))
     }
 
+    private static func requiredFFmpegPath(
+        isExecutableFile: (String) -> Bool = { FileManager.default.isExecutableFile(atPath: $0) }
+    ) throws -> String {
+        let candidates = [
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+        ]
+        guard let ffmpegPath = candidates.first(where: isExecutableFile) else {
+            throw XCTSkip("ffmpeg not found or not executable")
+        }
+        return ffmpegPath
+    }
+
     private static func makeLongAudio(from sourceURL: URL, targetSeconds: Int) async throws -> URL {
+        let ffmpegPath = try requiredFFmpegPath()
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("transnote-bench-\(UUID().uuidString).wav")
         let sourceDuration = CMTimeGetSeconds(try await AVURLAsset(url: sourceURL).load(.duration))
@@ -95,14 +105,6 @@ final class PerformanceBaselineTests: XCTestCase {
             "-map", "[out]",
             tmp.path,
         ]
-        let candidates = [
-            "/opt/homebrew/bin/ffmpeg",
-            "/usr/local/bin/ffmpeg",
-            "/usr/bin/ffmpeg",
-        ]
-        guard let ffmpegPath = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
-            throw FFmpegUnavailableError(errorDescription: "ffmpeg not found")
-        }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: ffmpegPath)
         p.arguments = filterArgs
@@ -114,6 +116,30 @@ final class PerformanceBaselineTests: XCTestCase {
             throw NSError(domain: "bench", code: 1, userInfo: [NSLocalizedDescriptionKey: "ffmpeg failed"])
         }
         return tmp
+    }
+
+    func testRequiredFFmpegPathSkipsWhenNoCandidateIsExecutable() {
+        XCTAssertThrowsError(try Self.requiredFFmpegPath(isExecutableFile: { _ in false })) { error in
+            XCTAssertTrue(error is XCTSkip, "Expected XCTSkip, got \(error)")
+        }
+    }
+
+    func testRequiredFFmpegPathUsesFirstExecutableCandidate() throws {
+        let candidates = [
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+        ]
+        for (index, expectedPath) in candidates.enumerated() {
+            var checkedPaths: [String] = []
+            let path = try Self.requiredFFmpegPath { candidate in
+                checkedPaths.append(candidate)
+                // この候補以降を実行可能とし、最初の実行可能ファイルを選ぶことを確認する。
+                return candidates[index...].contains(candidate)
+            }
+            XCTAssertEqual(path, expectedPath)
+            XCTAssertEqual(checkedPaths, Array(candidates[...index]))
+        }
     }
 
     func testRequiredRepeatsUsesMeasuredSourceDuration() {
