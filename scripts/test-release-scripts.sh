@@ -32,6 +32,7 @@ if grep -q 'MARKETING_VERSION = 0.1.5;' "$WORK/LocalTranscriber.xcodeproj/projec
 fi
 
 echo "PASS: set-marketing-version.sh"
+bash "$ROOT/scripts/test-install-transnote-fresh.sh"
 
 if (cd "$WORK" && bash scripts/set-marketing-version.sh bad-version >/dev/null 2>&1); then
   echo "FAIL: invalid version should fail" >&2

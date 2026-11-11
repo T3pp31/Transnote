@@ -157,19 +157,31 @@ sleep 1
 # 途中で失敗した場合は旧バージョンを復元する。
 TMP_STAGE="${TMPDIR:-/tmp}/transnote-install-$$";
 BACKUP_DIR="${TMPDIR:-/tmp}/transnote-backup-$$";
+TARGET_COPY_STARTED=false
 mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
 
 rollback() {
   local code=$1
   rm -rf "$TMP_STAGE"
-  local backup_app original_app
+  # 配置を開始した場合だけ、不完全な新バンドルを削除する（旧版の退避前は削除しない）。
+  if [[ "$TARGET_COPY_STARTED" == true ]]; then
+    rm -rf "$TARGET_APP"
+  fi
+  local backup_app original_app restore_failed=false
   for backup_app in "${BACKUP_DIR}/"*.app; do
     [[ -d "$backup_app" ]] || continue
     original_app="${APPLICATIONS_DIR}/${backup_app##*/}"
-    rm -rf "$original_app"
-    mv "$backup_app" "$original_app"
+    # 退避の途中失敗で元のパスが残った場合、不完全なバックアップで上書きしない。
+    [[ ! -e "$original_app" && ! -L "$original_app" ]] || continue
+    if ! mv "$backup_app" "$original_app"; then
+      restore_failed=true
+    fi
   done
-  rm -rf "$BACKUP_DIR"
+  if [[ "$restore_failed" == true ]]; then
+    echo "旧バージョンの復元に失敗しました。バックアップを保存しています: $BACKUP_DIR" >&2
+  else
+    rm -rf "$BACKUP_DIR"
+  fi
   exit "$code"
 }
 
@@ -179,7 +191,10 @@ if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
   fail "新バージョンのコピーに失敗しました。"
 fi
 
-if [[ -d "$TARGET_APP" ]]; then
+if [[ -e "$TARGET_APP" || -L "$TARGET_APP" ]]; then
+  if [[ ! -d "$TARGET_APP" || -L "$TARGET_APP" ]]; then
+    fail "配置先にアプリ以外のファイルまたはリンクがあります。上書きを中止しました。"
+  fi
   target_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${TARGET_APP}/Contents/Info.plist" 2>/dev/null || true)"
   if [[ -z "$target_id" || "$target_id" != "$BUNDLE_IDENTIFIER" ]]; then
     fail "${TARGET_APP} の Bundle ID が一致しません (${target_id:-unknown} != ${BUNDLE_IDENTIFIER:-unknown})。上書きを中止しました。"
@@ -193,6 +208,7 @@ while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_
   legacy_index=$((legacy_index + 1))
 done
 
+TARGET_COPY_STARTED=true
 if ! ditto "${TMP_STAGE}/${APP_NAME}.app" "$TARGET_APP"; then
   fail "新バージョンの配置に失敗しました。旧バージョンを復元します。"
 fi
@@ -201,9 +217,10 @@ fi
 # 他の拡張属性（Finder や署名情報など）は残す。
 remove_quarantine_attribute "$TARGET_APP"
 
+# 配置完了後は、片付けに失敗しても正常な新バンドルを巻き戻さない。
+trap - EXIT
 # 成功時はバックアップを破棄
 rm -rf "$BACKUP_DIR" "$TMP_STAGE"
-trap - EXIT
 
 eject_installer_volume
 
