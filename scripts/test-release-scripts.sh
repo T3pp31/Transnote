@@ -123,6 +123,7 @@ for isa in (
 # Other real Frameworks phases remain, so the existing Frameworks set comparison
 # alone cannot detect that this referenced phase now has a non-phase type.
 check_phase_type(frameworks_id, "Frameworks", "PBXFrameworksBuildPhase", "PBXBuildFile", False)
+for isa in (
     "PBXAppleScriptBuildPhase",
     "PBXCopyFilesBuildPhase",
     "PBXFrameworksBuildPhase",
@@ -131,6 +132,7 @@ check_phase_type(frameworks_id, "Frameworks", "PBXFrameworksBuildPhase", "PBXBui
     "PBXRezBuildPhase",
     "PBXShellScriptBuildPhase",
     "PBXSourcesBuildPhase",
+):
     check_phase_type(sources_id, "Sources", "PBXSourcesBuildPhase", isa, True)
 PY
 python3 "$ROOT/scripts/test_verify_xcode_project.py"
