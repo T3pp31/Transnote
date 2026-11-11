@@ -36,8 +36,9 @@ jobs:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
@@ -251,7 +252,7 @@ jobs:
           EOF
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@1c608116169c793ddc0eb38d7a8e36f9653b99d1 # v1.4.3
         with:
           subject-path: |
             ${{ steps.dmg.outputs.dmg_path }}
