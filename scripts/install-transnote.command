@@ -165,16 +165,23 @@ rollback() {
   if [[ "$TARGET_COPY_STARTED" == true ]]; then
     rm -rf "$TARGET_APP"
   fi
-  local backup_app original_app
+  local backup_app original_app restore_failed=false
   if [[ -n "$BACKUP_DIR" ]]; then
     for backup_app in "${BACKUP_DIR}/"*.app; do
       [[ -d "$backup_app" ]] || continue
       original_app="${APPLICATIONS_DIR}/${backup_app##*/}"
-      rm -rf "$original_app"
-      mv "$backup_app" "$original_app"
+      # 退避の途中失敗で元のパスが残った場合、不完全なバックアップで上書きしない。
+      [[ ! -e "$original_app" && ! -L "$original_app" ]] || continue
+      if ! mv "$backup_app" "$original_app"; then
+        restore_failed=true
+      fi
     done
   fi
-  rm -rf "$BACKUP_DIR"
+  if [[ "$restore_failed" == true ]]; then
+    echo "旧バージョンの復元に失敗しました。バックアップを保存しています: $BACKUP_DIR" >&2
+  else
+    rm -rf "$BACKUP_DIR"
+  fi
   rmdir "$LOCK_DIR"
   exit "$code"
 }
@@ -202,7 +209,10 @@ if ! ditto "$SOURCE_APP" "${TMP_STAGE}/${APP_NAME}.app"; then
   fail "新バージョンのコピーに失敗しました。"
 fi
 
-if [[ -d "$TARGET_APP" ]]; then
+if [[ -e "$TARGET_APP" || -L "$TARGET_APP" ]]; then
+  if [[ ! -d "$TARGET_APP" || -L "$TARGET_APP" ]]; then
+    fail "配置先にアプリ以外のファイルまたはリンクがあります。上書きを中止しました。"
+  fi
   target_id="$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "${TARGET_APP}/Contents/Info.plist" 2>/dev/null || true)"
   if [[ -z "$target_id" || "$target_id" != "$BUNDLE_IDENTIFIER" ]]; then
     fail "${TARGET_APP} の Bundle ID が一致しません (${target_id:-unknown} != ${BUNDLE_IDENTIFIER:-unknown})。上書きを中止しました。"
@@ -225,10 +235,12 @@ fi
 # 他の拡張属性（Finder や署名情報など）は残す。
 remove_quarantine_attribute "$TARGET_APP"
 
+# 配置完了後は、片付けに失敗しても正常な新バンドルを巻き戻さない。
+# コミット後は復元せず、片付け・通知・起動が終わるまでロックだけを保持する。
+trap 'rmdir "$LOCK_DIR"' EXIT
 # 成功時はバックアップを破棄
 rm -rf "$BACKUP_DIR" "$TMP_STAGE"
-# コミット後は復元せず、通知・起動が終わるまでロックだけを保持する。
-trap 'rmdir "$LOCK_DIR"' EXIT
+
 
 eject_installer_volume
 
