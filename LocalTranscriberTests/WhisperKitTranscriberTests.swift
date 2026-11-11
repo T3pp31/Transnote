@@ -54,6 +54,62 @@ final class WhisperKitTranscriberTests: XCTestCase {
         XCTAssertEqual(chunks.map(\.url), [source])
         XCTAssertEqual(chunks.map(\.startSeconds), [0])
         XCTAssertEqual(chunks.map(\.overlapSeconds), [0])
+        for (fraction, expected) in [(-0.5, 0.0), (0, 0), (0.5, 0.5), (1, 1), (1.5, 1)] {
+            XCTAssertEqual(
+                WhisperKitTranscriber.normalizedChunkProgress(
+                    chunks: chunks, currentChunkIndex: 0, chunkFraction: fraction
+                ),
+                expected, accuracy: 0.000001
+            )
+        }
+    }
+
+    func testOverlappingChunkProgressDoesNotFinishBeforeLastChunk() async throws {
+        let source = try makeAudioFile(name: "progress.m4a")
+        let duration = try await AVURLAsset(url: source).load(.duration).seconds
+        let chunks = try await transcriber.splitAudioIntoChunks(
+            url: source, chunkDuration: duration / 2,
+            outputDirectory: temporaryRoot.appendingPathComponent("chunks", isDirectory: true)
+        )
+        // チャンク長で割ると2個だが、オーバーラップを含む実際の分割結果は3個になる。
+        XCTAssertEqual(chunks.count, 3)
+        let expectedFractions = [
+            [0.0, 1.0 / 6, 1.0 / 3],
+            [1.0 / 3, 0.5, 2.0 / 3],
+            [2.0 / 3, 5.0 / 6, 1.0],
+        ]
+        var previousFraction = 0.0
+        for (index, expected) in expectedFractions.enumerated() {
+            for (chunkFraction, expectedFraction) in zip([0.0, 0.5, 1.0], expected) {
+                let fraction = WhisperKitTranscriber.normalizedChunkProgress(
+                    chunks: chunks, currentChunkIndex: index, chunkFraction: chunkFraction
+                )
+                XCTAssertEqual(fraction, expectedFraction, accuracy: 0.000001)
+                XCTAssertGreaterThanOrEqual(fraction, previousFraction)
+                if index < chunks.count - 1 {
+                    XCTAssertLessThan(fraction, 1)
+                }
+                previousFraction = fraction
+            }
+        }
+        XCTAssertEqual(previousFraction, 1)
+    }
+
+    func testNonPositiveChunkDurationKeepsSingleChunkProgress() async throws {
+        let source = try makeAudioFile(name: "unsplit.m4a")
+        for chunkDuration in [0.0, -1.0] {
+            let chunks = try await transcriber.splitAudioIntoChunks(url: source, chunkDuration: chunkDuration)
+            XCTAssertEqual(chunks.map(\.url), [source])
+            XCTAssertEqual(chunks.map(\.startSeconds), [0])
+            for fraction in [0.0, 0.5, 1.0] {
+                XCTAssertEqual(
+                    WhisperKitTranscriber.normalizedChunkProgress(
+                        chunks: chunks, currentChunkIndex: 0, chunkFraction: fraction
+                    ),
+                    fraction, accuracy: 0.000001
+                )
+            }
+        }
     }
 
     func testSplitAudioPreservesOffsetsAndUsesUniqueFiles() async throws {
@@ -65,12 +121,8 @@ final class WhisperKitTranscriberTests: XCTestCase {
         let second = try await transcriber.splitAudioIntoChunks(
             url: source, chunkDuration: 0.4, outputDirectory: output
         )
-        XCTAssertGreaterThan(first.count, 1)
+        assertChunkOffsets(first)
         XCTAssertEqual(first.count, second.count)
-        XCTAssertEqual(first.first?.startSeconds, 0)
-        XCTAssertEqual(first[1].startSeconds, 0.3, accuracy: 0.001)
-        XCTAssertEqual(first[0].overlapSeconds, 0)
-        XCTAssertEqual(first[1].overlapSeconds, 0.1, accuracy: 0.001)
         XCTAssertTrue(Set(first.map(\.url)).isDisjoint(with: second.map(\.url)))
         for chunk in first + second {
             XCTAssertNotEqual(chunk.url, source)
@@ -237,6 +289,35 @@ final class WhisperKitTranscriberTests: XCTestCase {
             language: "ja",
             timings: TranscriptionTimings()
         )
+    }
+
+    func testChunkOffsetAssertionReportsFailureForEmptyChunks() {
+        XCTExpectFailure("Empty chunks must report an assertion failure without trapping") {
+            assertChunkOffsets([])
+        }
+    }
+
+    func testChunkOffsetAssertionReportsFailureForSingleChunk() {
+        let chunk = WhisperKitTranscriber.AudioChunk(
+            url: temporaryRoot.appendingPathComponent("source.m4a"), startSeconds: 0
+        )
+        XCTExpectFailure("A single chunk must report an assertion failure without trapping") {
+            assertChunkOffsets([chunk])
+        }
+    }
+
+    private func assertChunkOffsets(
+        _ chunks: [WhisperKitTranscriber.AudioChunk],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard chunks.count > 1 else {
+            return XCTFail("Expected multiple chunks, got \(chunks.count)", file: file, line: line)
+        }
+        XCTAssertEqual(chunks.first?.startSeconds, 0, file: file, line: line)
+        XCTAssertEqual(chunks[1].startSeconds, 0.3, accuracy: 0.001, file: file, line: line)
+        XCTAssertEqual(chunks[0].overlapSeconds, 0, file: file, line: line)
+        XCTAssertEqual(chunks[1].overlapSeconds, 0.1, accuracy: 0.001, file: file, line: line)
     }
 
     func testMissingExportSessionThrowsWithoutLeavingPartialChunks() async throws {
