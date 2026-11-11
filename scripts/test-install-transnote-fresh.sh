@@ -13,6 +13,7 @@ TARGET_APP="$APPLICATIONS_DIR/Transnote.app"
 INSTALL_TMP="$WORK/install tmp"
 EVENT_LOG="$WORK/events.log"
 REAL_MV="$(type -P mv)"
+REAL_RM="$(type -P rm)"
 mkdir -p "$MOCK_BIN" "$INSTALLER_DIR"
 cp "$ROOT/Config/distribution.plist" "$INSTALLER_DIR/distribution.plist"
 
@@ -58,7 +59,24 @@ set -euo pipefail
 if [[ "${MOCK_FAIL_BACKUP:-0}" == 1 && "$1" == "$TRANSNOTE_INSTALL_DIR/Transnote.app" ]]; then
   exit 19
 fi
+if [[ "${MOCK_FAIL_BACKUP:-0}" == partial && "$1" == "$TRANSNOTE_INSTALL_DIR/Transnote.app" ]]; then
+  mkdir -p "$2/Contents"
+  printf 'partial backup\n' > "$2/Contents/partial"
+  exit 19
+fi
+if [[ "${MOCK_FAIL_RESTORE:-0}" == 1 && "$1" == "$TMPDIR"/transnote-backup*/* ]]; then
+  exit 20
+fi
 exec "$REAL_MV" "$@"
+MOCK
+
+cat > "$MOCK_BIN/rm" <<'MOCK'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${MOCK_FAIL_CLEANUP:-0}" == 1 && "$#" == 3 && "$2" == "$TMPDIR"/transnote-backup* && "$3" == "$TMPDIR"/transnote-install* ]]; then
+  exit 21
+fi
+exec "$REAL_RM" "$@"
 MOCK
 
 for tool in osascript sleep xattr open; do
@@ -96,8 +114,9 @@ make_old_app() {
 
 run_install() {
   PATH="$MOCK_BIN:$PATH" TRANSNOTE_INSTALL_DIR="$APPLICATIONS_DIR" \
-    TMPDIR="$INSTALL_TMP" EVENT_LOG="$EVENT_LOG" REAL_MV="$REAL_MV" \
+    TMPDIR="$INSTALL_TMP" EVENT_LOG="$EVENT_LOG" REAL_MV="$REAL_MV" REAL_RM="$REAL_RM" \
     MOCK_FAIL_PHASE="${MOCK_FAIL_PHASE:-}" MOCK_FAIL_BACKUP="${MOCK_FAIL_BACKUP:-0}" \
+    MOCK_FAIL_RESTORE="${MOCK_FAIL_RESTORE:-0}" MOCK_FAIL_CLEANUP="${MOCK_FAIL_CLEANUP:-0}" \
     bash "$INSTALLER_DIR/install.command" > "$WORK/stdout" 2> "$WORK/stderr"
 }
 
@@ -194,4 +213,54 @@ for installed in absent present; do
   echo "PASS: successful install keeps the new bundle ($installed)"
 done
 
-echo 'ALL INSTALL TRANSACTION TESTS PASSED'
+# Cross-volume mv may leave a partial backup while the intact source remains.
+reset_case
+make_old_app com.transnote.LocalTranscriber
+MOCK_FAIL_BACKUP=partial
+expect_failure 19
+assert_no_placement
+assert_old_app
+unset MOCK_FAIL_BACKUP
+echo 'PASS: partial backup failure preserves the original bundle'
+
+for existing_path in file broken-link; do
+  reset_case
+  if [[ "$existing_path" == file ]]; then
+    printf 'unrelated file\n' > "$TARGET_APP"
+  else
+    ln -s "$WORK/missing.app" "$TARGET_APP"
+  fi
+  expect_failure 1 '配置先にアプリ以外のファイルまたはリンクがあります'
+  assert_no_placement
+  if [[ "$existing_path" == file ]]; then
+    [[ "$(cat "$TARGET_APP")" == 'unrelated file' ]] || fail 'existing file was changed'
+  else
+    [[ -L "$TARGET_APP" && "$(readlink "$TARGET_APP")" == "$WORK/missing.app" ]] || fail 'existing link was changed'
+  fi
+  echo "PASS: existing $existing_path is preserved"
+done
+
+reset_case
+make_old_app com.transnote.LocalTranscriber
+MOCK_FAIL_PHASE=placement
+MOCK_FAIL_RESTORE=1
+code=0
+run_install || code=$?
+[[ "$code" != 0 && ! -e "$TARGET_APP" ]] || fail 'restore failure must remain observable without a partial target'
+backup_marker="$(find "$INSTALL_TMP" -path '*/Transnote.app/Contents/marker' -print -quit)"
+[[ -n "$backup_marker" && "$(cat "$backup_marker")" == old ]] || fail 'restore failure lost the original backup'
+grep -q 'バックアップを保存しています' "$WORK/stderr" || fail 'missing recovery path'
+unset MOCK_FAIL_PHASE MOCK_FAIL_RESTORE
+echo 'PASS: failed restoration retains a recoverable backup'
+
+reset_case
+make_old_app com.transnote.LocalTranscriber
+MOCK_FAIL_CLEANUP=1
+code=0
+run_install || code=$?
+[[ "$code" == 21 ]] || fail 'cleanup failure must remain observable'
+diff -r "$INSTALLER_DIR/Transnote.app" "$TARGET_APP" || fail 'cleanup failure deleted the committed app'
+unset MOCK_FAIL_CLEANUP
+echo 'PASS: cleanup failure preserves the installed new bundle'
+
+echo 'ALL INSTALL TRANSACTION TESTS PASSED' 
