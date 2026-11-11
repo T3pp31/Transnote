@@ -42,6 +42,64 @@ final class ModelDownloadServiceTests: XCTestCase {
         XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
     }
 
+    func testDeleteModelInvalidatesCachedDirectoriesAndPreservesOtherModels() throws {
+        let baseFolder = try makeModelFolder("openai_whisper-base")
+        let tinyFolder = try makeModelFolder("openai_whisper-tiny")
+
+        // 削除前に候補ディレクトリのキャッシュを構築する。
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+        XCTAssertEqual(availability.variantDirectories(named: "base").count, 1)
+
+        try service.deleteModel(whisperKitModelName: "base")
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: baseFolder.path))
+        // modelFolder は毎回必須ファイルを検証するため、nil の確認だけでは
+        // キャッシュ無効化漏れを検出できない。候補一覧からも即時に除外されることを確認する。
+        XCTAssertTrue(availability.variantDirectories(named: "base").isEmpty)
+        XCTAssertNil(availability.modelFolder(for: "base"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tinyFolder.path))
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "tiny"))
+    }
+
+    func testDeleteModelDoesNothingWhenModelIsNotDownloaded() throws {
+        let tinyFolder = try makeModelFolder("openai_whisper-tiny")
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "tiny"))
+
+        XCTAssertNoThrow(try service.deleteModel(whisperKitModelName: "base"))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tinyFolder.path))
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "tiny"))
+        XCTAssertNil(availability.modelFolder(for: "base"))
+    }
+
+    func testDeleteModelPropagatesRemovalErrorAndPreservesModel() throws {
+        let folder = try makeModelFolder("openai_whisper-base")
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+        let failingService = ModelDownloadService(
+            modelsRoot: temporaryRoot,
+            modelAvailability: availability,
+            fileManager: ModelDeletionFailingFileManager()
+        )
+
+        XCTAssertThrowsError(try failingService.deleteModel(whisperKitModelName: "base")) { error in
+            let nsError = error as NSError
+            XCTAssertEqual(nsError.domain, NSCocoaErrorDomain)
+            XCTAssertEqual(nsError.code, NSFileWriteNoPermissionError)
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: folder.path))
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+    }
+
+    private func makeModelFolder(_ name: String) throws -> URL {
+        let folder = temporaryRoot.appendingPathComponent(name, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for modelName in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            try Data("model".utf8).write(to: folder.appendingPathComponent("\(modelName).mlmodelc"))
+        }
+        return folder
+    }
+
     func testDiskSpaceCheckRejectsZeroAndOtherCapacitiesBelowMinimum() {
         let minimumRequired: Int64 = 5 * 1024 * 1024 * 1024
         for available in [0, -1, 1, minimumRequired - 1] {
@@ -198,5 +256,15 @@ final class ModelDownloadServiceTests: XCTestCase {
 
         // Then: 事前存在していた隠しフォルダは残る
         XCTAssertTrue(FileManager.default.fileExists(atPath: existingStaging.path))
+    }
+}
+
+private final class ModelDeletionFailingFileManager: FileManager, @unchecked Sendable {
+    override func removeItem(at URL: URL) throws {
+        throw NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileWriteNoPermissionError,
+            userInfo: [NSFilePathErrorKey: URL.path]
+        )
     }
 }

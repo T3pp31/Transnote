@@ -120,7 +120,7 @@ WhisperKit では、モデルを指定しない場合にデバイス向けの推
 | Tiny                      | 動作確認・高速プレビュー |
 | Base                      | 軽量利用         |
 | Small                     | 日常利用         |
-| Large v3 Turbo compressed | 精度重視         |
+| Large v3 (compressed)     | 精度重視         |
 | Large v3 Turbo            | macOS高性能機向け  |
 
 公式 README では、`large-v3-v20240930_626MB` が多言語精度重視の推奨、`tiny` がデバッグ用の最速ワークフローとして案内されている。([GitHub][1])

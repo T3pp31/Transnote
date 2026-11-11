@@ -12,6 +12,7 @@ struct TranscriptionProgressDisplay: Equatable {
     let fraction: Double?
     let primaryLabel: String
     let detailLabel: String?
+    let presentablePartialText: String?
 
     var accessibilityLabel: String {
         if let modelName = detailLabel?.components(separatedBy: " · ").first, !modelName.isEmpty {
@@ -42,7 +43,13 @@ struct TranscriptionProgressDisplay: Equatable {
     static func from(update: TranscriptionProgressUpdate) -> TranscriptionProgressDisplay {
         let primaryLabel = update.phase.localizedDisplayName
         let clampedFraction = min(1.0, max(0.0, update.fraction.isFinite ? update.fraction : 0))
-        let detailLabel = makeDetailLabel(for: update, fraction: clampedFraction)
+        // 表示可否の判定と本文更新で、同じ累積テキストを再サニタイズしない。
+        let presentablePartialText = update.partialText.flatMap(TranscriptTextSanitizer.presentableText(from:))
+        let detailLabel = makeDetailLabel(
+            for: update,
+            fraction: clampedFraction,
+            hasPresentablePartialText: presentablePartialText != nil
+        )
 
         let style: ProgressStyle
         let fraction: Double?
@@ -73,7 +80,8 @@ struct TranscriptionProgressDisplay: Equatable {
             style: style,
             fraction: fraction,
             primaryLabel: primaryLabel,
-            detailLabel: detailLabel
+            detailLabel: detailLabel,
+            presentablePartialText: presentablePartialText
         )
     }
 
@@ -83,7 +91,8 @@ struct TranscriptionProgressDisplay: Equatable {
             style: .hidden,
             fraction: nil,
             primaryLabel: NSLocalizedString("待機中", comment: "Idle state label"),
-            detailLabel: nil
+            detailLabel: nil,
+            presentablePartialText: nil
         )
     }
 
@@ -93,11 +102,16 @@ struct TranscriptionProgressDisplay: Equatable {
             style: .hidden,
             fraction: 1.0,
             primaryLabel: NSLocalizedString("完了", comment: "Done state label"),
-            detailLabel: nil
+            detailLabel: nil,
+            presentablePartialText: nil
         )
     }
 
-    private static func makeDetailLabel(for update: TranscriptionProgressUpdate, fraction: Double) -> String? {
+    private static func makeDetailLabel(
+        for update: TranscriptionProgressUpdate,
+        fraction: Double,
+        hasPresentablePartialText: Bool
+    ) -> String? {
         switch update.phase {
         case .downloadingModel:
             var detail = ""
@@ -133,8 +147,7 @@ struct TranscriptionProgressDisplay: Equatable {
 
         case .transcribing:
             let percent = Int(fraction * 100)
-            if let partialText = update.partialText,
-               TranscriptTextSanitizer.presentableText(from: partialText) != nil {
+            if hasPresentablePartialText {
                 let partialGuidance = NSLocalizedString("途中結果を表示中", comment: "Partial transcription guidance")
                 return percent > 0 ? "\(partialGuidance) · \(percent)%" : partialGuidance
             }
