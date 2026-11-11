@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Release / Pages 用スクリプトの自動テスト。
+# Release / Pages / CI 用スクリプトの自動テスト。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+python3 "$ROOT/scripts/test-ci-package-resolved.py"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -86,8 +88,6 @@ project = work / "LocalTranscriber.xcodeproj/project.pbxproj"
 target_id = "C03E9C1AA4674E7DAF75E1B4"
 sources_id = "6B91BF9C51B949F8AA3BFE2B"
 frameworks_id = "EC0C833371EA488DACBD3DC3"
-
-
 def check_phase_type(phase_id, label, original_isa, isa, should_pass):
     # Keep the ID and target reference intact; only change the referenced object's type.
     definition = f"\t\t{phase_id} /* {label} */ = {{\n\t\t\tisa = {original_isa};"
@@ -112,8 +112,6 @@ def check_phase_type(phase_id, label, original_isa, isa, should_pass):
         if result.returncode != 1 or expected not in result.stderr:
             raise AssertionError(f"expected {expected!r}: {result.stdout}{result.stderr}")
     print(f"PASS: {label} reference to {isa} {'accepted' if should_pass else 'rejected'}")
-
-
 for isa in (
     "PBXBuildFile",
     "PBXFileReference",
@@ -122,12 +120,9 @@ for isa in (
     "PBXUnknownBuildPhase",
 ):
     check_phase_type(sources_id, "Sources", "PBXSourcesBuildPhase", isa, False)
-
 # Other real Frameworks phases remain, so the existing Frameworks set comparison
 # alone cannot detect that this referenced phase now has a non-phase type.
 check_phase_type(frameworks_id, "Frameworks", "PBXFrameworksBuildPhase", "PBXBuildFile", False)
-
-for isa in (
     "PBXAppleScriptBuildPhase",
     "PBXCopyFilesBuildPhase",
     "PBXFrameworksBuildPhase",
@@ -136,24 +131,90 @@ for isa in (
     "PBXRezBuildPhase",
     "PBXShellScriptBuildPhase",
     "PBXSourcesBuildPhase",
-):
     check_phase_type(sources_id, "Sources", "PBXSourcesBuildPhase", isa, True)
 PY
+python3 "$ROOT/scripts/test_verify_xcode_project.py"
 
 NO_MATCH_WORK=$(mktemp -d)
 trap 'rm -rf "$WORK" "$NO_MATCH_WORK"' EXIT
 mkdir -p "$NO_MATCH_WORK/LocalTranscriber.xcodeproj"
 mkdir -p "$NO_MATCH_WORK/scripts"
-printf 'CURRENT_PROJECT_VERSION = 1;
-' \
-  > "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"
 cp "$ROOT/scripts/set-marketing-version.sh" "$NO_MATCH_WORK/scripts/"
-if (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 >/dev/null 2>&1); then
-  echo "FAIL: missing MARKETING_VERSION should fail" >&2
-  exit 1
-fi
-echo "PASS: missing MARKETING_VERSION rejected"
+for fixture in \
+  'CURRENT_PROJECT_VERSION = 1;' \
+  'MARKETING_VERSION=0.1.5;' \
+  'MARKETING_VERSION  = 0.1.5;'; do
+  printf '%s\n' "$fixture" > "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"
+  cp "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj" "$NO_MATCH_WORK/project-before"
 
+  status=0
+  (cd "$NO_MATCH_WORK" && bash scripts/set-marketing-version.sh 0.3.0 \
+    >stdout 2>stderr) || status=$?
+  if [[ "$status" -ne 1 ]]; then
+    echo "FAIL: unmatched MARKETING_VERSION should exit 1: $fixture" >&2
+    exit 1
+  fi
+  if ! grep -qF 'No matching MARKETING_VERSION = ...; entry found' "$NO_MATCH_WORK/stderr"; then
+    echo "FAIL: unmatched MARKETING_VERSION should report the cause: $fixture" >&2
+    exit 1
+  fi
+  if ! grep -qF 'Failed to update MARKETING_VERSION in LocalTranscriber.xcodeproj/project.pbxproj' "$NO_MATCH_WORK/stderr"; then
+    echo "FAIL: unmatched MARKETING_VERSION should report the project path: $fixture" >&2
+    exit 1
+  fi
+  if [[ -s "$NO_MATCH_WORK/stdout" ]]; then
+    echo "FAIL: unmatched MARKETING_VERSION should not report success: $fixture" >&2
+    exit 1
+  fi
+  if ! cmp -s "$NO_MATCH_WORK/project-before" "$NO_MATCH_WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
+    echo "FAIL: unmatched MARKETING_VERSION should preserve the project: $fixture" >&2
+    exit 1
+  fi
+done
+echo "PASS: missing or unmatched MARKETING_VERSION rejected with diagnostics"
+
+# Release から案内するインストール文書のコード例と後続の手順を確認する。
+python3 - "$ROOT/docs/install.md" <<'PY'
+import sys
+from pathlib import Path
+
+# この文書で使う、行頭の三連バッククォートのフェンスを追跡する。
+language = None
+code = []
+blocks = []
+prose = []
+for line in Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
+    if language is None:
+        if line.startswith("```"):
+            language = line[3:].strip()
+        else:
+            prose.append(line)
+    elif line.rstrip() == "```":
+        blocks.append((language, "\n".join(code)))
+        language = None
+        code = []
+    else:
+        code.append(line)
+
+assert language is None, "install.md: unclosed code fence"
+assert ("bash", 'bash "/Volumes/Transnote 1/インストール.command"') in blocks, \
+    "install.md: alternate volume command must be in its own bash block"
+for heading in (
+    "#### 方法 B: 右クリック → 開く（macOS 14まで）",
+    "#### 方法 C: システム設定から許可",
+    "## インストール（上級者向け: ドラッグ&ドロップ）",
+    "## 初回起動",
+    "## 更新",
+    "## アンインストール",
+    "## トラブルシューティング",
+    "| 症状 | 対処 |",
+):
+    assert heading in prose, f"install.md: expected outside code blocks: {heading}"
+print("PASS: install.md code fences and subsequent sections")
+PY
+
+python3 "$ROOT/scripts/test-release-signing.py"
 bash "$ROOT/scripts/test-export-release-app.sh"
+bash "$ROOT/scripts/test-check-swift-format.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"

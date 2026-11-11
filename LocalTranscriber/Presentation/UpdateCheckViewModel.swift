@@ -16,9 +16,8 @@ final class UpdateCheckViewModel: ObservableObject {
     }
 
     func checkOnLaunch() {
-        guard !hasCheckedOnLaunch else { return }
+        guard !hasCheckedOnLaunch, settings.updateCheckEnabled else { return }
         hasCheckedOnLaunch = true
-        guard settings.updateCheckEnabled else { return }
 
         checkGeneration += 1
         let generation = checkGeneration

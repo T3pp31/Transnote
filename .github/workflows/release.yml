@@ -124,6 +124,7 @@ jobs:
           security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
           echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
           security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
           security list-keychain -d user -s "$KEYCHAIN"
           APP_PATH="${{ env.RELEASE_APP_DIR }}/${{ env.APP_NAME }}.app"
           /usr/bin/codesign --force --deep --options runtime \
