@@ -14,7 +14,7 @@ final class HistorySearchViewModel: ObservableObject {
             HistoryStore().search(query: query)
         },
         waitForDebounce: @escaping @Sendable () async throws -> Void = {
-            try await Task.sleep(nanoseconds: 300_000_000)
+            try await Task.sleep(nanoseconds: AppConfig.shared.historySearchDebounceNanoseconds)
         }
     ) {
         self.searchHistory = searchHistory
