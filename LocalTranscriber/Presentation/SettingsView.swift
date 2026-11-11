@@ -344,7 +344,12 @@ private struct StorageRow: View {
             let succeeded = AppDirectories.clearDirectory(directory)
             let bytes = succeeded ? AppDirectories.directorySize(of: directory) : 0
             await MainActor.run {
-                sizeState.finishClear(succeeded: succeeded, bytes: bytes, generation: generation)
+                sizeState.finishClear(
+                    succeeded: succeeded,
+                    bytes: bytes,
+                    generation: generation,
+                    onCleared: onCleared
+                )
             }
         }
     }
@@ -375,13 +380,22 @@ struct StorageSizeState {
         return beginCalculation()
     }
 
-    mutating func finishClear(succeeded: Bool, bytes: Int64, generation: Int) {
+    @MainActor
+    mutating func finishClear(
+        succeeded: Bool,
+        bytes: Int64,
+        generation: Int,
+        onCleared: (() -> Void)?
+    ) {
         guard generation == self.generation else { return }
         isClearing = false
         isCalculating = false
         sizeText = succeeded
             ? ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
             : "削除できませんでした"
+        if succeeded {
+            onCleared?()
+        }
     }
 
     private mutating func beginCalculation() -> Int {

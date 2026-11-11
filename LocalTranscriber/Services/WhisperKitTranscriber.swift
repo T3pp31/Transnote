@@ -90,26 +90,6 @@ actor WhisperKitTranscriber: Transcriber {
             )
 
             var completedText: String = ""
-            whisperKit.segmentDiscoveryCallback = { segments in
-                guard let partialText = TranscriptPartialTextBuilder.appendPresentableWindowText(
-                    from: segments.map(\.text),
-                    to: &completedText
-                ) else {
-                    return
-                }
-
-                let fraction = normalizedOverallProgress()
-                progressHandler?(
-                    .make(
-                        phase: .transcribing,
-                        fraction: fraction > 0 ? fraction : 0,
-                        modelDisplayName: job.modelDisplayName,
-                        partialText: partialText
-                    )
-                )
-                // 途中結果をディスクへチェックポイント保存（クラッシュ・終了時の復旧用）
-                self.saveCheckpoint(text: partialText, for: job)
-            }
             defer {
                 whisperKit.segmentDiscoveryCallback = nil
             }
@@ -130,6 +110,26 @@ actor WhisperKitTranscriber: Transcriber {
             for (index, chunk) in chunks.enumerated() {
                 currentChunkIndex = index
                 try Task.checkCancellation()
+                whisperKit.segmentDiscoveryCallback = { segments in
+                    guard let partialText = TranscriptPartialTextBuilder.appendPresentableWindowText(
+                        from: chunk.adjustedSegments(segments).map(\.text),
+                        to: &completedText
+                    ) else {
+                        return
+                    }
+
+                    let fraction = normalizedOverallProgress()
+                    progressHandler?(
+                        .make(
+                            phase: .transcribing,
+                            fraction: fraction > 0 ? fraction : 0,
+                            modelDisplayName: job.modelDisplayName,
+                            partialText: partialText
+                        )
+                    )
+                    // 最終結果と同じオーバーラップ除外を適用してチェックポイント保存する。
+                    self.saveCheckpoint(text: partialText, for: job)
+                }
                 let results = try await whisperKit.transcribe(
                     audioPath: chunk.url.path,
                     decodeOptions: decodeOptions,
@@ -146,16 +146,7 @@ actor WhisperKitTranscriber: Transcriber {
                         return !Task.isCancelled
                     }
                 )
-                let offsetResults = results.map { result in
-                    var adjusted = result
-                    adjusted.segments = result.segments.map { segment in
-                        var adjustedSegment = segment
-                        adjustedSegment.start += Float(chunk.startSeconds)
-                        adjustedSegment.end += Float(chunk.startSeconds)
-                        return adjustedSegment
-                    }
-                    return adjusted
-                }
+                let offsetResults = results.map { chunk.adjustedResult($0) }
                 allResults.append(contentsOf: offsetResults)
                 processedSeconds += (try? await AVURLAsset(url: chunk.url).load(.duration).seconds) ?? 0
             }
@@ -312,6 +303,40 @@ actor WhisperKitTranscriber: Transcriber {
     struct AudioChunk: Sendable {
         let url: URL
         let startSeconds: TimeInterval
+        /// 直前のチャンクと重なる先頭区間の実長（末尾の短いチャンクでは短くなる）。
+        let overlapSeconds: TimeInterval
+
+        init(url: URL, startSeconds: TimeInterval, overlapSeconds: TimeInterval = 0) {
+            self.url = url
+            self.startSeconds = startSeconds
+            self.overlapSeconds = overlapSeconds
+        }
+
+        func adjustedSegments(_ segments: [TranscriptionSegment]) -> [TranscriptionSegment] {
+            segments.compactMap { segment in
+                // 重複区間に完全に含まれる発話は前のチャンクに任せる。
+                // 区間をまたぐ発話は、未処理の内容を失わないよう残す。
+                if overlapSeconds > 0 && segment.start >= 0 && segment.end <= Float(overlapSeconds) {
+                    return nil
+                }
+                var adjusted = segment
+                adjusted.start += Float(startSeconds)
+                adjusted.end += Float(startSeconds)
+                return adjusted
+            }
+        }
+
+        func adjustedResult(_ result: TranscriptionResult) -> TranscriptionResult {
+            // 入出力が同じ参照でも、更新前の件数を基準に除外を判定する。
+            let originalSegmentCount = result.segments.count
+            var adjusted = result
+            adjusted.segments = adjustedSegments(result.segments)
+            if adjusted.segments.count != originalSegmentCount {
+                // セグメントだけでなく、マージに渡す全文からも除外する。
+                adjusted.text = adjusted.segments.map(\.text).joined(separator: " ")
+            }
+            return adjusted
+        }
     }
 
     nonisolated func splitAudioIntoChunks(
@@ -346,6 +371,7 @@ actor WhisperKitTranscriber: Transcriber {
         }
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
         var start: TimeInterval = 0
+        var previousEnd: TimeInterval = 0
         var index = 0
         while start < duration {
             try Task.checkCancellation()
@@ -372,7 +398,12 @@ actor WhisperKitTranscriber: Transcriber {
                 let statusMessage = export.error?.localizedDescription ?? "unknown error"
                 throw ChunkExportFailure(outputURL: outputURL, statusText: "\(export.status) \(statusMessage)")
             }
-            outputChunks.append(AudioChunk(url: outputURL, startSeconds: start))
+            outputChunks.append(AudioChunk(
+                url: outputURL,
+                startSeconds: start,
+                overlapSeconds: max(0, min(previousEnd, end) - start)
+            ))
+            previousEnd = end
             index += 1
             start += stride
         }
