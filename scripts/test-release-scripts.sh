@@ -46,6 +46,7 @@ if ! grep -q 'MARKETING_VERSION = 0.2.0;' "$WORK/LocalTranscriber.xcodeproj/proj
   exit 1
 fi
 echo "PASS: invalid version preserves valid value"
+bash "$ROOT/scripts/test-install-transnote-temp.sh"
 
 cp "$ROOT/scripts/verify-xcode-project.py" "$WORK/scripts/"
 

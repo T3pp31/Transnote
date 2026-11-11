@@ -68,7 +68,7 @@ MOCK
 cat > "$MOCK_BIN/mv" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${MOCK_FAIL_PHASE}" == backup && "${1##*/}" == 'LocalTranscriber 2.app' && "$2" == "$TMPDIR"/transnote-backup-*/* ]]; then
+if [[ "${MOCK_FAIL_PHASE}" == backup && "${1##*/}" == 'LocalTranscriber 2.app' && "$2" == "$TMPDIR"/transnote-backup.*/* ]]; then
   exit 8
 fi
 exec "$MOCK_REAL_MV" "$@"

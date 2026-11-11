@@ -152,8 +152,9 @@ remove_quarantine_attribute() {
 # --- transactional install ---
 # 新バージョンを一時ディレクトリへコピーし、成功を確認してから旧バージョンを退避・置換する。
 # 途中で失敗した場合は旧バージョンを復元する。
-TMP_STAGE="${TMPDIR:-/tmp}/transnote-install-$$";
-BACKUP_DIR="${TMPDIR:-/tmp}/transnote-backup-$$";
+# ロック取得後に一時領域を作り、作成途中の失敗も EXIT trap で片付ける。
+TMP_STAGE=""
+BACKUP_DIR=""
 LOCK_DIR="${APPLICATIONS_DIR}/.transnote-install.lock"
 TARGET_COPY_STARTED=false
 
@@ -165,15 +166,17 @@ rollback() {
     rm -rf "$TARGET_APP"
   fi
   local backup_app original_app restore_failed=false
-  for backup_app in "${BACKUP_DIR}/"*.app; do
-    [[ -d "$backup_app" ]] || continue
-    original_app="${APPLICATIONS_DIR}/${backup_app##*/}"
-    # 退避の途中失敗で元のパスが残った場合、不完全なバックアップで上書きしない。
-    [[ ! -e "$original_app" && ! -L "$original_app" ]] || continue
-    if ! mv "$backup_app" "$original_app"; then
-      restore_failed=true
-    fi
-  done
+  if [[ -n "$BACKUP_DIR" ]]; then
+    for backup_app in "${BACKUP_DIR}/"*.app; do
+      [[ -d "$backup_app" ]] || continue
+      original_app="${APPLICATIONS_DIR}/${backup_app##*/}"
+      # 退避の途中失敗で元のパスが残った場合、不完全なバックアップで上書きしない。
+      [[ ! -e "$original_app" && ! -L "$original_app" ]] || continue
+      if ! mv "$backup_app" "$original_app"; then
+        restore_failed=true
+      fi
+    done
+  fi
   if [[ "$restore_failed" == true ]]; then
     echo "旧バージョンの復元に失敗しました。バックアップを保存しています: $BACKUP_DIR" >&2
   else
@@ -196,7 +199,9 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-mkdir -p "$TMP_STAGE" "$BACKUP_DIR"
+# 既存パス（シンボリックリンクを含む）を再利用せず、所有者だけが使える領域を作る。
+TMP_STAGE="$(mktemp -d "${TMPDIR:-/tmp}/transnote-install.XXXXXX")" || fail "一時ステージディレクトリを作成できませんでした。"
+BACKUP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/transnote-backup.XXXXXX")" || fail "バックアップディレクトリを作成できませんでした。"
 osascript -e "tell application \"${APP_NAME}\" to quit" >/dev/null 2>&1 || true
 sleep 1
 
