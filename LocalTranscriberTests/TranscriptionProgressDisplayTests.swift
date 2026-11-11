@@ -37,8 +37,93 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         let display = TranscriptionProgressDisplay.from(update: update)
 
         // Then
-        XCTAssertTrue(display.detailLabel?.contains("Base · ") == true)
-        XCTAssertTrue(display.detailLabel?.contains("/") == true)
+        let completedText = ByteCountFormatter.string(fromByteCount: 64, countStyle: .file)
+        let totalText = ByteCountFormatter.string(fromByteCount: 100, countStyle: .file)
+        XCTAssertEqual(display.detailLabel, "Base · \(completedText) / \(totalText)")
+    }
+
+    func testDownloadingModelByteDetailUsesFileStyleAcrossRepeatedUpdates() {
+        let counts: [(completed: Int64, total: Int64)] = [
+            (0, 100), (64, 100), (1_500, 3_000),
+            (1_500_000, 3_000_000), (3_000_000_000, 5_000_000_000),
+        ]
+        let contexts: [(model: String?, resume: String?, prefix: String)] = [
+            (nil, nil, ""), ("Base", nil, "Base"), (nil, "Resuming", "Resuming"),
+            ("Base", "Resuming", "Base · Resuming"),
+        ]
+
+        for _ in 0..<3 {
+            for (completed, total) in counts {
+                for (model, resume, prefix) in contexts {
+                    let progress = Progress(totalUnitCount: total)
+                    progress.completedUnitCount = completed
+                    let fraction = Double(completed) / Double(total)
+                    let update = TranscriptionProgressUpdate.make(
+                        phase: .downloadingModel,
+                        fraction: fraction,
+                        progress: progress,
+                        modelDisplayName: model,
+                        resumeState: resume
+                    )
+
+                    let display = TranscriptionProgressDisplay.from(update: update)
+                    let completedText = ByteCountFormatter.string(fromByteCount: completed, countStyle: .file)
+                    let totalText = ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
+                    let bytes = "\(completedText) / \(totalText)"
+                    XCTAssertEqual(display.detailLabel, prefix.isEmpty ? bytes : "\(prefix) · \(bytes)")
+                    XCTAssertEqual(display.style, .determinate)
+                    XCTAssertEqual(display.fraction, fraction)
+                }
+            }
+        }
+    }
+
+    func testDownloadingModelByteDetailSupportsConcurrentUpdates() {
+        let updates = (0..<64).map { index in
+            TranscriptionProgressUpdate(
+                phase: .downloadingModel,
+                fraction: Double(index) / 64,
+                completedUnitCount: Int64(index) * 100_000,
+                totalUnitCount: 6_400_000,
+                modelDisplayName: "Model \(index)",
+                partialText: nil,
+                resumeState: nil
+            )
+        }
+        // 期待値は共有フォーマッタを使わず、並行処理の開始前に生成する。
+        let expectedDetails = updates.indices.map { index in
+            let completedText = ByteCountFormatter.string(fromByteCount: Int64(index) * 100_000, countStyle: .file)
+            let totalText = ByteCountFormatter.string(fromByteCount: 6_400_000, countStyle: .file)
+            return "Model \(index) · \(completedText) / \(totalText)"
+        }
+
+        DispatchQueue.concurrentPerform(iterations: updates.count) { index in
+            let display = TranscriptionProgressDisplay.from(update: updates[index])
+            XCTAssertEqual(display.detailLabel, expectedDetails[index])
+        }
+    }
+
+    func testDownloadingModelFallsBackToPercentWhenByteCountsAreUnavailable() {
+        let counts: [(completed: Int64?, total: Int64?)] = [
+            (nil, nil), (64, nil), (nil, 100), (64, 0), (64, -100),
+        ]
+
+        for (completed, total) in counts {
+            let update = TranscriptionProgressUpdate(
+                phase: .downloadingModel,
+                fraction: 0.45,
+                completedUnitCount: completed,
+                totalUnitCount: total,
+                modelDisplayName: "Base",
+                partialText: nil,
+                resumeState: "Resuming"
+            )
+
+            let display = TranscriptionProgressDisplay.from(update: update)
+            XCTAssertEqual(display.detailLabel, "Base · Resuming · 45%")
+            XCTAssertEqual(display.style, .determinate)
+            XCTAssertEqual(display.fraction, 0.45)
+        }
     }
 
     func testLoadingModelUsesIndeterminateStyle() {
