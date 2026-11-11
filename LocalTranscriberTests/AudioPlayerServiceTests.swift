@@ -38,8 +38,11 @@ final class AudioPlayerServiceTests: XCTestCase {
     }
 
     func testStopClearsPlaybackState() async throws {
+        var finished = false
         service.load(url: tempAudioURL)
-        service.playSegment(start: 0.0, end: 0.2)
+        service.playSegment(start: 0.0, end: 0.2) {
+            finished = true
+        }
 
         let started = await waitUntil(timeout: 2.0) {
             self.service.hasActiveTimeObserver
@@ -51,6 +54,10 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertFalse(service.isPlaying)
         XCTAssertFalse(service.hasActiveTimeObserver)
         XCTAssertNil(service.loadedURL)
+        let finishedAfterStop = await waitUntil(timeout: 0.3) {
+            finished
+        }
+        XCTAssertFalse(finishedAfterStop, "停止ではセグメント完了コールバックを呼ばないこと")
     }
 
     func testStopPlaybackClearsViewModelPlayingSegmentID() {
@@ -78,6 +85,64 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertTrue(finished)
         XCTAssertFalse(service.isPlaying)
         XCTAssertFalse(service.hasActiveTimeObserver)
+    }
+
+    func testPauseResumePreservesSegmentFinishedCallback() async throws {
+        var finishCount = 0
+        service.load(url: tempAudioURL)
+        service.playSegment(start: 0.0, end: 1.0) {
+            finishCount += 1
+        }
+
+        let started = await waitUntil(timeout: 2.0) {
+            self.service.isPlaying
+                && self.service.hasActiveTimeObserver
+                && self.service.currentPlaybackTime > 0
+        }
+        XCTAssertTrue(started, "一時停止前に再生が開始されていること")
+
+        service.pause()
+        service.pause()
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertTrue(service.hasActiveTimeObserver)
+
+        // セグメント長より長く待っても、一時停止中には完了しないこと。
+        try await Task.sleep(nanoseconds: 1_100_000_000)
+        XCTAssertEqual(finishCount, 0)
+        XCTAssertFalse(service.isPlaying)
+
+        service.resume()
+        XCTAssertTrue(service.isPlaying)
+        XCTAssertTrue(service.hasActiveTimeObserver)
+
+        let completed = await waitUntil(timeout: 3.0) {
+            finishCount > 0
+        }
+        XCTAssertTrue(completed, "再開後の終端で完了コールバックを呼ぶこと")
+        XCTAssertEqual(finishCount, 1)
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+
+        try await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertEqual(finishCount, 1, "完了コールバックは一度だけ呼ぶこと")
+    }
+
+    func testPauseBeforePlaybackStartsCancelsPendingStart() async throws {
+        var finished = false
+        service.load(url: tempAudioURL)
+        service.playSegment(start: 0.0, end: 0.2) {
+            finished = true
+        }
+        // ステータス監視や seek 完了の Task が実行される前に一時停止する。
+        service.pause()
+
+        let playbackStartedOrFinished = await waitUntil(timeout: 2.0) {
+            self.service.isPlaying || self.service.hasActiveTimeObserver || finished
+        }
+        XCTAssertFalse(playbackStartedOrFinished, "一時停止後に保留中の再生を開始しないこと")
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+        XCTAssertFalse(finished)
     }
 
     func testStatusChangeIgnoresStalePendingGeneration() throws {
