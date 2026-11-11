@@ -151,7 +151,11 @@ final class HistorySearchViewModelTests: XCTestCase {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = HistoryStore(historyRoot: root)
+        let reads = HistorySearchReadRecorder()
+        let store = HistoryStore(historyRoot: root, searchDataLoader: { url in
+            XCTAssertFalse(Thread.isMainThread)
+            return try reads.load(url)
+        })
         let byName = Transcript(
             sourceFileName: "Meeting.wav",
             createdAt: Date(timeIntervalSince1970: 1_700_000_002),
@@ -171,24 +175,22 @@ final class HistorySearchViewModelTests: XCTestCase {
             try store.save(item)
         }
         try Data("invalid json".utf8).write(to: root.appendingPathComponent("broken.json"))
-        let model = HistorySearchViewModel(
-            searchHistory: { query in
-                XCTAssertFalse(Thread.isMainThread)
-                return store.search(query: query)
-            },
-            waitForDebounce: {}
-        )
+        let model = HistorySearchViewModel(historyStore: store, waitForDebounce: {})
 
         await model.search(query: "")
         XCTAssertEqual(model.items.map(\.id), [byName.id, byText.id, other.id])
         await model.search(query: "MEETING")
         XCTAssertEqual(model.items.map(\.id), [byName.id, byText.id])
+        XCTAssertEqual(reads.total, 4)
         await model.search(query: "こんにちは")
         XCTAssertEqual(model.items.map(\.id), [byName.id])
         await model.search(query: "no match")
         XCTAssertTrue(model.items.isEmpty)
         await model.search(query: "")
         XCTAssertEqual(model.items.map(\.id), [byName.id, byText.id, other.id])
+        await model.search(query: "meeting")
+        XCTAssertEqual(model.items.map(\.id), [byName.id, byText.id])
+        XCTAssertEqual(reads.total, 4, "The default search closure must retain its store across queries and clears")
     }
 
     func testEmptyQueryLoadsWithoutDebounce() async {

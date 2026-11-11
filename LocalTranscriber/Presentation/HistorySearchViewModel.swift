@@ -10,14 +10,14 @@ final class HistorySearchViewModel: ObservableObject {
     private var generation = 0
 
     init(
-        searchHistory: @escaping @Sendable (String) -> [Transcript] = { query in
-            HistoryStore().search(query: query)
-        },
+        historyStore: HistoryStore = HistoryStore(),
+        searchHistory: (@Sendable (String) -> [Transcript])? = nil,
         waitForDebounce: @escaping @Sendable () async throws -> Void = {
             try await Task.sleep(nanoseconds: AppConfig.shared.historySearchDebounceNanoseconds)
         }
     ) {
-        self.searchHistory = searchHistory
+        // 同じストアを保持し、検索語が変わってもデコード・正規化キャッシュを再利用する。
+        self.searchHistory = searchHistory ?? { query in historyStore.search(query: query) }
         self.waitForDebounce = waitForDebounce
     }
 
