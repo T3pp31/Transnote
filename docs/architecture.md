@@ -217,3 +217,5 @@ macOS App Sandbox ではアプリのファイルアクセスが制限される�
 [1]: https://github.com/argmaxinc/argmax-oss-swift "GitHub - argmaxinc/argmax-oss-swift: On-device Speech AI for Apple Silicon · GitHub"
 [2]: https://www.mintlify.com/explore/argmaxinc/WhisperKit "WhisperKit Documentation - WhisperKit"
 [3]: https://developer.apple.com/documentation/security/accessing-files-from-the-macos-app-sandbox "Accessing files from the macOS App Sandbox"
+
+履歴検索の待機時間は `Config/Defaults.plist` の `HistorySearchDebounceNanoseconds`（ナノ秒）で指定し、既存の `AppConfig` が読み込む。標準値は300ミリ秒。キー省略時は待機しない。
