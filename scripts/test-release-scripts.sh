@@ -174,6 +174,7 @@ for fixture in \
   fi
 done
 echo "PASS: missing or unmatched MARKETING_VERSION rejected with diagnostics"
+python3 "$ROOT/scripts/test-dmg-gatekeeper-readme.py"
 
 # Release から案内するインストール文書のコード例と後続の手順を確認する。
 python3 - "$ROOT/docs/install.md" <<'PY'
