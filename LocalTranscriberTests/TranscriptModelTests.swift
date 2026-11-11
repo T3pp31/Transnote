@@ -540,11 +540,14 @@ final class TranscriptModelTests: XCTestCase {
         let transcript = Transcript(sourceFileName: "meeting.wav", fullText: "needle")
         try HistoryStore(historyRoot: root).save(transcript)
         let reads = HistorySearchReadRecorder()
-        let store = HistoryStore(historyRoot: root, searchDataLoader: { url in
-            let data = try reads.load(url)
-            if reads.count(for: url) == 1 { throw CocoaError(.fileReadNoPermission) }
-            return data
-        })
+        let store = HistoryStore(
+            historyRoot: root,
+            searchDataLoader: { url in
+                let data = try reads.load(url)
+                if reads.count(for: url) == 1 { throw CocoaError(.fileReadNoPermission) }
+                return data
+            }
+        )
         XCTAssertTrue(store.search(query: "needle", limit: 0).isEmpty)
         XCTAssertEqual(reads.total, 0)
         XCTAssertTrue(store.search(query: "needle").isEmpty)

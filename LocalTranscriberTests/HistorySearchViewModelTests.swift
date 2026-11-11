@@ -152,10 +152,13 @@ final class HistorySearchViewModelTests: XCTestCase {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let reads = HistorySearchReadRecorder()
-        let store = HistoryStore(historyRoot: root, searchDataLoader: { url in
-            XCTAssertFalse(Thread.isMainThread)
-            return try reads.load(url)
-        })
+        let store = HistoryStore(
+            historyRoot: root,
+            searchDataLoader: { url in
+                XCTAssertFalse(Thread.isMainThread)
+                return try reads.load(url)
+            }
+        )
         let byName = Transcript(
             sourceFileName: "Meeting.wav",
             createdAt: Date(timeIntervalSince1970: 1_700_000_002),
