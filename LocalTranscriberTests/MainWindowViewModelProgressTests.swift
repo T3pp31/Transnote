@@ -191,12 +191,77 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
         viewModel.startTranscription()
 
+        XCTAssertEqual(viewModel.uiState, .preparing)
         XCTAssertEqual(viewModel.progressDisplay.phase, .downloadingModel)
+        XCTAssertTrue(viewModel.isDownloadingModel)
         XCTAssertTrue(viewModel.isBusy)
+        XCTAssertTrue(viewModel.canCancel)
+        XCTAssertNil(viewModel.transcriptionTask)
+        XCTAssertEqual(viewModel.inlineErrorTitle, L("処理中", comment: "Busy title"))
+        XCTAssertEqual(
+            viewModel.inlineErrorMessage,
+            L("別の処理を実行中のため開始できません。", comment: "Busy message")
+        )
+        XCTAssertFalse(viewModel.canRetryError)
+        XCTAssertEqual(
+            viewModel.cancelActionAccessibilityLabel,
+            L("ダウンロードをキャンセル", comment: "Cancel model download accessibility label")
+        )
+        XCTAssertEqual(
+            viewModel.cancelActionHelp,
+            L("ダウンロードをキャンセル（⌘.）", comment: "Cancel model download shortcut help")
+        )
         XCTAssertEqual(
             viewModel.startTranscriptionDisabledReason,
             L("文字起こし処理中です", comment: "Transcription is busy")
         )
+    }
+
+    func testRejectedTranscriptionStartPreservesActiveTranscriptionState() async throws {
+        let gate = ProgressGate()
+        let mock = MockProgressTranscriber(
+            partialTexts: ["partial"],
+            finalText: "final",
+            delayNanoseconds: 0,
+            progressGates: [gate]
+        )
+        viewModel = MainWindowViewModel(transcriber: mock)
+        configureForTranscription()
+        defer {
+            gate.open()
+            viewModel.cancelTranscription()
+        }
+        viewModel.startTranscription()
+        try await waitUntil { self.viewModel.uiState == .transcribing }
+
+        viewModel.startTranscription()
+
+        XCTAssertEqual(viewModel.uiState, .transcribing)
+        XCTAssertEqual(viewModel.progressDisplay.phase, .transcribing)
+        XCTAssertEqual(viewModel.transcriptText, "partial")
+        XCTAssertTrue(viewModel.isBusy)
+        XCTAssertFalse(viewModel.isDownloadingModel)
+        XCTAssertEqual(viewModel.inlineErrorTitle, L("処理中", comment: "Busy title"))
+        XCTAssertFalse(viewModel.canRetryError)
+
+        gate.open()
+        try await waitUntil { self.viewModel.uiState == .done }
+        XCTAssertEqual(viewModel.transcriptText, "final")
+    }
+
+    func testTranscriptionFailureStillResetsUIStateToIdle() async throws {
+        viewModel = MainWindowViewModel(transcriber: FailingProgressTranscriber())
+        configureForTranscription()
+
+        viewModel.startTranscription()
+        XCTAssertEqual(viewModel.uiState, .preparing)
+        try await waitUntil { self.viewModel.inlineErrorMessage != nil && !self.viewModel.isBusy }
+
+        XCTAssertEqual(viewModel.uiState, .idle)
+        XCTAssertEqual(viewModel.inlineErrorTitle, L("文字起こしエラー", comment: "Transcription error title"))
+        XCTAssertTrue(viewModel.canRetryError)
+        XCTAssertFalse(viewModel.canCancel)
+        XCTAssertNil(viewModel.transcriptionTask)
     }
 
     func testModelDownloadGuidanceIsShownForModelThatIsNotDownloaded() {
@@ -521,6 +586,17 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         }
         XCTFail("Condition not met within timeout")
     }
+}
+
+private struct FailingProgressTranscriber: Transcriber {
+    func transcribe(
+        _ job: TranscriptionJob,
+        progressHandler: (@Sendable (TranscriptionProgressUpdate) -> Void)?
+    ) async throws -> Transcript {
+        throw AppError.transcriptionFailed("Test transcription failure")
+    }
+
+    func cancel(jobID: UUID) async {}
 }
 
 private final class MockProgressTranscriber: Transcriber, @unchecked Sendable {
