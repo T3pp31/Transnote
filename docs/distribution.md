@@ -46,6 +46,7 @@ git push origin v0.1.0
 | --- | --- |
 | `scripts/export-release-app.sh` | `.xcarchive` から `Transnote.app` を取り出す |
 | `scripts/create-dmg.sh` | `Transnote.app` から `Transnote-<version>.dmg` を作成 |
+| `scripts/release-security-notice.sh` | `SIGNED` / `NOTARIZED` に応じた署名案内（Release 本文・DMG README 共通） |
 | `scripts/generate-sbom.sh` | Syft で CycloneDX JSON 形式の SBOM を生成 |
 | `scripts/install-transnote.command` | DMG 同梱用インストールスクリプト（旧版削除→新版配置） |
 | `Config/distribution.plist` | 配布時のアプリ名・旧名・インストールスクリプト名 |
@@ -76,6 +77,8 @@ xcodebuild archive \
   --version 0.1.0 \
   --output build/dist
 ```
+
+DMG 内の `初めにお読みください.txt` は `Config/dmg-gatekeeper-readme.txt` から生成し、署名案内のプレースホルダーを共通スクリプトで埋め込みます。Release workflow は署名・公証の成功時に設定した `SIGNED` / `NOTARIZED` をそのまま利用します。ローカルでは未設定なら未署名として案内します。署名済みアプリをパッケージする場合は、実際の状態に応じて `SIGNED=1`、公証済みなら加えて `NOTARIZED=1` を環境変数で渡してください。
 
 ### SBOM の例
 
@@ -109,7 +112,7 @@ CI では `Package.resolved`（宣言依存のロックファイル）を Ubuntu
 | `Transnote-sbom.cdx.json` | CycloneDX JSON 形式の SBOM（依存ロックベース、CI artifact） |
 | `Transnote.app` | Bundle ID `com.transnote.LocalTranscriber` |
 | `インストール.command` | DMG 内のワンクリックインストーラー（旧版を削除してから配置） |
-| `初めにお読みください.txt` | Gatekeeper 回避手順（未署名配布向け） |
+| `初めにお読みください.txt` | ビルドの署名・公証状態と、警告が表示された場合のインストール手順 |
 | `distribution.plist` | DMG 内に同梱される配布設定（インストールスクリプトが参照） |
 
 ## ユーザー向け注意

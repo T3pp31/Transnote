@@ -9,7 +9,8 @@ trap 'rm -rf "$WORK"' EXIT
 FIXTURE="$WORK/project"
 MOCK_BIN="$WORK/mock-bin"
 mkdir -p "$FIXTURE/scripts" "$FIXTURE/Config" "$MOCK_BIN" "$WORK/input app/Transnote.app"
-cp "$ROOT/scripts/create-dmg.sh" "$ROOT/scripts/install-transnote.command" "$FIXTURE/scripts/"
+cp "$ROOT/scripts/create-dmg.sh" "$ROOT/scripts/install-transnote.command" \
+  "$ROOT/scripts/release-security-notice.sh" "$FIXTURE/scripts/"
 cp "$ROOT/Config/distribution.plist" "$ROOT/Config/dmg-gatekeeper-readme.txt" "$FIXTURE/Config/"
 printf 'app contents\n' > "$WORK/input app/Transnote.app/marker"
 
@@ -54,6 +55,7 @@ case "$step" in
     [[ "$image" != "$stage/"* ]]
     [[ -f "$stage/Transnote.app/marker" && -f "$stage/distribution.plist" ]]
     [[ -f "$stage/インストール.command" && -f "$stage/初めにお読みください.txt" ]]
+    cp "$stage/初めにお読みください.txt" "$MOCK_CASE/readme.txt"
     [[ -L "$stage/Applications" && "$(readlink "$stage/Applications")" == /Applications ]]
     printf 'UDRW mock image\n' > "$image"
     ;;
@@ -83,10 +85,15 @@ fail() {
 
 run_case() {
   local failure_step="$1"
-  CASE_DIR="$WORK/${failure_step:-success} case"
+  local signing_state="${2:-unsigned}"
+  local signed=0 notarized=0
+  [[ "$signing_state" == unsigned ]] || signed=1
+  [[ "$signing_state" != notarized ]] || notarized=1
+  CASE_DIR="$WORK/$signing_state ${failure_step:-success} case"
   mkdir -p "$CASE_DIR/tmp space"
   local status=0
   PATH="$MOCK_BIN:$PATH" TMPDIR="$CASE_DIR/tmp space" \
+    SIGNED="$signed" NOTARIZED="$notarized" \
     MOCK_CASE="$CASE_DIR" MOCK_FAIL_STEP="$failure_step" \
     bash "$FIXTURE/scripts/create-dmg.sh" \
       --app "$WORK/input app/Transnote.app" --version 1.2.3 --output "$CASE_DIR/output space" \
@@ -106,14 +113,37 @@ run_case() {
     [[ "$(cat "$CASE_DIR/events")" == "$expected" ]] || fail "continued after $failure_step failure"
   fi
 
+  python3 - "$ROOT/Config/dmg-gatekeeper-readme.txt" "$CASE_DIR/readme.txt" "$signing_state" <<'PY'
+from pathlib import Path
+import sys
+
+prefix, suffix = Path(sys.argv[1]).read_text().split('@SECURITY_NOTICE@')
+readme = Path(sys.argv[2]).read_text()
+assert '@SECURITY_NOTICE@' not in readme, 'unexpanded notice placeholder'
+assert readme.startswith(prefix) and readme.endswith(suffix), 'installation steps changed'
+notice = readme[len(prefix):-len(suffix)]
+state = sys.argv[3]
+if state == 'unsigned':
+    assert '署名）をせずに配布しているため' in notice, 'missing unsigned warning'
+else:
+    expected = {
+        'signed': 'Developer ID で署名済みのビルドです。公証は行われていません。',
+        'notarized': 'Developer ID で署名・公証済みのビルドです。',
+    }
+    assert notice == expected[state], 'incorrect signing/notarization notice'
+    assert '未署名' not in readme and '署名がないため' not in readme, 'stale unsigned claim'
+PY
+
   [[ ! -e "$(cat "$CASE_DIR/stage")" ]] || fail 'staging directory leaked'
   [[ ! -e "$(cat "$CASE_DIR/image")" ]] || fail 'writable image leaked'
   [[ -z "$(ls -A "$CASE_DIR/tmp space")" ]] || fail 'temporary files or directories leaked'
   [[ -f "$WORK/input app/Transnote.app/marker" ]] || fail 'input app was removed'
-  echo "PASS: create-dmg ${failure_step:-success} and temporary cleanup (paths with spaces)"
+  echo "PASS: create-dmg $signing_state ${failure_step:-success} and temporary cleanup (paths with spaces)"
 }
 
 run_case ''
+run_case '' signed
+run_case '' notarized
 run_case create
 run_case convert
 run_case verify
