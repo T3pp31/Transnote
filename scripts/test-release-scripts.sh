@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+bash "$ROOT/scripts/test-create-dmg.sh"
 
 python3 "$ROOT/scripts/test-ci-package-resolved.py"
 bash "$ROOT/scripts/test-install-transnote.sh"
@@ -177,6 +178,7 @@ for fixture in \
   fi
 done
 echo "PASS: missing or unmatched MARKETING_VERSION rejected with diagnostics"
+python3 "$ROOT/scripts/test-dmg-gatekeeper-readme.py"
 
 # Release から案内するインストール文書のコード例と後続の手順を確認する。
 python3 - "$ROOT/docs/install.md" <<'PY'

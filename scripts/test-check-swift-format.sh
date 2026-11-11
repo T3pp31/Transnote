@@ -1,89 +1,132 @@
 #!/usr/bin/env bash
-# cwd に依存しない lint と allowlist 判定の回帰テスト。Xcode は不要。
+# swift-format の実行結果をモックする、macOS ツール不要の回帰テスト。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="$(command mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-REPO="$WORK/repository with spaces"
-mkdir -p "$REPO/scripts" "$REPO/.github" "$REPO/LocalTranscriber" \
-  "$REPO/LocalTranscriberTests" "$WORK/unrelated"
-cp "$ROOT/scripts/check-swift-format.sh" "$REPO/scripts/"
-cp "$ROOT/.github/swift-format.json" "$REPO/.github/"
-printf 'LocalTranscriber/Allowed.swift\n' > "$REPO/.github/swift-format-allowlist.txt"
-touch "$REPO/LocalTranscriber/Allowed.swift" "$REPO/LocalTranscriberTests/New.swift"
-
-# 本体が使う BSD mktemp -t のテンプレートを Linux でも扱えるようにする。
-# xcrun と同様、export -f で子 Bash に渡して間接的に呼び出す。
-mktemp() {
-  [[ "$*" == '-t transnote-swift-format' ]] || return 2
-  command mktemp "${TMPDIR:-/tmp}/transnote-swift-format.XXXXXX"
-}
-
+# Bash 関数を export し、実ツールや一時ファイルの実行権限に依存せず検証する。
 xcrun() {
-  printf '%s\n' "$PWD" "$@" > "$MOCK_INVOCATION"
-  # 存在しない相対ターゲットでは診断なし・成功となるケースを再現する。
-  [[ -f LocalTranscriber/Allowed.swift && -f LocalTranscriberTests/New.swift ]] || return 0
-  case "$MOCK_LINT_CASE" in
-    clean) return 0 ;;
-    allowed)
-      echo 'LocalTranscriber/Allowed.swift:1:1: error: format violation'
-      return 1
-      ;;
-    unexpected)
-      echo 'LocalTranscriber/Allowed.swift:1:1: error: format violation'
-      echo 'LocalTranscriberTests/New.swift:1:1: error: format violation'
-      return 1
-      ;;
-    *) return 2 ;;
-  esac
+  [[ "$PWD" == "$MOCK_EXPECTED_ROOT" ]] || return 2
+  [[ "$*" == "swift-format lint --strict --configuration $MOCK_EXPECTED_ROOT/.github/swift-format.json --recursive LocalTranscriber LocalTranscriberTests" ]] || return 2
+  cat "$MOCK_DIAGNOSTICS"
+  return "$MOCK_LINT_STATUS"
 }
 
-printf '%s\n' "$REPO" swift-format lint --strict --configuration \
-  "$REPO/.github/swift-format.json" --recursive LocalTranscriber LocalTranscriberTests \
-  > "$WORK/expected-invocation"
+# 本体の BSD mktemp 呼び出しを Linux でも実行できるよう、専用ログを返す。
+mktemp() {
+  : > "$MOCK_LOG_PATH"
+  printf '%s\n' "$MOCK_LOG_PATH"
+}
+export -f xcrun mktemp
+
+run_check() {
+  printf '%s' "$2" > "$WORK/diagnostics"
+  (cd "${3:-$ROOT}" && MOCK_DIAGNOSTICS="$WORK/diagnostics" \
+    MOCK_EXPECTED_ROOT="$ROOT" \
+    MOCK_LINT_STATUS="$1" \
+    MOCK_LOG_PATH="$WORK/lint.log" \
+    bash "$ROOT/scripts/check-swift-format.sh") > "$WORK/stdout" 2> "$WORK/stderr"
+}
 
 fail() {
   echo "FAIL: $*" >&2
-  cat "$WORK/output" >&2
+  cat "$WORK/stdout" "$WORK/stderr" >&2
   exit 1
 }
 
-for location in root scripts unrelated; do
-  case "$location" in
-    root) cwd="$REPO"; script='scripts/check-swift-format.sh' ;;
-    scripts) cwd="$REPO/scripts"; script='./check-swift-format.sh' ;;
-    unrelated) cwd="$WORK/unrelated"; script="$REPO/scripts/check-swift-format.sh" ;;
-  esac
-  for lint_case in unexpected clean allowed; do
-    rm -f "$WORK/invocation"
-    status=0
-    (
-      cd "$cwd"
-      export -f mktemp xcrun
-      MOCK_INVOCATION="$WORK/invocation" MOCK_LINT_CASE="$lint_case" bash "$script"
-    ) > "$WORK/output" 2>&1 || status=$?
+expect_success() {
+  if ! run_check "$@"; then
+    fail "expected success for lint status $1"
+  fi
+}
 
-    case "$lint_case" in
-      unexpected)
-        [[ "$status" -eq 1 ]] || fail "$location: new violation must fail (status=$status)"
-        grep -q '^Unexpected Swift format violations:$' "$WORK/output" || fail 'missing violation error'
-        grep -q '^LocalTranscriberTests/New.swift$' "$WORK/output" || fail 'missing unexpected file'
-        ;;
-      clean)
-        [[ "$status" -eq 0 && ! -s "$WORK/output" ]] || fail "$location: clean lint must succeed silently"
-        ;;
-      allowed)
-        [[ "$status" -eq 0 ]] || fail "$location: allowlisted violation must succeed"
-        grep -q '^Swift format violations are limited to the temporary allowlist\.$' "$WORK/output" \
-          || fail "$location: allowlist was not applied"
-        ;;
-    esac
-    cmp -s "$WORK/expected-invocation" "$WORK/invocation" \
-      || fail "$location: lint cwd or arguments differ from the repository-root invocation"
-    echo "PASS: $location / $lint_case"
-  done
+expect_failure() {
+  if run_check "$@"; then
+    fail "expected failure for lint status $1"
+  fi
+  if grep -q 'Swift format violations are limited to the temporary allowlist.' "$WORK/stderr"; then
+    fail 'failed lint must not report allowlist success'
+  fi
+  if [[ -n "$2" && "$(cat "$WORK/stderr")" != *"$2"* ]]; then
+    fail 'original diagnostics were not preserved on stderr'
+  fi
+}
+
+expect_success 0 ''
+[[ ! -s "$WORK/stderr" ]] || fail 'clean lint produced an error message'
+echo 'PASS: clean lint succeeds'
+
+ALLOWLISTED='LocalTranscriber/Domain/AppSettings.swift:1:1: error: indentation'
+expect_success 1 "$ALLOWLISTED"
+grep -q 'Swift format violations are limited to the temporary allowlist.' "$WORK/stderr" \
+  || fail 'allowlisted violations were not accepted'
+echo 'PASS: allowlisted violations still succeed'
+
+UNEXPECTED='LocalTranscriber/NewFile.swift:2:1: error: indentation'
+expect_failure 1 "$UNEXPECTED"
+grep -q 'Unexpected Swift format violations:' "$WORK/stderr" \
+  || fail 'missing unexpected violation message'
+echo 'PASS: non-allowlisted violations fail'
+
+expect_failure 1 "${UNEXPECTED}
+${ALLOWLISTED}"
+echo 'PASS: mixed allowlisted and non-allowlisted violations fail'
+
+expect_unparseable_failure() {
+  expect_failure "$@"
+  grep -q 'swift-format failed without parseable diagnostics' "$WORK/stderr" \
+    || fail 'missing diagnostic parsing failure message'
+}
+
+expect_unparseable_failure 1 ''
+echo 'PASS: nonzero exit without output fails'
+
+expect_unparseable_failure 64 "Error: Unknown option '--strict'
+Usage: swift-format lint [<options>] [<paths> ...]"
+echo 'PASS: uppercase CLI error fails and preserves the full log'
+
+expect_unparseable_failure 134 'swift-format: Abort trap: 6'
+echo 'PASS: tool crash without error diagnostics fails'
+
+expect_unparseable_failure 127 'xcrun: command not found'
+echo 'PASS: tool lookup failure fails'
+
+expect_unparseable_failure 1 'LocalTranscriber/Domain/AppSettings.swift:1:1: note: indentation'
+echo 'PASS: nonzero exit with unrecognized diagnostic format fails'
+
+# --strict は warning のみでも非ゼロになり、診断のパスは相対・絶対が混在する。
+ALLOWLISTED_WARNING='LocalTranscriber/Domain/AppSettings.swift:1:1: warning: [Indentation] indent by 4 spaces'
+expect_success 1 "$ALLOWLISTED_WARNING"
+echo 'PASS: allowlisted strict-mode warnings succeed'
+
+expect_success 1 "${ROOT}/${ALLOWLISTED_WARNING}
+${ALLOWLISTED_WARNING}
+${ALLOWLISTED}"
+echo 'PASS: mixed absolute/relative allowlisted warnings and errors succeed'
+
+UNEXPECTED_WARNING='LocalTranscriber/NewFile.swift:2:1: warning: [Indentation] indent by 4 spaces'
+expect_failure 1 "$UNEXPECTED_WARNING"
+grep -q 'Unexpected Swift format violations:' "$WORK/stderr" \
+  || fail 'non-allowlisted warning was not parsed'
+echo 'PASS: non-allowlisted strict-mode warnings fail'
+
+expect_failure 1 "${ROOT}/${UNEXPECTED_WARNING}"
+grep -qx 'LocalTranscriber/NewFile.swift' "$WORK/stderr" \
+  || fail 'absolute warning path was not normalized'
+echo 'PASS: non-allowlisted absolute warning paths fail'
+
+expect_failure 1 "${ALLOWLISTED}
+${UNEXPECTED_WARNING}"
+echo 'PASS: allowlisted errors do not hide non-allowlisted warnings'
+
+for directory in "$ROOT" "$ROOT/scripts" "$WORK"; do
+  expect_success 0 '' "$directory"
+  expect_success 1 "$ALLOWLISTED" "$directory"
+  expect_failure 1 "$UNEXPECTED" "$directory"
+  echo "PASS: lint cwd and arguments are independent of invocation directory: $directory"
 done
 
+bash "$ROOT/scripts/test-check-swift-format-cwd.sh"
 echo 'ALL SWIFT FORMAT SCRIPT TESTS PASSED'
