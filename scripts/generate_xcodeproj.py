@@ -56,6 +56,7 @@ TEST_SOURCES = [
     "LocalTranscriberTests/ExportServiceTests.swift",
     "LocalTranscriberTests/TranscriptModelTests.swift",
     "LocalTranscriberTests/StorageSizeStateTests.swift",
+    "LocalTranscriberTests/ToastViewAccessibilityTests.swift",
     "LocalTranscriberTests/TranscriptionSmokeTests.swift",
     "LocalTranscriberTests/ModelAvailabilityServiceTests.swift",
     "LocalTranscriberTests/TranscriptionProgressDisplayTests.swift",
