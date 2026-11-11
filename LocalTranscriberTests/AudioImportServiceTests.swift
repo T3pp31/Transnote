@@ -423,7 +423,7 @@ private final class CopyItemForbiddenFileManager: FileManager, @unchecked Sendab
 private final class FIFOAttributesFileManager: FileManager, @unchecked Sendable {
     override func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
         let attributes = try super.attributesOfItem(atPath: path)
-        if attributes[.type] as? FileAttributeType == .typeFifo {
+        if attributes[.type] as? FileAttributeType != .typeRegular {
             try super.removeItem(atPath: path)
             _ = super.createFile(atPath: path, contents: Data())
         }
