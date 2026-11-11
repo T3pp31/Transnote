@@ -41,6 +41,7 @@ APP_SOURCES = [
     "LocalTranscriber/Services/UpdateCheckService.swift",
     "LocalTranscriber/Services/UpdateURLValidator.swift",
     "LocalTranscriber/Presentation/MainWindowView.swift",
+    "LocalTranscriber/Presentation/HistorySearchViewModel.swift",
     "LocalTranscriber/Presentation/MainWindowViewModel.swift",
     "LocalTranscriber/Presentation/UpdateCheckViewModel.swift",
     "LocalTranscriber/Presentation/StatusBarView.swift",
@@ -55,7 +56,9 @@ APP_SOURCES = [
 TEST_SOURCES = [
     "LocalTranscriberTests/ExportServiceTests.swift",
     "LocalTranscriberTests/TranscriptModelTests.swift",
+    "LocalTranscriberTests/HistorySearchViewModelTests.swift",
     "LocalTranscriberTests/StorageSizeStateTests.swift",
+    "LocalTranscriberTests/ToastViewAccessibilityTests.swift",
     "LocalTranscriberTests/TranscriptionSmokeTests.swift",
     "LocalTranscriberTests/ModelAvailabilityServiceTests.swift",
     "LocalTranscriberTests/TranscriptionProgressDisplayTests.swift",
