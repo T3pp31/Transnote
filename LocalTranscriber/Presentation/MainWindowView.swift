@@ -452,9 +452,8 @@ private struct ModelDownloadGuidanceBanner: View {
 
 private struct HistorySheet: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var items: [Transcript] = []
+    @StateObject private var searchModel = HistorySearchViewModel()
     @State private var query: String = ""
-    private let store = HistoryStore()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -470,17 +469,14 @@ private struct HistorySheet: View {
 
             TextField("全文・ファイル名で検索", text: $query)
                 .textFieldStyle(.roundedBorder)
-                .onChange(of: query) { _ in
-                    items = store.search(query: query)
-                }
 
-            if items.isEmpty {
+            if searchModel.items.isEmpty {
                 Text("履歴はまだありません。")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
             } else {
-                List(items) { item in
+                List(searchModel.items) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.sourceFileName)
                             .font(.headline)
@@ -503,8 +499,8 @@ private struct HistorySheet: View {
         }
         .padding(24)
         .frame(minWidth: 480, minHeight: 360)
-        .onAppear {
-            items = store.recent()
+        .task(id: query) {
+            await searchModel.search(query: query)
         }
     }
 }
