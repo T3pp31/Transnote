@@ -112,6 +112,10 @@ jobs:
         with:
           node-version: 20
 
+      - name: Verify shared GitHub config is up to date
+        run: |
+          python3 scripts/generate-site-config.py --check
+
       - name: Site JavaScript tests
         run: |
           cd site

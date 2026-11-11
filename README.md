@@ -139,6 +139,23 @@ xcodebuild build \
   CODE_SIGNING_ALLOWED=NO
 ```
 
+### サイト・アプリ共通の GitHub 設定
+
+リポジトリ名・API ベース URL・ダウンロード用フォールバック URL・許可ホストは
+`Config/github-config.json` で管理する。変更後は次を実行し、生成結果もコミットする。
+
+```bash
+python3 scripts/generate-site-config.py
+python3 scripts/generate-site-config.py --check
+```
+
+生成対象は `site/app.js` の CONFIG ブロックと `Config/Defaults.plist` の
+`ExpectedGitHubRepository`、`GitHubReleasesAPIURL`、`UpdateDownloadFallbackURL`、
+`AllowedUpdateDownloadHosts`。API の latest URL はベース URL に `/releases/latest` を付加する。
+plist のその他の設定は維持される。生成対象の設定は直接編集せず、JSON を更新する。
+`--check` はファイルを書き換えずに生成漏れを検出し、PR の CI と Pages デプロイ時にも実行される。
+生成処理の回帰テストは `python3 scripts/test-generate-site-config.py`（Release script tests にも含む）。
+
 Release ビルドと DMG 作成は `v*.*.*` タグの push で GitHub Actions が自動実行する。未署名配布のため GitHub Secrets は不要。運用詳細は [docs/distribution.md](docs/distribution.md) を参照。
 
 ## ドキュメント
