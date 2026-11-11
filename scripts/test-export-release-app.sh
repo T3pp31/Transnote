@@ -118,6 +118,50 @@ expect_failure() {
   fi
 }
 
+# First exports must create missing output directories before resolving their paths.
+for new_output in "$WORK/new output/nested" 'relative output/nested'; do
+  (
+    cd "$WORK"
+    [[ ! -e "$new_output" ]] || fail 'output fixture already exists'
+    expect_success --output "$new_output"
+    [[ ! -s "$WORK/stderr" ]] || fail 'new output directory produced an error'
+    cmp "$ARCHIVE/Products/Applications/Transnote.app/marker" \
+      "$new_output/Transnote.app/marker" || fail 'new output has incorrect bundle contents'
+  )
+done
+echo 'PASS: missing absolute and relative output directories are created without errors'
+
+# Resolving an existing output, including a symlink alias, must still protect the source.
+ln -s "$ARCHIVE/Products/Applications" "$WORK/source applications"
+for overlapping_output in "$ARCHIVE/Products/Applications" "$WORK/source applications"; do
+  expect_failure --output "$overlapping_output"
+  grep -q -- '--output overlaps the source app' "$WORK/stderr" || fail 'missing overlap error'
+  [[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'overlapping output ran a macOS tool'
+  [[ "$(cat "$ARCHIVE/Products/Applications/Transnote.app/marker")" == 'original bundle' ]] \
+    || fail 'overlapping output modified the source app'
+done
+echo 'PASS: source overlap is rejected for direct and symlink paths'
+
+# An output app that would contain the archive must not be removed either.
+NESTED_ARCHIVE="$WORK/overlap/Transnote.app/Transnote.xcarchive"
+mkdir -p "$(dirname "$NESTED_ARCHIVE")"
+cp -R "$ARCHIVE" "$NESTED_ARCHIVE"
+expect_failure --archive "$NESTED_ARCHIVE" --output "$WORK/overlap"
+grep -q -- '--output overlaps the source app' "$WORK/stderr" || fail 'missing ancestor overlap error'
+[[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'ancestor overlap ran a macOS tool'
+[[ "$(cat "$NESTED_ARCHIVE/Products/Applications/Transnote.app/marker")" == 'original bundle' ]] \
+  || fail 'ancestor overlap modified the source app'
+echo 'PASS: output containing the source archive is rejected'
+
+# Directory creation failures must stop the export before copying or verification.
+printf 'not a directory\n' > "$WORK/blocked-output"
+expect_failure --output "$WORK/blocked-output/nested"
+[[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'failed directory creation ran a macOS tool'
+[[ "$(cat "$WORK/blocked-output")" == 'not a directory' ]] || fail 'blocking file was modified'
+[[ "$(cat "$ARCHIVE/Products/Applications/Transnote.app/marker")" == 'original bundle' ]] \
+  || fail 'failed directory creation modified the source app'
+echo 'PASS: output directory creation failure stops the export'
+
 # Providing both flags must never replace the requested certificate with Team ID.
 expect_success --sign "$IDENTITY" --team "$TEAM"
 [[ "$(cat "$MOCK_SIGN_LOG")" == "$IDENTITY" ]] || fail 'certificate name was overwritten'
@@ -188,5 +232,47 @@ expect_success --sign "$IDENTITY"
 ! grep -q '^security$' "$MOCK_EVENT_LOG" || fail '--sign alone searched keychain'
 unset MOCK_SECURITY_FAIL
 echo 'PASS: --sign alone retains existing behavior'
+
+# Reject exports into the source bundle before deleting any existing destination.
+SOURCE_APP="$ARCHIVE/Products/Applications/Transnote.app"
+mkdir -p "$SOURCE_APP/Transnote.app" "$SOURCE_APP/out/Transnote.app"
+printf 'keep direct destination\n' > "$SOURCE_APP/Transnote.app/keep"
+printf 'keep nested destination\n' > "$SOURCE_APP/out/Transnote.app/keep"
+ln -s "$SOURCE_APP/out" "$WORK/source-output-link"
+for overlap_output in "$SOURCE_APP" "$SOURCE_APP/out" "$WORK/source-output-link"; do
+  expect_failure --output "$overlap_output"
+  grep -q -- '--output overlaps the source app' "$WORK/stderr" || fail 'missing overlap error'
+  [[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'overlapping export ran a macOS tool'
+  [[ "$(cat "$SOURCE_APP/marker")" == 'original bundle' ]] || fail 'source bundle was modified'
+  [[ "$(cat "$SOURCE_APP/Transnote.app/keep")" == 'keep direct destination' ]] || fail 'direct destination was deleted'
+  [[ "$(cat "$SOURCE_APP/out/Transnote.app/keep")" == 'keep nested destination' ]] || fail 'nested destination was deleted'
+done
+echo 'PASS: outputs inside the source bundle rejected, including symlink aliases'
+
+# The existing equality guard must still protect the source app itself.
+expect_failure --output "$(dirname "$SOURCE_APP")"
+grep -q -- '--output overlaps the source app' "$WORK/stderr" || fail 'missing same-path overlap error'
+[[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'same-path export ran a macOS tool'
+[[ "$(cat "$SOURCE_APP/marker")" == 'original bundle' ]] || fail 'same-path export modified source'
+echo 'PASS: output equal to the source app rejected'
+
+# Preserve the guard against deleting a destination that contains the source app.
+CONTAINING_OUTPUT="$WORK/container"
+NESTED_ARCHIVE="$CONTAINING_OUTPUT/Transnote.app/Transnote.xcarchive"
+NESTED_SOURCE="$NESTED_ARCHIVE/Products/Applications/Transnote.app"
+mkdir -p "$NESTED_SOURCE"
+printf 'nested source bundle\n' > "$NESTED_SOURCE/marker"
+expect_failure --archive "$NESTED_ARCHIVE" --output "$CONTAINING_OUTPUT"
+grep -q -- '--output overlaps the source app' "$WORK/stderr" || fail 'missing ancestor overlap error'
+[[ ! -s "$MOCK_EVENT_LOG" ]] || fail 'ancestor export ran a macOS tool'
+[[ "$(cat "$NESTED_SOURCE/marker")" == 'nested source bundle' ]] || fail 'ancestor export modified source'
+echo 'PASS: output containing the source app rejected'
+
+# A sibling whose name shares the source path prefix is not inside the bundle.
+PREFIX_OUTPUT="${SOURCE_APP}-export"
+mkdir -p "$PREFIX_OUTPUT"
+expect_success --output "$PREFIX_OUTPUT"
+[[ "$(cat "$PREFIX_OUTPUT/Transnote.app/marker")" == 'original bundle' ]] || fail 'non-overlapping export was not copied'
+echo 'PASS: sibling with matching path prefix can be exported'
 
 echo 'ALL EXPORT RELEASE APP TESTS PASSED'

@@ -146,6 +146,8 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertNil(viewModel.currentTranscript)
         XCTAssertEqual(viewModel.transcriptText, "")
         XCTAssertEqual(viewModel.selectedFile?.fileExtension, "m4a")
+        XCTAssertNil(viewModel.transcriptionTask)
+        XCTAssertFalse(viewModel.isBusy)
     }
 
     func testCancelPendingFileImportKeepsExistingResult() throws {
@@ -167,6 +169,135 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertNil(viewModel.pendingFileImport)
         XCTAssertEqual(viewModel.selectedFile, previousFile)
         XCTAssertEqual(viewModel.transcriptText, "existing text")
+    }
+
+    // MARK: - transcription restart confirmation regression (#703)
+
+    func testConfirmedTranscriptionRestartUsesSelectedFileWithoutPendingImport() async throws {
+        // saveTemporary は historyRoot に関係なく固定パスへ書くため、既存データを保存・復元する。
+        let recoveryURL = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        let recoveryData: Data?
+        if FileManager.default.fileExists(atPath: recoveryURL.path) {
+            recoveryData = try Data(contentsOf: recoveryURL)
+        } else {
+            recoveryData = nil
+        }
+        defer {
+            if let recoveryData {
+                try? recoveryData.write(to: recoveryURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: recoveryURL)
+            }
+        }
+        let gate = AsyncGate()
+        defer { gate.open() }
+        let selectedFile = try prepareTranscriptionRestart(gate: gate)
+        viewModel.transcriptText = "edited text"
+
+        viewModel.startTranscription()
+
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+        XCTAssertNil(viewModel.transcriptionTask)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertEqual(viewModel.transcriptText, "edited text")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "existing text")
+
+        viewModel.applyPendingFileImport()
+
+        XCTAssertFalse(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+        XCTAssertEqual(viewModel.selectedFile, selectedFile)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: selectedFile.url.path))
+        XCTAssertTrue(viewModel.isBusy)
+        XCTAssertEqual(viewModel.uiState, .preparing)
+        XCTAssertNil(viewModel.currentTranscript)
+        XCTAssertEqual(viewModel.transcriptText, "")
+        let task = try XCTUnwrap(viewModel.transcriptionTask)
+
+        gate.open()
+        await task.value
+
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.currentTranscript?.sourceFileName, selectedFile.fileName)
+        XCTAssertEqual(viewModel.transcriptText, "done")
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertNil(viewModel.transcriptionTask)
+
+        // 承認は今回の再実行にだけ有効で、次回は再び確認する。
+        viewModel.startTranscription()
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.transcriptionTask)
+        XCTAssertEqual(viewModel.transcriptText, "done")
+        viewModel.cancelPendingFileImport()
+    }
+
+    func testCancelledTranscriptionRestartKeepsResultAndRequiresConfirmationAgain() throws {
+        let gate = AsyncGate()
+        defer { gate.open() }
+        let selectedFile = try prepareTranscriptionRestart(gate: gate)
+        let transcriptID = viewModel.currentTranscript?.id
+        viewModel.transcriptText = "edited text"
+
+        viewModel.startTranscription()
+        viewModel.cancelPendingFileImport()
+        // キャンセル後に承認処理が呼ばれても再実行しない。
+        viewModel.applyPendingFileImport()
+
+        XCTAssertFalse(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+        XCTAssertNil(viewModel.transcriptionTask)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertEqual(viewModel.selectedFile, selectedFile)
+        XCTAssertEqual(viewModel.currentTranscript?.id, transcriptID)
+        XCTAssertEqual(viewModel.transcriptText, "edited text")
+
+        viewModel.startTranscription()
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.transcriptionTask)
+        viewModel.cancelPendingFileImport()
+    }
+
+    func testConfirmedTranscriptionRestartStillRequiresDownloadedModel() throws {
+        let gate = AsyncGate()
+        defer { gate.open() }
+        _ = try prepareTranscriptionRestart(gate: gate)
+        let transcriptID = viewModel.currentTranscript?.id
+
+        viewModel.startTranscription()
+        viewModel.downloadedModelIDs = []
+        viewModel.applyPendingFileImport()
+
+        XCTAssertFalse(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+        XCTAssertNil(viewModel.transcriptionTask)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertNotNil(viewModel.inlineErrorMessage)
+        XCTAssertEqual(viewModel.currentTranscript?.id, transcriptID)
+        XCTAssertEqual(viewModel.transcriptText, "existing text")
+
+        // 開始できなかった場合にも承認状態を持ち越さない。
+        viewModel.downloadedModelIDs = ["base"]
+        viewModel.startTranscription()
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.transcriptionTask)
+        viewModel.cancelPendingFileImport()
+    }
+
+    private func prepareTranscriptionRestart(gate: AsyncGate) throws -> AudioFileInfo {
+        viewModel = MainWindowViewModel(
+            transcriber: MockTranscriber(gate: gate),
+            audioImportService: AudioImportService(importsRoot: importsRoot),
+            historyStore: HistoryStore(historyRoot: importsRoot.appendingPathComponent("history"))
+        )
+        AppSettings.shared.selectedModelID = "base"
+        viewModel.downloadedModelIDs = ["base"]
+        let sourceURL = sourceRoot.appendingPathComponent("restart.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8)))
+        viewModel.selectFile(url: sourceURL)
+        let selectedFile = try XCTUnwrap(viewModel.selectedFile)
+        viewModel.restoreTranscript(Transcript(sourceFileName: selectedFile.fileName, fullText: "existing text"))
+        return selectedFile
     }
 
     // MARK: - file change race regression (#246)
