@@ -65,7 +65,7 @@
 			<key>id</key>
 			<string>large-v3-compressed</string>
 			<key>displayName</key>
-			<string>Large v3 Turbo (compressed)</string>
+			<string>Large v3 (compressed)</string>
 			<key>whisperKitModelName</key>
 			<string>large-v3-v20240930_626MB</string>
 			<key>license</key>
