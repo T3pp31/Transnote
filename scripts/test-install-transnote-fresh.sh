@@ -251,7 +251,8 @@ backup_marker="$(find "$INSTALL_TMP" -path '*/Transnote.app/Contents/marker' -pr
 [[ -n "$backup_marker" && "$(cat "$backup_marker")" == old ]] || fail 'restore failure lost the original backup'
 grep -q 'バックアップを保存しています' "$WORK/stderr" || fail 'missing recovery path'
 unset MOCK_FAIL_PHASE MOCK_FAIL_RESTORE
-echo 'PASS: failed restoration retains a recoverable backup'
+[[ ! -e "$APPLICATIONS_DIR/.transnote-install.lock" ]] || fail 'restore failure left the installer lock'
+echo 'PASS: failed restoration retains a recoverable backup' 
 
 reset_case
 make_old_app com.transnote.LocalTranscriber
@@ -261,6 +262,7 @@ run_install || code=$?
 [[ "$code" == 21 ]] || fail 'cleanup failure must remain observable'
 diff -r "$INSTALLER_DIR/Transnote.app" "$TARGET_APP" || fail 'cleanup failure deleted the committed app'
 unset MOCK_FAIL_CLEANUP
-echo 'PASS: cleanup failure preserves the installed new bundle'
+[[ ! -e "$APPLICATIONS_DIR/.transnote-install.lock" ]] || fail 'cleanup failure left the installer lock'
+echo 'PASS: cleanup failure preserves the installed new bundle' 
 
 echo 'ALL INSTALL TRANSACTION TESTS PASSED' 

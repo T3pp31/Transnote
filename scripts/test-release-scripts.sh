@@ -39,6 +39,7 @@ if (cd "$WORK" && bash scripts/set-marketing-version.sh bad-version >/dev/null 2
   exit 1
 fi
 echo "PASS: invalid version rejected"
+python3 "$ROOT/scripts/test-install-transnote.py"
 
 if ! grep -q 'MARKETING_VERSION = 0.2.0;' "$WORK/LocalTranscriber.xcodeproj/project.pbxproj"; then
   echo "FAIL: valid version was not persisted after invalid input" >&2
