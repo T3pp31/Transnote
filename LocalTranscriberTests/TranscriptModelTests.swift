@@ -420,6 +420,7 @@ final class TranscriptModelTests: XCTestCase {
         try writeHistoryTranscript(older, at: historyURL(for: older, in: nested))
         let newerURL = historyURL(for: newer, in: root)
         try writeHistoryTranscript(newer, at: newerURL)
+        let newerPath = historyFilePath(newerURL)
 
         let probe = HistoryTranscriptReadProbe()
         let reader = HistoryStore(historyRoot: root, readTranscriptData: { try probe.read($0) })
@@ -427,7 +428,7 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(probe.urls.count, 3, "旧履歴2件の移行と上位1件の読み込み")
         probe.reset()
         XCTAssertEqual(reader.recent(limit: 1).map(\.id), [newer.id])
-        XCTAssertEqual(probe.urls, [newerURL])
+        XCTAssertEqual(probe.urls.map(historyFilePath), [newerPath])
 
         let metadataURL = recentMetadataURL(for: newerURL)
         for brokenMetadata in [false, true] {
@@ -438,10 +439,10 @@ final class TranscriptModelTests: XCTestCase {
             }
             probe.reset()
             XCTAssertEqual(reader.recent(limit: 1).map(\.id), [newer.id])
-            XCTAssertEqual(probe.urls, [newerURL, newerURL])
+            XCTAssertEqual(probe.urls.map(historyFilePath), [newerPath, newerPath])
             probe.reset()
             XCTAssertEqual(reader.recent(limit: 1).map(\.id), [newer.id])
-            XCTAssertEqual(probe.urls, [newerURL])
+            XCTAssertEqual(probe.urls.map(historyFilePath), [newerPath])
         }
     }
 
@@ -489,9 +490,14 @@ final class TranscriptModelTests: XCTestCase {
             schemaVersion: Transcript.currentSchemaVersion + 1
         )
         try writer.save(unsupported)
-        let unavailableURL = historyURL(for: newer, in: root)
+        // 列挙された URL と表記が違っても、同じファイルへの失敗注入を行う。
+        let unavailableAlias = root.appendingPathComponent(".unavailable.json")
+        try FileManager.default.createSymbolicLink(
+            at: unavailableAlias, withDestinationURL: historyURL(for: newer, in: root)
+        )
+        let unavailablePath = historyFilePath(unavailableAlias)
         let reader = HistoryStore(historyRoot: root, readTranscriptData: { url in
-            if url == unavailableURL { throw CocoaError(.fileReadNoPermission) }
+            if historyFilePath(url) == unavailablePath { throw CocoaError(.fileReadNoPermission) }
             return try Data(contentsOf: url)
         })
 
@@ -599,6 +605,11 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
 
     }
+}
+
+// temporaryDirectory と enumerator の URL は、ベース URL や /var の別名が異なり得る。
+private func historyFilePath(_ url: URL) -> String {
+    url.resolvingSymlinksInPath().standardizedFileURL.path
 }
 
 private final class HistoryTranscriptReadProbe: @unchecked Sendable {
