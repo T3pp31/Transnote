@@ -4,77 +4,123 @@ import Foundation
 struct HistoryStore: Sendable {
     private let historyRoot: URL
     private let fileManager: FileManager
+    private let readTranscriptData: @Sendable (URL) throws -> Data
+
+    // 別インスタンスの検索と保存でも、本文とメタデータの対応が崩れないようにする。
+    private static let metadataLock = NSLock()
+
+    private struct FileVersion: Codable, Equatable {
+        let modificationTime: TimeInterval
+        let size: UInt64
+        let fileNumber: UInt64
+    }
+
+    private struct RecentMetadata: Codable {
+        let createdAt: Date
+        let fileVersion: FileVersion
+    }
 
     init(
         historyRoot: URL = AppDirectories.historyDirectory,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        readTranscriptData: @escaping @Sendable (URL) throws -> Data = { try Data(contentsOf: $0) }
     ) {
         self.historyRoot = historyRoot
         self.fileManager = fileManager
+        self.readTranscriptData = readTranscriptData
     }
 
     func save(_ transcript: Transcript) throws {
+        Self.metadataLock.lock()
+        defer { Self.metadataLock.unlock() }
+
         try fileManager.createDirectory(at: historyRoot, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(transcript)
         let url = historyRoot.appendingPathComponent("\(transcript.id.uuidString).json")
         try data.write(to: url, options: .atomic)
+        if let version = fileVersion(at: url) {
+            saveRecentMetadata(createdAt: transcript.createdAt, fileVersion: version, at: url)
+        }
     }
 
     func recent(limit: Int = 50) -> [Transcript] {
-        return loadAllTranscripts(limit: limit)
-            .sorted { $0.createdAt > $1.createdAt }
-            .prefix(limit)
-            .map { $0 }
-    }
-
-    private func loadAllTranscripts(limit: Int) -> [Transcript] {
-        guard fileManager.fileExists(atPath: historyRoot.path) else { return [] }
         guard limit > 0 else { return [] }
         guard let enumerator = fileManager.enumerator(
             at: historyRoot,
-            includingPropertiesForKeys: [.isRegularFileKey, .contentModificationDateKey],
+            includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         ) else { return [] }
 
-        struct Candidate {
-            let url: URL
-            let modificationDate: Date
-        }
-
-        var candidates: [Candidate] = []
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-
+        var candidates: [(url: URL, createdAt: Date)] = []
         for case let url as URL in enumerator {
-            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true else { continue }
-            guard let modificationDate = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate else {
-                continue
-            }
-            candidates.append(Candidate(url: url, modificationDate: modificationDate))
+            guard let createdAt = recentCreationDate(at: url) else { continue }
+            candidates.append((url, createdAt))
         }
-
-        candidates.sort { $0.modificationDate > $1.modificationDate }
+        candidates.sort { $0.createdAt > $1.createdAt }
 
         var items: [Transcript] = []
         for candidate in candidates {
-            guard let data = try? Data(contentsOf: candidate.url),
-                  let transcript = try? decoder.decode(Transcript.self, from: data) else {
-                continue
-            }
+            guard let transcript = loadTranscript(at: candidate.url) else { continue }
             items.append(transcript)
+            if items.count == limit { break }
+        }
+        return items.sorted { $0.createdAt > $1.createdAt }
+    }
 
-            // 修正日時が古い候補は createdAt も古いことが多いため、
-            // 必要件数を満たした時点で以降の重いデコードを止める。
-            if items.count >= limit,
-               let oldest = items.map({ $0.createdAt }).min(),
-               candidate.modificationDate < oldest {
-                break
-            }
+    private func loadTranscript(at url: URL) -> Transcript? {
+        guard let data = try? readTranscriptData(url) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(Transcript.self, from: data)
+    }
+
+    private func fileVersion(at url: URL) -> FileVersion? {
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              attributes[.type] as? FileAttributeType == .typeRegular,
+              let date = attributes[.modificationDate] as? Date,
+              let size = attributes[.size] as? NSNumber,
+              let number = attributes[.systemFileNumber] as? NSNumber else { return nil }
+        return FileVersion(
+            modificationTime: date.timeIntervalSince1970, size: size.uint64Value, fileNumber: number.uint64Value
+        )
+    }
+
+    private func recentMetadataURL(for url: URL) -> URL {
+        // 本文と同じ場所の隠しファイルにし、履歴の再帰列挙・全文検索から除外する。
+        url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).recent-v1.json")
+    }
+
+    private func saveRecentMetadata(createdAt: Date, fileVersion: FileVersion, at url: URL) {
+        let encoder = JSONEncoder()
+        // 本文と同じ日時精度にする。ファイル更新日時は小数秒を失わない数値で保存する。
+        encoder.dateEncodingStrategy = .iso8601
+        let metadata = RecentMetadata(createdAt: createdAt, fileVersion: fileVersion)
+        guard let data = try? encoder.encode(metadata) else { return }
+        // キャッシュの保存失敗は履歴本文の保存・読み込みを失敗させない。
+        try? data.write(to: recentMetadataURL(for: url), options: .atomic)
+    }
+
+    private func recentCreationDate(at url: URL) -> Date? {
+        Self.metadataLock.lock()
+        defer { Self.metadataLock.unlock() }
+
+        guard let version = fileVersion(at: url) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if let data = try? Data(contentsOf: recentMetadataURL(for: url)),
+           let metadata = try? decoder.decode(RecentMetadata.self, from: data),
+           metadata.fileVersion == version {
+            return metadata.createdAt
         }
 
-        return items
+        // 旧履歴・外部変更・キャッシュ破損時だけ本文を読み、次回以降のために再構築する。
+        guard let transcript = loadTranscript(at: url) else { return nil }
+        if fileVersion(at: url) == version {
+            saveRecentMetadata(createdAt: transcript.createdAt, fileVersion: version, at: url)
+        }
+        return transcript.createdAt
     }
 
     /// 全文・ファイル名を対象に履歴を検索する。
@@ -128,8 +174,12 @@ struct HistoryStore: Sendable {
     }
 
     func delete(_ transcript: Transcript) {
+        Self.metadataLock.lock()
+        defer { Self.metadataLock.unlock() }
+
         let url = historyRoot.appendingPathComponent("\(transcript.id.uuidString).json")
         try? fileManager.removeItem(at: url)
+        try? fileManager.removeItem(at: recentMetadataURL(for: url))
     }
 
     // MARK: - Crash recovery (temporary transcripts)
