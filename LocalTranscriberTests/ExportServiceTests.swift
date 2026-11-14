@@ -222,6 +222,75 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(content[segments...].contains("- [00:00:00.000 --> 00:00:01.000] text \\*italic\\* \\_under\\_ \\[link\\]"))
     }
 
+    func testMarkdownKeepsMultilineSegmentInSingleListItem() throws {
+        for newline in ["\n", "\r\n", "\r"] {
+            let text = [
+                "先頭", "- bullet", "+ bullet", "1. ordered", "> quote",
+                "```swift", "code", "```", "~~~", "---", "", "末尾"
+            ].joined(separator: newline)
+            let transcript = Transcript(
+                sourceFileName: "test.wav",
+                fullText: "full text",
+                segments: [
+                    TranscriptSegment(startTime: 0, endTime: 1, text: text),
+                    TranscriptSegment(startTime: 1, endTime: 2, text: "次のセグメント")
+                ]
+            )
+
+            let content = try exportService.content(for: transcript, format: .markdown)
+
+            XCTAssertEqual(content, [
+                "# Transcript: test.wav", "", "## Full Text", "", "full text", "", "## Segments", "",
+                #"- [00:00:00.000 --> 00:00:01.000] 先頭 - bullet + bullet 1. ordered \> quote \`\`\`swift code \`\`\` ~~~ ---  末尾"#,
+                "- [00:00:01.000 --> 00:00:02.000] 次のセグメント"
+            ].joined(separator: "\n"), "改行: \(newline.debugDescription)")
+        }
+    }
+
+    func testMarkdownEscapesCodeAndHTMLWithoutChangingFullText() throws {
+        let text = #"`code` ``nested ` code`` <b>text</b> <https://example.com> \` \<tag>"#
+        let transcript = Transcript(
+            sourceFileName: "test`<raw>.wav",
+            language: "ja`<raw>",
+            fullText: "`code`\n<b>full text</b>",
+            segments: [TranscriptSegment(startTime: 0, endTime: 1, text: text)]
+        )
+
+        let content = try exportService.content(for: transcript, format: .markdown)
+
+        XCTAssertEqual(content, [
+            #"# Transcript: test\`\<raw\>.wav"#, "",
+            #"Language: ja\`\<raw\>"#, "",
+            "## Full Text", "", "`code`\n<b>full text</b>", "", "## Segments", "",
+            #"- [00:00:00.000 --> 00:00:01.000] \`code\` \`\`nested \` code\`\` \<b\>text\</b\> \<https://example.com\> \\\` \\\<tag\>"#
+        ].joined(separator: "\n"))
+    }
+
+    func testNonMarkdownExportsPreserveMultilineTextAndSpecialCharacters() throws {
+        let text = "先頭\r\n- item\n`code`\r<tag>"
+        let transcript = Transcript(
+            sourceFileName: "test.wav",
+            fullText: text,
+            segments: [TranscriptSegment(startTime: 0, endTime: 1, text: text)]
+        )
+
+        XCTAssertEqual(try exportService.content(for: transcript, format: .txt), text)
+        XCTAssertEqual(
+            try exportService.content(for: transcript, format: .srt),
+            "1\n00:00:00,000 --> 00:00:01,000\n\(text)"
+        )
+        XCTAssertEqual(
+            try exportService.content(for: transcript, format: .vtt),
+            "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n\(text)"
+        )
+        let json = try exportService.content(for: transcript, format: .json)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(Transcript.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.fullText, text)
+        XCTAssertEqual(decoded.segments.first?.text, text)
+    }
+
 }
 
 @MainActor

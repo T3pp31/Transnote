@@ -42,7 +42,10 @@ final class ModelAvailabilityPathTests: XCTestCase {
 
         let service = ModelAvailabilityService(modelsRoot: modelsRoot)
         let detectedPath = try XCTUnwrap(service.modelFolder(for: "tiny"))
-        XCTAssertEqual(detectedPath.path, downloadedPath.path)
+        XCTAssertEqual(
+            detectedPath.resolvingSymlinksInPath().standardizedFileURL.path,
+            downloadedPath.resolvingSymlinksInPath().standardizedFileURL.path
+        )
 
         let config = WhisperKitConfig(
             model: "tiny",

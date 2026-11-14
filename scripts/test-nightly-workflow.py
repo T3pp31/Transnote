@@ -46,6 +46,7 @@ args = sys.argv[2:]
 if tool == "xcodebuild":
     assert args[0] == "test", args
     assert os.environ["RUN_MODEL_INTEGRATION_TESTS"] == "1"
+    assert os.environ["TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS"] == "1"
     with open("invocations.jsonl", "a", encoding="utf-8") as log:
         log.write(json.dumps(args) + "\n")
     failure_selector = os.environ.get("TOOL_FAILURE_SELECTOR", "")
@@ -130,6 +131,7 @@ class NightlyWorkflowTests(unittest.TestCase):
                 **os.environ,
                 "TOOL_STUB": str(stub),
                 "RUN_MODEL_INTEGRATION_TESTS": "1",
+                "TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS": "1",
                 "PROJECT": "Test Project.xcodeproj",
                 "SCHEME": "Test Scheme",
                 "DERIVED_DATA_PATH": "Test DerivedData",
@@ -185,6 +187,15 @@ xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
     def test_expected_failures_still_count_as_executed(self):
         result, _ = self.run_workflow({DOWNLOAD: "expectedFailure", LOAD: "expectedFailure"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_workflow_forwards_model_flag_to_test_runner(self):
+        workflow = (ROOT / f".github/workflows/{self.workflow_name}.yml").read_text()
+        steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
+        gate = next(step for step in steps if step.splitlines()[0] in (
+            "Run real-model tests (normally skipped)", "Run real-model tests (release gate)",
+        ))
+        header = gate.split("        run: |\n", 1)[0]
+        self.assertRegex(header, r"(?m)^          TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: ['\"]1['\"]$")
 
     def test_either_xcodebuild_failure_stops_the_gate(self):
         for selector in (DOWNLOAD, LOAD):

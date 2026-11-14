@@ -66,11 +66,38 @@ final class TranscriptTextSanitizerTests: XCTestCase {
     }
 
     func testArtifactDetectionHandlesFullWidthAndIncompleteTokens() {
-        for text in ["<|ja|>", "<｜ja｜>", "<|broken", "broken|>", "<｜broken", "broken｜>"] {
-            XCTAssertTrue(TranscriptTextSanitizer.containsSpecialTokenArtifacts(text), text)
+        let artifacts = [
+            "<|ja|>", "<｜ja｜>", "<||>", "<｜｜>",
+            "<|broken", "broken|>", "<｜broken", "broken｜>",
+            "<|", "|>", "<｜", "｜>",
+            "<|ja｜>", "<｜ja|>", "<|a|b|>", "<|ja\n|>",
+            "<|\u{301}ja|>\u{301}", "<｜\u{301}ja｜>\u{301}",
+        ]
+        for artifact in artifacts {
+            for text in [artifact, "🌏e\u{301}\(artifact)こんにちは👩🏽‍💻"] {
+                XCTAssertTrue(TranscriptTextSanitizer.containsSpecialTokenArtifacts(text), text)
+            }
         }
-        for text in ["", "🌏こんにちは👩🏽‍💻", "a | b", "<html>", "｜"] {
+        for text in ["", "🌏こんにちは👩🏽‍💻", "a | b", "<html>", "｜", "< | >", "< ｜ >"] {
             XCTAssertFalse(TranscriptTextSanitizer.containsSpecialTokenArtifacts(text), text)
+        }
+    }
+
+    func testPresentableTextRejectsArtifactsCreatedByRemoval() {
+        let cases: [(raw: String, sanitized: String)] = [
+            ("<<||", "<|"),
+            ("||>>", "|>"),
+            ("<<｜｜", "<｜"),
+            ("｜｜>>", "｜>"),
+            ("<<||ja||>>", "<|ja|>"),
+            ("<<｜｜ja｜｜>>", "<｜ja｜>"),
+            ("こんにちは<<｜|🌏", "こんにちは<|🌏"),
+        ]
+
+        for (raw, sanitized) in cases {
+            XCTAssertEqual(TranscriptTextSanitizer.sanitize(raw), sanitized, "raw: \(raw)")
+            XCTAssertTrue(TranscriptTextSanitizer.containsSpecialTokenArtifacts(sanitized), "raw: \(raw)")
+            XCTAssertNil(TranscriptTextSanitizer.presentableText(from: raw), "raw: \(raw)")
         }
     }
 
