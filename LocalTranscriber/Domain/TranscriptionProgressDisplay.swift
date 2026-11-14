@@ -107,6 +107,15 @@ struct TranscriptionProgressDisplay: Equatable {
         )
     }
 
+    private static let byteCountFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        return formatter
+    }()
+
+    // 同じ設定を再利用し、MainActor 外からの同期呼び出しでも同時に使用しない。
+    private static let byteCountFormatterLock = NSLock()
+
     private static func makeDetailLabel(
         for update: TranscriptionProgressUpdate,
         fraction: Double,
@@ -124,10 +133,10 @@ struct TranscriptionProgressDisplay: Equatable {
             if let completed = update.completedUnitCount,
                let total = update.totalUnitCount,
                total > 0 {
-                let formatter = ByteCountFormatter()
-                formatter.countStyle = .file
-                let completedText = formatter.string(fromByteCount: completed)
-                let totalText = formatter.string(fromByteCount: total)
+                byteCountFormatterLock.lock()
+                defer { byteCountFormatterLock.unlock() }
+                let completedText = byteCountFormatter.string(fromByteCount: completed)
+                let totalText = byteCountFormatter.string(fromByteCount: total)
                 return detail.isEmpty
                     ? "\(completedText) / \(totalText)"
                     : "\(detail) · \(completedText) / \(totalText)"
