@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run nightly's model-test shell steps with local xcodebuild/xcresulttool stubs."""
+"""Run Nightly/Release model-test steps with local xcodebuild/xcresulttool stubs."""
 
 import json
 import os
@@ -16,21 +16,22 @@ DOWNLOAD = "LocalTranscriberTests/ModelDownloadIntegrationTests"
 LOAD = "LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder"
 
 
-def model_test_steps():
+def model_test_steps(workflow_name):
     # Exercise the workflow itself, rather than duplicating its validation logic.
-    workflow = (ROOT / ".github/workflows/nightly.yml").read_text(encoding="utf-8")
+    workflow = (ROOT / f".github/workflows/{workflow_name}.yml").read_text(encoding="utf-8")
     steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
     scripts = []
     for step in steps:
         if step.splitlines()[0] not in (
             "Run real-model tests (normally skipped)",
+            "Run real-model tests (release gate)",
             "Verify real-model tests executed",
         ):
             continue
         script = step.split("        run: |\n", 1)[1]
         scripts.append(textwrap.dedent(script))
     if not scripts:
-        raise AssertionError("nightly model-test steps not found")
+        raise AssertionError(f"{workflow_name} model-test steps not found")
     return "\n".join(scripts)
 
 
@@ -45,9 +46,13 @@ args = sys.argv[2:]
 if tool == "xcodebuild":
     assert args[0] == "test", args
     assert os.environ["RUN_MODEL_INTEGRATION_TESTS"] == "1"
+    assert os.environ["TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS"] == "1"
     with open("invocations.jsonl", "a", encoding="utf-8") as log:
         log.write(json.dumps(args) + "\n")
-    if os.environ.get("TOOL_FAILURE") == "xcodebuild":
+    failure_selector = os.environ.get("TOOL_FAILURE_SELECTOR", "")
+    if os.environ.get("TOOL_FAILURE") == "xcodebuild" and (
+        not failure_selector or f"-only-testing:{failure_selector}" in args
+    ):
         sys.exit(65)
     selectors = [arg.split(":", 1)[1] for arg in args if arg.startswith("-only-testing:")]
     assert selectors, args
@@ -115,7 +120,9 @@ class NightlyWorkflowSecurityTests(unittest.TestCase):
 
 
 class NightlyWorkflowTests(unittest.TestCase):
-    def run_workflow(self, modes=None, tool_failure=""):
+    workflow_name = "nightly"
+
+    def run_workflow(self, modes=None, tool_failure="", failure_selector=""):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             stub = work / "tool-stub.py"
@@ -124,16 +131,21 @@ class NightlyWorkflowTests(unittest.TestCase):
                 **os.environ,
                 "TOOL_STUB": str(stub),
                 "RUN_MODEL_INTEGRATION_TESTS": "1",
+                "TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS": "1",
+                "PROJECT": "Test Project.xcodeproj",
+                "SCHEME": "Test Scheme",
+                "DERIVED_DATA_PATH": "Test DerivedData",
                 "TEST_SELECTORS": json.dumps([DOWNLOAD, LOAD]),
                 "TEST_MODES": json.dumps(modes or {}),
                 "TOOL_FAILURE": tool_failure,
+                "TOOL_FAILURE_SELECTOR": failure_selector,
             }
             wrappers = '''
 xcodebuild() { python3 "$TOOL_STUB" xcodebuild "$@"; }
 xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
 '''
             result = subprocess.run(
-                ["bash", "-e", "-o", "pipefail", "-c", wrappers + model_test_steps()],
+                ["bash", "-e", "-o", "pipefail", "-c", wrappers + model_test_steps(self.workflow_name)],
                 cwd=work, env=env, capture_output=True, text=True, timeout=30,
             )
             log = work / "invocations.jsonl"
@@ -176,11 +188,65 @@ xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
         result, _ = self.run_workflow({DOWNLOAD: "expectedFailure", LOAD: "expectedFailure"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_workflow_forwards_model_flag_to_test_runner(self):
+        workflow = (ROOT / f".github/workflows/{self.workflow_name}.yml").read_text()
+        steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
+        gate = next(step for step in steps if step.splitlines()[0] in (
+            "Run real-model tests (normally skipped)", "Run real-model tests (release gate)",
+        ))
+        header = gate.split("        run: |\n", 1)[0]
+        self.assertRegex(header, r"(?m)^          TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: ['\"]1['\"]$")
+
+    def test_either_xcodebuild_failure_stops_the_gate(self):
+        for selector in (DOWNLOAD, LOAD):
+            with self.subTest(selector=selector):
+                result, invocations = self.run_workflow(
+                    tool_failure="xcodebuild", failure_selector=selector,
+                )
+                self.assertEqual(result.returncode, 65, result.stdout + result.stderr)
+                self.assertIn(f"-only-testing:{selector}", invocations[-1])
+
     def test_tool_and_json_errors_are_not_hidden(self):
         for failure in ("xcodebuild", "xcresulttool", "invalid-json"):
             with self.subTest(failure=failure):
                 result, _ = self.run_workflow(tool_failure=failure)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
+
+
+class ReleaseModelWorkflowTests(NightlyWorkflowTests):
+    workflow_name = "release"
+
+    def test_gate_is_required_before_archive_and_publication(self):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
+        names = [step.splitlines()[0] for step in steps]
+        gate_name = "Run real-model tests (release gate)"
+        self.assertIn(gate_name, names)
+        gate_index = names.index(gate_name)
+        gate = steps[gate_index]
+        header = gate.split("        run: |\n", 1)[0]
+        self.assertRegex(header, r"(?m)^          RUN_MODEL_INTEGRATION_TESTS: ['\"]1['\"]$")
+        # Conditions or ignored failures must not turn the gate into an optional check.
+        self.assertNotRegex(header, r"(?m)^        (if|continue-on-error):")
+        self.assertNotRegex(steps[0], r"(?m)^    (if|continue-on-error):")
+        for name in ("Archive Release build", "Create DMG", "Create GitHub Release"):
+            index = names.index(name)
+            self.assertGreater(index, gate_index)
+            self.assertNotRegex(steps[index], r"(?m)^        if:")
+
+    def test_gate_uses_existing_release_build_settings(self):
+        result, invocations = self.run_workflow()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for args in invocations:
+            for flag, value in (
+                ("-project", "Test Project.xcodeproj"),
+                ("-scheme", "Test Scheme"),
+                ("-derivedDataPath", "Test DerivedData"),
+                ("-destination", "platform=macOS"),
+            ):
+                self.assertEqual(args[args.index(flag) + 1], value)
+            self.assertIn("CODE_SIGNING_ALLOWED=NO", args)
+            self.assertFalse(any(arg.startswith("-skip-testing:") for arg in args))
 
 
 if __name__ == "__main__":

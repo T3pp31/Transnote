@@ -43,6 +43,7 @@ jobs:
       - name: Run real-model tests (normally skipped)
         env:
           RUN_MODEL_INTEGRATION_TESTS: '1'
+          TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: '1'
         run: |
           # Validate each selector in isolation: an unmatched -only-testing is
           # silently ignored and must not be masked by the other selector.
