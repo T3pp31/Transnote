@@ -27,12 +27,9 @@ jobs:
   release:
     runs-on: macos-15
     env:
-      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-      MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-      MACOS_CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      # Share only availability flags; raw credentials belong to their consuming steps.
+      HAS_SIGNING_SECRETS: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_CERTIFICATE_PWD != '' && secrets.MACOS_CERTIFICATE_IDENTITY != '' }}
+      HAS_NOTARIZATION_SECRETS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -145,11 +142,11 @@ jobs:
             --output "${{ env.RELEASE_APP_DIR }}"
 
       - name: Sign app with Developer ID
-        if: ${{ env.MACOS_CERTIFICATE != '' && env.MACOS_CERTIFICATE_PWD != '' && env.MACOS_CERTIFICATE_IDENTITY != '' }}
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' }}
         env:
-          CERTIFICATE_BASE64: ${{ env.MACOS_CERTIFICATE }}
-          CERTIFICATE_PASSWORD: ${{ env.MACOS_CERTIFICATE_PWD }}
-          CERTIFICATE_IDENTITY: ${{ env.MACOS_CERTIFICATE_IDENTITY }}
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
@@ -168,11 +165,11 @@ jobs:
           echo "SIGNED=1" >> "$GITHUB_ENV"
 
       - name: Notarize app
-        if: ${{ env.APPLE_ID != '' && env.APPLE_ID_PASSWORD != '' && env.APPLE_TEAM_ID != '' && env.SIGNED == '1' }}
+        if: ${{ env.HAS_NOTARIZATION_SECRETS == 'true' && env.SIGNED == '1' }}
         env:
-          APPLE_ID: ${{ env.APPLE_ID }}
-          APPLE_ID_PASSWORD: ${{ env.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ env.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           APP_PATH="${RELEASE_APP_DIR}/${APP_NAME}.app"
