@@ -181,6 +181,35 @@ final class TranscriptModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
     }
 
+    func testAppDirectoriesClearDirectoryReturnsFalseWhenRemovingEntryFails() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let lockedFile = root.appendingPathComponent("locked.bin")
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            do {
+                if fileManager.fileExists(atPath: lockedFile.path) {
+                    try fileManager.setAttributes([.immutable: false], ofItemAtPath: lockedFile.path)
+                }
+                try fileManager.removeItem(at: root)
+            } catch {
+                XCTFail("一時ディレクトリの後片付けに失敗しました: \(error)")
+            }
+        }
+
+        let content = Data("locked".utf8)
+        try content.write(to: lockedFile)
+        // macOS のロック属性で、一覧取得は成功してもエントリの削除だけが失敗する状態を作る。
+        try fileManager.setAttributes([.immutable: true], ofItemAtPath: lockedFile.path)
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: root.path), ["locked.bin"])
+        XCTAssertThrowsError(try fileManager.removeItem(at: lockedFile))
+
+        XCTAssertFalse(AppDirectories.clearDirectory(root))
+        XCTAssertTrue(fileManager.fileExists(atPath: root.path))
+        XCTAssertEqual(try Data(contentsOf: lockedFile), content)
+    }
+
     func testTranscriptRejectsUnsupportedSchemaVersion() throws {
         let json = """
         {
