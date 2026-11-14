@@ -4,6 +4,7 @@
 import itertools
 import os
 from pathlib import Path
+import plistlib
 import re
 import subprocess
 import tempfile
@@ -145,6 +146,22 @@ class ReleaseSecretScopeTests(unittest.TestCase):
                     self.assertEqual(
                         condition_value(gates[1], env=env), can_notarize and signed == "1"
                     )
+
+
+class AppEntitlementsTests(unittest.TestCase):
+    def test_sandboxed_app_has_app_scoped_bookmark_entitlement(self):
+        with (ROOT / "LocalTranscriber/LocalTranscriber.entitlements").open("rb") as source:
+            entitlements = plistlib.load(source)
+
+        # relativeTo: nil の .withSecurityScope はアプリスコープを使用する。
+        # サンドボックスやユーザー選択ファイルへのアクセスも維持する。
+        for key in (
+            "com.apple.security.app-sandbox",
+            "com.apple.security.files.user-selected.read-write",
+            "com.apple.security.files.bookmarks.app-scope",
+        ):
+            with self.subTest(entitlement=key):
+                self.assertIs(entitlements.get(key), True, f"{key} must be boolean true")
 
 
 class ReleaseSigningTests(unittest.TestCase):
