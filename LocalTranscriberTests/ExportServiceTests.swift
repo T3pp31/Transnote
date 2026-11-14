@@ -352,6 +352,43 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(content, expected)
     }
 
+    func testMarkdownPreservesLiteralHTMLCharactersInsideCode() throws {
+        let codeSamples = [
+            #"日本語 `if a < b && s == "x" { print('y') }`"#,
+            #"``nested ` <tag> & "quoted"``"#,
+            "`first\n<tag> & \"quoted\"`",
+            "```swift\nprint(\"hello\")\nif a < b && c > d {}\n```",
+            "~~~\n<tag> & \"quoted\"\n~~~",
+            "    print(\"hello\")\n    <tag> & 'quoted'\n",
+            "\tprint(\"hello\")\n\t<tag> & 'quoted'\n",
+            "> ```swift\n> if a < b && s == \"x\" {}\n> ```",
+            "- item\n\n  ```swift\n  print(\"hello\")\n  ```"
+        ]
+        for newline in ["\n", "\r\n", "\r"] {
+            for sample in codeSamples {
+                let code = sample.replacingOccurrences(of: "\n", with: newline)
+                let fullText = code + newline + newline + "<b>raw</b>"
+                let transcript = Transcript(sourceFileName: "test.wav", fullText: fullText)
+                let content = try exportService.content(for: transcript, format: .markdown)
+                let expected = code + newline + newline + "&lt;b&gt;raw&lt;/b&gt;"
+                XCTAssertTrue(content.contains("## Full Text\n\n" + expected + "\n\n## Segments"), fullText.debugDescription)
+            }
+        }
+    }
+
+    func testMarkdownDoesNotTreatBackticksInsideRawHTMLAsCode() throws {
+        for text in [
+            #"<img title="`code`" src=x onerror="alert('x')">"#,
+            "<script>\n`if a < b && s == \"x\"`\n</script>"
+        ] {
+            let transcript = Transcript(sourceFileName: "test.wav", fullText: text)
+            let content = try exportService.content(for: transcript, format: .markdown)
+            XCTAssertFalse(content.contains("<img"))
+            XCTAssertFalse(content.contains("<script>"))
+            XCTAssertFalse(content.contains("</script>"))
+        }
+    }
+
     func testHTMLEscapingIsLimitedToMarkdownExport() throws {
         let text = #"日本語 <script>alert("x" & 'y')</script>"#
         let transcript = Transcript(
