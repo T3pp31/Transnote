@@ -100,28 +100,8 @@ enum ErrorMapper {
             }
         }
 
-        let description = error.localizedDescription
-        if description.localizedCaseInsensitiveContains("Model file not found")
-            || description.localizedCaseInsensitiveContains("Models are unavailable")
-            || description.localizedCaseInsensitiveContains("Model not found") {
-            return NSLocalizedString(
-                "モデルの読み込みに失敗しました。モデル管理から再ダウンロードしてください。",
-                comment: "Model loading failed"
-            )
-        }
-
-        // WhisperKit 由来のエラーは型不明のことが多いため、
-        // 部分文字列一致による誤分類を避けるべく、
-        // より具体的・長いフレーズに限定して判定する
-        let lowercasedDescription = description.lowercased()
-        if lowercasedDescription.contains("network connection")
-            || lowercasedDescription.contains("network error") {
-            return NSLocalizedString(
-                "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。",
-                comment: "Model download network failure"
-            )
-        }
-
+        // 型で判定できないエラーは、説明文の内容にかかわらず汎用メッセージにする。
+        // 技術詳細のログ記録は呼び出し側に委ねる。
         return NSLocalizedString(
             "予期しないエラーが発生しました。もう一度お試しください。",
             comment: "Unexpected error"

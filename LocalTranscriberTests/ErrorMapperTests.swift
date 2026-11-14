@@ -6,6 +6,10 @@ final class ErrorMapperTests: XCTestCase {
         var errorDescription: String? { "Internal secret error details" }
     }
 
+    private struct DescribedTestError: LocalizedError {
+        let errorDescription: String?
+    }
+
     // "network" という文字列を含むが、実際はネットワークエラーではないエラー
     private struct NetworkKeywordButNotNetworkError: Error, LocalizedError {
         var errorDescription: String? { "Out-of-memory: network buffers exhausted" }
@@ -124,6 +128,71 @@ final class ErrorMapperTests: XCTestCase {
                 comment: "Unexpected error"
             )
         )
+    }
+
+    func testUnknownErrorPhrasesDoNotDetermineClassification() {
+        let descriptions = [
+            "Out-of-memory while allocating network connection buffers",
+            "Corrupt model metadata: NETWORK ERROR is not a valid layer name",
+            "Model file not found in diagnostic text; actual failure is out-of-memory",
+            "Models are unavailable is a cached status; actual failure is out-of-memory",
+            "Model not found in diagnostic text; actual failure is out-of-memory",
+        ]
+        let expected = L(
+            "予期しないエラーが発生しました。もう一度お試しください。",
+            comment: "Unexpected error"
+        )
+
+        for description in descriptions {
+            let reason = DescribedTestError(errorDescription: description)
+            XCTAssertEqual(ErrorMapper.userMessage(for: reason), expected, description)
+            XCTAssertEqual(
+                AppError.transcriptionFailedWithReason(reason).errorDescription,
+                expected,
+                description
+            )
+            XCTAssertEqual(
+                AppError.exportFailedWithReason(reason).errorDescription,
+                String(
+                    format: L("エクスポートに失敗しました: %@", comment: "Export failed"),
+                    expected
+                ),
+                description
+            )
+        }
+    }
+
+    func testNetworkURLCodesAreClassifiedRegardlessOfDescription() {
+        let codes: [URLError.Code] = [
+            .notConnectedToInternet, .networkConnectionLost, .timedOut,
+            .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .resourceUnavailable,
+        ]
+        let expected = L(
+            "モデルのダウンロードに失敗しました。ネットワーク接続を確認してください。",
+            comment: "Model download network failure"
+        )
+
+        for code in codes {
+            let error = URLError(code, userInfo: [NSLocalizedDescriptionKey: "Model file not found"])
+            XCTAssertEqual(ErrorMapper.userMessage(for: error), expected, "\(code)")
+        }
+    }
+
+    func testOtherURLCodesAreNotClassifiedByDescription() {
+        for description in ["network connection", "network error", "Model file not found"] {
+            let error = URLError(
+                .cannotDecodeContentData,
+                userInfo: [NSLocalizedDescriptionKey: description]
+            )
+            XCTAssertEqual(
+                ErrorMapper.userMessage(for: error),
+                L(
+                    "予期しないエラーが発生しました。もう一度お試しください。",
+                    comment: "Unexpected error"
+                ),
+                description
+            )
+        }
     }
 
     func testOfflineKeywordIsNoLongerClassifiedAsNetwork() {
