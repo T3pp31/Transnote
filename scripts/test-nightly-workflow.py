@@ -89,6 +89,35 @@ else:
 '''
 
 
+class NightlyWorkflowSecurityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.workflow = (ROOT / ".github/workflows/nightly.yml").read_text(encoding="utf-8")
+
+    def test_token_permissions_are_explicitly_read_only(self):
+        self.assertRegex(self.workflow, r"(?m)^permissions:\n  contents: read\n(?=\n|\Z)")
+        # Job-level permissions would override the workflow-level restriction.
+        self.assertNotRegex(self.workflow, r"(?m)^ +permissions:")
+
+    def test_all_action_references_are_full_commit_shas(self):
+        actions = re.findall(r"(?m)^ +(?:- )?uses: (\S+)", self.workflow)
+        self.assertTrue(actions, "nightly action steps not found")
+        for action in actions:
+            with self.subTest(action=action):
+                self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
+
+    def test_checkouts_do_not_persist_credentials(self):
+        steps = re.split(r"(?m)^      - ", self.workflow)[1:]
+        checkouts = [
+            step for step in steps
+            if re.search(r"(?m)^(?:uses:|        uses:) actions/checkout@", step)
+        ]
+        self.assertTrue(checkouts, "nightly checkout step not found")
+        for step in checkouts:
+            self.assertRegex(step, r"(?m)^        with:\n")
+            self.assertRegex(step, r"(?m)^          persist-credentials: false$")
+
+
 class NightlyWorkflowTests(unittest.TestCase):
     workflow_name = "nightly"
 
