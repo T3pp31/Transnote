@@ -181,6 +181,35 @@ final class TranscriptModelTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
     }
 
+    func testAppDirectoriesClearDirectoryReturnsFalseWhenRemovingEntryFails() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let lockedFile = root.appendingPathComponent("locked.bin")
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        defer {
+            do {
+                if fileManager.fileExists(atPath: lockedFile.path) {
+                    try fileManager.setAttributes([.immutable: false], ofItemAtPath: lockedFile.path)
+                }
+                try fileManager.removeItem(at: root)
+            } catch {
+                XCTFail("一時ディレクトリの後片付けに失敗しました: \(error)")
+            }
+        }
+
+        let content = Data("locked".utf8)
+        try content.write(to: lockedFile)
+        // macOS のロック属性で、一覧取得は成功してもエントリの削除だけが失敗する状態を作る。
+        try fileManager.setAttributes([.immutable: true], ofItemAtPath: lockedFile.path)
+        XCTAssertEqual(try fileManager.contentsOfDirectory(atPath: root.path), ["locked.bin"])
+        XCTAssertThrowsError(try fileManager.removeItem(at: lockedFile))
+
+        XCTAssertFalse(AppDirectories.clearDirectory(root))
+        XCTAssertTrue(fileManager.fileExists(atPath: root.path))
+        XCTAssertEqual(try Data(contentsOf: lockedFile), content)
+    }
+
     func testTranscriptRejectsUnsupportedSchemaVersion() throws {
         let json = """
         {
@@ -440,6 +469,165 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(store.search(query: "", limit: 2).map(\.id), [nonMatch.id, fileNameMatch.id])
     }
 
+    func testHistoryStoreSearchCachesUnchangedTranscriptsAndInvalidJSON() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let reads = HistorySearchReadRecorder()
+        let store = HistoryStore(historyRoot: root, searchDataLoader: { try reads.load($0) })
+        let older = Transcript(
+            sourceFileName: "notes.wav", createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            fullText: String(repeating: "長い本文 ÄRGER Needle ", count: 1000)
+        )
+        let newer = Transcript(
+            sourceFileName: "NEEDLE.wav", createdAt: older.createdAt.addingTimeInterval(100), fullText: "other text"
+        )
+        try writer.save(older)
+        try writer.save(newer)
+        try Data("broken JSON".utf8).write(to: root.appendingPathComponent("broken.json"))
+
+        XCTAssertEqual(store.search(query: "needle", limit: 1).map(\.id), [newer.id])
+        XCTAssertEqual(reads.total, 3)
+        // limit が小さくても全候補を索引化し、別の検索語・件数でも再利用する。
+        let copy = store
+        XCTAssertEqual(copy.search(query: "NEEDLE", limit: 10).map(\.id), [newer.id, older.id])
+        XCTAssertEqual(store.search(query: "ärger").map(\.id), [older.id])
+        XCTAssertTrue(store.search(query: "absent").isEmpty)
+        XCTAssertTrue(store.search(query: "needle", limit: 0).isEmpty)
+        XCTAssertTrue(store.search(query: "needle", limit: -1).isEmpty)
+        XCTAssertEqual(reads.total, 3, "Unchanged valid and invalid JSON must not be read or decoded again")
+    }
+
+    func testHistoryStoreSearchRefreshesExternalChangesAndPrunesDeletedFiles() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let reads = HistorySearchReadRecorder()
+        let store = HistoryStore(historyRoot: root, searchDataLoader: { try reads.load($0) })
+        var transcript = Transcript(sourceFileName: "notes.wav", fullText: "alpha")
+        let unchanged = Transcript(sourceFileName: "unchanged.wav", fullText: "needle")
+        let url = root.appendingPathComponent("\(transcript.id.uuidString).json")
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        func setModificationDate(_ offset: TimeInterval) throws {
+            try FileManager.default.setAttributes(
+                [.modificationDate: baseDate.addingTimeInterval(offset)], ofItemAtPath: url.path
+            )
+        }
+        try writer.save(transcript)
+        try writer.save(unchanged)
+        try setModificationDate(0)
+        XCTAssertEqual(store.search(query: "alpha").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 2)
+
+        // 同じサイズで更新日時だけが変わったファイルも再読み込みする。
+        transcript.fullText = "bravo"
+        try writer.save(transcript)
+        try setModificationDate(10)
+        XCTAssertTrue(store.search(query: "alpha").isEmpty)
+        XCTAssertEqual(store.search(query: "bravo").first?.fullText, "bravo")
+        XCTAssertEqual(reads.total, 3)
+
+        // 更新日時を維持したままサイズが変わった場合も無効化する。
+        transcript.fullText = "a much longer replacement"
+        try writer.save(transcript)
+        try setModificationDate(10)
+        XCTAssertEqual(store.search(query: "replacement").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 4)
+
+        let added = Transcript(sourceFileName: "ADDED.wav", fullText: "new entry")
+        try writer.save(added)
+        XCTAssertEqual(store.search(query: "added").map(\.id), [added.id])
+        XCTAssertEqual(reads.total, 5)
+
+        try Data("invalid JSON".utf8).write(to: url, options: .atomic)
+        try setModificationDate(20)
+        XCTAssertTrue(store.search(query: "replacement").isEmpty)
+        XCTAssertTrue(store.search(query: "replacement").isEmpty)
+        XCTAssertEqual(reads.total, 6)
+        try writer.save(transcript)
+        try setModificationDate(30)
+        XCTAssertEqual(store.search(query: "replacement").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 7)
+
+        try FileManager.default.removeItem(at: url)
+        XCTAssertTrue(store.search(query: "replacement").isEmpty)
+        XCTAssertEqual(reads.total, 7)
+        // 同じパス・メタデータで復活しても、削除済みエントリを使い回さない。
+        try writer.save(transcript)
+        try setModificationDate(30)
+        XCTAssertEqual(store.search(query: "replacement").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 8)
+        XCTAssertEqual(reads.count(for: root.appendingPathComponent("\(unchanged.id.uuidString).json")), 1)
+
+        try FileManager.default.removeItem(at: root)
+        XCTAssertTrue(store.search(query: "needle").isEmpty)
+        try writer.save(unchanged)
+        XCTAssertEqual(store.search(query: "needle").map(\.id), [unchanged.id])
+        XCTAssertEqual(reads.total, 9)
+    }
+
+    func testHistoryStoreSearchInvalidatesOwnSavesAndDeletesWithUnchangedMetadata() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // 同じディレクトリでも基準 URL や ./ の有無が違う表現を明示的に使う。
+        let relativeRoot = try XCTUnwrap(URL(string: "./", relativeTo: root))
+        XCTAssertEqual(relativeRoot.standardizedFileURL.path, root.standardizedFileURL.path)
+        let reads = HistorySearchReadRecorder()
+        let store = HistoryStore(historyRoot: relativeRoot, searchDataLoader: { try reads.load($0) })
+        var transcript = Transcript(sourceFileName: "notes.wav", fullText: "alpha")
+        let url = root.appendingPathComponent("\(transcript.id.uuidString).json")
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        func restoreModificationDate() throws {
+            try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+        }
+        try store.save(transcript)
+        try restoreModificationDate()
+        XCTAssertEqual(store.search(query: "alpha").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 1)
+
+        transcript.fullText = "bravo"
+        try store.save(transcript)
+        try restoreModificationDate()
+        XCTAssertTrue(store.search(query: "alpha").isEmpty)
+        XCTAssertEqual(store.search(query: "bravo").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 2)
+
+        store.delete(transcript)
+        // 次の検索より前に別ストアが同サイズで再作成しても、delete 前の本文は返さない。
+        transcript.fullText = "alpha"
+        try HistoryStore(historyRoot: root).save(transcript)
+        try restoreModificationDate()
+        XCTAssertTrue(store.search(query: "bravo").isEmpty)
+        XCTAssertEqual(store.search(query: "alpha").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 3)
+    }
+
+    func testHistoryStoreSearchRetriesReadFailuresAndSerializesConcurrentCacheAccess() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transcript = Transcript(sourceFileName: "meeting.wav", fullText: "needle")
+        try HistoryStore(historyRoot: root).save(transcript)
+        let reads = HistorySearchReadRecorder()
+        let store = HistoryStore(
+            historyRoot: root,
+            searchDataLoader: { url in
+                let data = try reads.load(url)
+                if reads.count(for: url) == 1 { throw CocoaError(.fileReadNoPermission) }
+                return data
+            }
+        )
+        XCTAssertTrue(store.search(query: "needle", limit: 0).isEmpty)
+        XCTAssertEqual(reads.total, 0)
+        XCTAssertTrue(store.search(query: "needle").isEmpty)
+        XCTAssertEqual(reads.total, 1)
+
+        DispatchQueue.concurrentPerform(iterations: 20) { index in
+            let query = index.isMultiple(of: 2) ? "NEEDLE" : "MEETING"
+            XCTAssertEqual(store.search(query: query).map(\.id), [transcript.id])
+        }
+        XCTAssertEqual(reads.total, 2, "A read failure must be retried, then concurrent searches must share the cache")
+    }
+
     func testHistoryStoreDelete() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -452,5 +640,30 @@ final class TranscriptModelTests: XCTestCase {
 
         XCTAssertTrue(store.recent().isEmpty)
 
+    }
+}
+
+/// ストアと検索 ViewModel の回帰テストで、実ファイルの読み込み回数を検証する。
+final class HistorySearchReadRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counts: [String: Int] = [:]
+
+    var total: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return counts.values.reduce(0, +)
+    }
+
+    func count(for url: URL) -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return counts[url.standardizedFileURL.path, default: 0]
+    }
+
+    func load(_ url: URL) throws -> Data {
+        lock.lock()
+        counts[url.standardizedFileURL.path, default: 0] += 1
+        lock.unlock()
+        return try Data(contentsOf: url)
     }
 }

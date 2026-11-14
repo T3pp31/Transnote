@@ -76,14 +76,19 @@ struct ExportService {
         for segment in transcript.segments {
             let start = formatTimestamp(segment.startTime, separator: ".")
             let end = formatTimestamp(segment.endTime, separator: ".")
-            lines.append("- [\(start) --> \(end)] \(escapeMarkdown(segment.text))")
+            // 続き行が別のリスト・引用・コードブロックを開始しないよう、本文を 1 行に収める。
+            let text = segment.text
+                .replacingOccurrences(of: "\r\n", with: " ")
+                .replacingOccurrences(of: "\r", with: " ")
+                .replacingOccurrences(of: "\n", with: " ")
+            lines.append("- [\(start) --> \(end)] \(escapeMarkdown(text))")
         }
 
         return lines.joined(separator: "\n")
     }
 
-    /// Markdown の見出し・リスト・リンクを壊さないよう、
-    /// ファイル名・セグメントテキストに含まれる特殊文字をエスケープする。
+    /// Markdown の見出し・リスト・リンクを壊さず、コードや HTML として解釈されないよう、
+    /// ファイル名・言語・セグメントテキストに含まれる特殊文字をエスケープする。
     private func escapeMarkdown(_ text: String) -> String {
         text
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -92,6 +97,9 @@ struct ExportService {
             .replacingOccurrences(of: "[", with: "\\[")
             .replacingOccurrences(of: "]", with: "\\]")
             .replacingOccurrences(of: "#", with: "\\#")
+            .replacingOccurrences(of: "`", with: "\\`")
+            .replacingOccurrences(of: "<", with: "\\<")
+            .replacingOccurrences(of: ">", with: "\\>")
     }
     private func exportJSON(_ transcript: Transcript) throws -> String {
         let encoder = JSONEncoder()

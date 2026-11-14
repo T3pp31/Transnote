@@ -92,6 +92,7 @@ jobs:
         timeout-minutes: 120
         env:
           RUN_MODEL_INTEGRATION_TESTS: '1'
+          TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: '1'
         run: |
           set -euo pipefail
           # Validate selectors separately so one passing suite cannot hide an
