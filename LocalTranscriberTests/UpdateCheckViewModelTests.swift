@@ -4,8 +4,8 @@ import XCTest
 
 @MainActor
 final class UpdateCheckViewModelTests: XCTestCase {
-    func testCheckOnLaunchCanRunAfterInitiallyDisabled() async throws {
-        let settings = try makeSettings(enabled: false)
+    func testCheckOnLaunchCanRunAfterInitiallyDisabled() async {
+        let settings = StubAppSettings(updateCheckEnabled: false)
         let checker = StubUpdateChecker(offer: makeOffer())
         let viewModel = UpdateCheckViewModel(updateChecker: checker, settings: settings)
 
@@ -37,8 +37,8 @@ final class UpdateCheckViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.updateOffer, checker.offer)
     }
 
-    func testCheckOnLaunchRunsOnlyOnceEvenWhenNoOfferIsReturned() async throws {
-        let settings = try makeSettings(enabled: true)
+    func testCheckOnLaunchRunsOnlyOnceEvenWhenNoOfferIsReturned() async {
+        let settings = StubAppSettings(updateCheckEnabled: true)
         let checker = StubUpdateChecker(offer: nil)
         let viewModel = UpdateCheckViewModel(updateChecker: checker, settings: settings)
 
@@ -55,8 +55,8 @@ final class UpdateCheckViewModelTests: XCTestCase {
         XCTAssertEqual(checker.callCount, 1)
     }
 
-    func testCheckNowCanRunRepeatedlyWhileAutomaticChecksAreDisabled() async throws {
-        let settings = try makeSettings(enabled: false)
+    func testCheckNowCanRunRepeatedlyWhileAutomaticChecksAreDisabled() async {
+        let settings = StubAppSettings(updateCheckEnabled: false)
         let checker = StubUpdateChecker(offer: makeOffer())
         let viewModel = UpdateCheckViewModel(updateChecker: checker, settings: settings)
 
@@ -68,16 +68,6 @@ final class UpdateCheckViewModelTests: XCTestCase {
             XCTAssertEqual(checker.callCount, expectedCount)
             XCTAssertEqual(viewModel.updateOffer, checker.offer)
         }
-    }
-
-    private func makeSettings(enabled: Bool) throws -> AppSettings {
-        let suiteName = "UpdateCheckViewModelTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        addTeardownBlock {
-            UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
-        }
-        defaults.set(enabled, forKey: "updateCheckEnabled")
-        return AppSettings(defaults: defaults)
     }
 
     private func makeOffer() -> UpdateOffer {
@@ -108,6 +98,26 @@ final class UpdateCheckViewModelTests: XCTestCase {
         action()
         await fulfillment(of: [unexpectedCheck], timeout: 0.1)
     }
+}
+
+@MainActor
+private final class StubAppSettings: AppSettingsProviding {
+    var selectedModelID = "base"
+    var selectedLanguageID = "auto"
+    @Published var updateCheckEnabled: Bool
+    var defaultExportFormat: ExportFormat = .txt
+    var vadEnabled = false
+    let models: [ModelOption] = []
+    let languages: [LanguageOption] = []
+    let supportedExtensions: [String] = []
+    var selectedModel: ModelOption? { nil }
+    var selectedLanguage: LanguageOption? { nil }
+
+    init(updateCheckEnabled: Bool) {
+        self.updateCheckEnabled = updateCheckEnabled
+    }
+
+    func persist() {}
 }
 
 @MainActor

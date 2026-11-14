@@ -6,11 +6,14 @@ final class UpdateCheckViewModel: ObservableObject {
     @Published private(set) var updateOffer: UpdateOffer?
 
     private let updateChecker: any UpdateChecking
-    private let settings: AppSettings
+    private let settings: any AppSettingsProviding
     private var hasCheckedOnLaunch = false
     private var checkGeneration = 0
 
-    init(updateChecker: any UpdateChecking = UpdateCheckService(), settings: AppSettings = .shared) {
+    init(
+        updateChecker: any UpdateChecking = UpdateCheckService(),
+        settings: any AppSettingsProviding = AppSettings.shared
+    ) {
         self.updateChecker = updateChecker
         self.settings = settings
     }

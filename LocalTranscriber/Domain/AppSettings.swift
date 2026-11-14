@@ -45,11 +45,15 @@ struct LanguageOption: Identifiable, Sendable, Equatable {
     }
 }
 
-/// ViewModel などから参照する AppSettings の抽象。テスト・DI のために Protocol 化する。
+/// ViewModel から参照・変更するアプリ設定の抽象。テスト・DI に用いる。
+/// 永続化対象の設定値と、その解決に必要な選択肢を公開する。
+/// 推奨モデルなど設定画面向けの派生情報は具象 AppSettings で提供する。
 @MainActor
 protocol AppSettingsProviding: AnyObject, ObservableObject {
     var selectedModelID: String { get set }
     var selectedLanguageID: String { get set }
+    var updateCheckEnabled: Bool { get set }
+    var defaultExportFormat: ExportFormat { get set }
     var models: [ModelOption] { get }
     var languages: [LanguageOption] { get }
     var supportedExtensions: [String] { get }
