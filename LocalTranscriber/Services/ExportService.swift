@@ -69,7 +69,7 @@ struct ExportService {
         lines.append("## Full Text")
         lines.append("")
         // 全文の Markdown 書式は維持し、生 HTML のみテキストとして扱う。
-        lines.append(escapeHTML(transcript.fullText))
+        lines.append(escapeMarkdownHTML(transcript.fullText))
         lines.append("")
         lines.append("## Segments")
         lines.append("")
@@ -101,6 +101,75 @@ struct ExportService {
             .replacingOccurrences(of: "`", with: "\\`")
         // 生成する文字参照の # を Markdown エスケープしないよう、HTML は最後に処理する。
         return escapeHTML(escaped)
+    }
+
+    /// コード内では HTML 実体参照も文字どおり表示されるため、元のソースを保持する。
+    private func escapeMarkdownHTML(_ text: String) -> String {
+        // Foundation はコード内の改行を LF として位置を報告する。解析用だけ正規化し、
+        // 出力には元の改行とコードを使用する。
+        let source = text.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        guard let parsed = try? AttributedString(
+            markdown: source, options: .init(appliesSourcePositionAttributes: true)
+        ) else { return escapeHTML(text) }
+
+        var removedCarriageReturns = IndexSet()
+        var offset = 0
+        var previousWasCR = false
+        for byte in text.utf8 {
+            if byte == 10 && previousWasCR {
+                removedCarriageReturns.insert(offset - 1)
+            } else {
+                offset += 1
+            }
+            previousWasCR = byte == 13
+        }
+        func originalIndex(_ index: String.Index) -> String.Index {
+            let offset = source.utf8.distance(from: source.startIndex, to: index)
+            let originalOffset = offset + removedCarriageReturns.count(in: 0..<offset)
+            return text.utf8.index(text.startIndex, offsetBy: originalOffset)
+        }
+
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false)
+        let codeRanges = parsed.runs.compactMap { run -> Range<String.Index>? in
+            let isCodeBlock = run.presentationIntent?.components.contains {
+                if case .codeBlock = $0.kind { return true }
+                return false
+            } == true
+            guard isCodeBlock || run.inlinePresentationIntent?.contains(.code) == true,
+                  let position = run.markdownSourcePosition else { return nil }
+            guard let range = markdownSourceRange(position, in: source, lines: lines) else { return nil }
+            // 引用・リスト内のフェンスでは、開始行のコンテナ記号も保持する。
+            let start = isCodeBlock ? lines[position.startLine - 1].startIndex : range.lowerBound
+            return originalIndex(start)..<originalIndex(range.upperBound)
+        }.sorted { $0.lowerBound < $1.lowerBound }
+
+        var result = ""
+        var cursor = text.startIndex
+        for range in codeRanges where range.lowerBound >= cursor {
+            result += escapeHTML(String(text[cursor..<range.lowerBound]))
+            result += text[range]
+            cursor = range.upperBound
+        }
+        result += escapeHTML(String(text[cursor...]))
+        return result
+    }
+
+    private func markdownSourceRange(
+        _ position: AttributedString.MarkdownSourcePosition, in text: String, lines: [Substring]
+    ) -> Range<String.Index>? {
+        if let range = Range(position, in: text) { return range }
+        // インデント付きブロックは末尾の空行を column 0 として報告する場合がある。
+        guard position.endColumn == 0,
+              position.startLine > 0, position.startLine <= lines.count,
+              position.endLine > 0, position.endLine <= lines.count,
+              position.startColumn > 0 else { return nil }
+        let line = lines[position.startLine - 1]
+        guard let offset = line.utf8.index(
+            line.utf8.startIndex, offsetBy: position.startColumn - 1, limitedBy: line.utf8.endIndex
+        ), let start = String.Index(offset, within: text) else { return nil }
+        let end = lines[position.endLine - 1].startIndex
+        return start <= end ? start..<end : nil
     }
 
     private func escapeHTML(_ text: String) -> String {
