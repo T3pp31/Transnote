@@ -241,13 +241,13 @@ final class ExportServiceTests: XCTestCase {
 
             XCTAssertEqual(content, [
                 "# Transcript: test.wav", "", "## Full Text", "", "full text", "", "## Segments", "",
-                #"- [00:00:00.000 --> 00:00:01.000] 先頭 - bullet + bullet 1. ordered \> quote \`\`\`swift code \`\`\` ~~~ ---  末尾"#,
+                #"- [00:00:00.000 --> 00:00:01.000] 先頭 - bullet + bullet 1. ordered &gt; quote \`\`\`swift code \`\`\` ~~~ ---  末尾"#,
                 "- [00:00:01.000 --> 00:00:02.000] 次のセグメント"
             ].joined(separator: "\n"), "改行: \(newline.debugDescription)")
         }
     }
 
-    func testMarkdownEscapesCodeAndHTMLWithoutChangingFullText() throws {
+    func testMarkdownEscapesCodeAndHTMLWhilePreservingFullTextMarkdown() throws {
         let text = #"`code` ``nested ` code`` <b>text</b> <https://example.com> \` \<tag>"#
         let transcript = Transcript(
             sourceFileName: "test`<raw>.wav",
@@ -259,10 +259,10 @@ final class ExportServiceTests: XCTestCase {
         let content = try exportService.content(for: transcript, format: .markdown)
 
         XCTAssertEqual(content, [
-            #"# Transcript: test\`\<raw\>.wav"#, "",
-            #"Language: ja\`\<raw\>"#, "",
-            "## Full Text", "", "`code`\n<b>full text</b>", "", "## Segments", "",
-            #"- [00:00:00.000 --> 00:00:01.000] \`code\` \`\`nested \` code\`\` \<b\>text\</b\> \<https://example.com\> \\\` \\\<tag\>"#
+            #"# Transcript: test\`&lt;raw&gt;.wav"#, "",
+            #"Language: ja\`&lt;raw&gt;"#, "",
+            "## Full Text", "", "`code`\n&lt;b&gt;full text&lt;/b&gt;", "", "## Segments", "",
+            #"- [00:00:00.000 --> 00:00:01.000] \`code\` \`\`nested \` code\`\` &lt;b&gt;text&lt;/b&gt; &lt;https://example.com&gt; \\\` \\&lt;tag&gt;"#
         ].joined(separator: "\n"))
     }
 
@@ -287,6 +287,90 @@ final class ExportServiceTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let decoded = try decoder.decode(Transcript.self, from: Data(json.utf8))
+        XCTAssertEqual(decoded.fullText, text)
+        XCTAssertEqual(decoded.segments.first?.text, text)
+    }
+
+    // MARK: - Markdown HTML escape (#788)
+
+    func testMarkdownEscapesHTMLInAllVariableFields() throws {
+        let cases = [
+            (
+                input: #"<script>alert("x" & 'y')</script>"#,
+                escaped: "&lt;script&gt;alert(&quot;x&quot; &amp; &#39;y&#39;)&lt;/script&gt;"
+            ),
+            (
+                input: #"<img src=x onerror="alert('x')">"#,
+                escaped: "&lt;img src=x onerror=&quot;alert(&#39;x&#39;)&quot;&gt;"
+            )
+        ]
+        for testCase in cases {
+            let transcript = Transcript(
+                sourceFileName: testCase.input,
+                language: testCase.input,
+                fullText: testCase.input,
+                segments: [TranscriptSegment(startTime: 0, endTime: 1, text: testCase.input)]
+            )
+            let content = try exportService.content(for: transcript, format: .markdown)
+            let expected = """
+            # Transcript: \(testCase.escaped)
+
+            Language: \(testCase.escaped)
+
+            ## Full Text
+
+            \(testCase.escaped)
+
+            ## Segments
+
+            - [00:00:00.000 --> 00:00:01.000] \(testCase.escaped)
+            """
+            XCTAssertEqual(content, expected, testCase.input)
+        }
+    }
+
+    func testMarkdownPreservesFullTextFormattingAndLiteralEntities() throws {
+        let transcript = Transcript(
+            sourceFileName: "test.wav",
+            fullText: "# 見出し\n\n*強調* _下線_ [link](https://example.invalid) `code`\n&lt;tag&gt; &amp; &#39;",
+            segments: []
+        )
+        let content = try exportService.content(for: transcript, format: .markdown)
+        let expected = """
+        # Transcript: test.wav
+
+        ## Full Text
+
+        # 見出し
+
+        *強調* _下線_ [link](https://example.invalid) `code`
+        &amp;lt;tag&amp;gt; &amp;amp; &amp;#39;
+
+        ## Segments
+
+        """
+        XCTAssertEqual(content, expected)
+    }
+
+    func testHTMLEscapingIsLimitedToMarkdownExport() throws {
+        let text = #"日本語 <script>alert("x" & 'y')</script>"#
+        let transcript = Transcript(
+            sourceFileName: text,
+            language: text,
+            fullText: text,
+            segments: [TranscriptSegment(startTime: 0, endTime: 1, text: text)]
+        )
+        XCTAssertEqual(try exportService.content(for: transcript, format: .txt), text)
+        for format in [ExportFormat.srt, .vtt] {
+            let content = try exportService.content(for: transcript, format: format)
+            XCTAssertTrue(content.hasSuffix(text), format.rawValue)
+        }
+        let json = try exportService.content(for: transcript, format: .json)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(Transcript.self, from: XCTUnwrap(json.data(using: .utf8)))
+        XCTAssertEqual(decoded.sourceFileName, text)
+        XCTAssertEqual(decoded.language, text)
         XCTAssertEqual(decoded.fullText, text)
         XCTAssertEqual(decoded.segments.first?.text, text)
     }
