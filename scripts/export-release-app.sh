@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Extract Transnote.app from an Xcode archive for distribution.
+# Extract the configured app from an Xcode archive for distribution.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-APP_NAME="Transnote"
+DISTRIBUTION_PLIST="${ROOT_DIR}/Config/distribution.plist"
 ENTITLEMENTS_PATH="${ROOT_DIR}/LocalTranscriber/LocalTranscriber.entitlements"
 
 usage() {
@@ -12,7 +12,7 @@ Usage: $(basename "$0") --archive <path.xcarchive> --output <dir> [options]
 
 Options:
   --archive PATH     Path to the .xcarchive produced by xcodebuild archive
-  --output PATH      Directory where ${APP_NAME}.app will be copied
+  --output PATH      Directory where the configured .app will be copied
   --sign IDENTITY    Developer ID signing identity (optional)
   --team TEAM_ID     Validate that --sign belongs to this Apple Team ID (requires --sign)
   --verify-only      Verify signature on an existing app in --output
@@ -104,6 +104,20 @@ if [[ "$TEAM_SPECIFIED" -eq 1 ]]; then
     echo "Invalid --team value: expected a 10-character Apple Team ID" >&2
     exit 1
   fi
+fi
+
+if [[ -x /usr/libexec/PlistBuddy ]]; then
+  APP_NAME="$(/usr/libexec/PlistBuddy -c 'Print :AppName' "$DISTRIBUTION_PLIST")"
+else
+  APP_NAME="$(python3 -c '
+import plistlib, sys
+with open(sys.argv[1], "rb") as stream:
+    print(plistlib.load(stream)["AppName"])
+' "$DISTRIBUTION_PLIST")"
+fi
+if [[ -z "$APP_NAME" ]]; then
+  echo "AppName must not be empty: $DISTRIBUTION_PLIST" >&2
+  exit 1
 fi
 
 APP_PATH="${OUTPUT_DIR}/${APP_NAME}.app"

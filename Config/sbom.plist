@@ -6,8 +6,6 @@
 	<string>v1.49.0</string>
 	<key>OutputFormat</key>
 	<string>cyclonedx-json</string>
-	<key>AppName</key>
-	<string>Transnote</string>
 	<key>ReleaseOutputFilenamePattern</key>
 	<string>{AppName}-{Version}.cdx.json</string>
 	<key>CIOutputFilename</key>

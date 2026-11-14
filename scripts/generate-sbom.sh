@@ -4,6 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SBOM_CONFIG="${TRANSNOTE_SBOM_CONFIG:-${ROOT_DIR}/Config/sbom.plist}"
+DISTRIBUTION_PLIST="${ROOT_DIR}/Config/distribution.plist"
 SYFT_BIN="${SYFT_PATH:-syft}"
 
 MODE=""
@@ -19,7 +20,7 @@ Usage: $(basename "$0") --mode <release|ci> [options]
 
 Options:
   --mode release|ci       Required unless --print. release scans the app bundle; ci scans Package.resolved
-  --print KEY             Print one Config/sbom.plist value and exit (PlistBuddy or python3)
+  --print KEY             Print a SBOM config value (AppName comes from Config/distribution.plist)
   --input PATH            Scan target (defaults depend on mode)
   --version VERSION       Required for release mode (e.g. 0.1.0)
   --output-dir PATH       Output directory (default: Config/sbom.plist OutputDirectory)
@@ -62,7 +63,11 @@ read_sbom_config() {
   fi
 
   OUTPUT_FORMAT="$(plist_print OutputFormat)"
-  APP_NAME="$(plist_print AppName)"
+  APP_NAME="$(plist_print AppName "$DISTRIBUTION_PLIST")"
+  if [[ -z "$APP_NAME" ]]; then
+    echo "AppName must not be empty: $DISTRIBUTION_PLIST" >&2
+    exit 1
+  fi
   RELEASE_FILENAME_PATTERN="$(plist_print ReleaseOutputFilenamePattern)"
   CI_FILENAME_PATTERN="$(plist_print CIOutputFilename)"
   DEFAULT_OUTPUT_DIR="$(plist_print OutputDirectory)"
@@ -160,7 +165,11 @@ if [[ -n "$PRINT_KEY" ]]; then
     echo "SBOM config not found: $SBOM_CONFIG" >&2
     exit 1
   fi
-  plist_print "$PRINT_KEY"
+  if [[ "$PRINT_KEY" == AppName ]]; then
+    plist_print AppName "$DISTRIBUTION_PLIST"
+  else
+    plist_print "$PRINT_KEY"
+  fi
   exit 0
 fi
 
