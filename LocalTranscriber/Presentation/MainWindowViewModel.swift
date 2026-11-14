@@ -565,7 +565,8 @@ final class MainWindowViewModel: ObservableObject {
                 title: NSLocalizedString("処理中", comment: "Busy title"),
                 message: NSLocalizedString("別の処理を実行中のため開始できません。", comment: "Busy message"),
                 canRetry: false,
-                action: nil
+                action: nil,
+                preserveUIState: true
             )
             return
         }
@@ -607,7 +608,8 @@ final class MainWindowViewModel: ObservableObject {
                 title: NSLocalizedString("処理中", comment: "Busy title"),
                 message: NSLocalizedString("別の処理を実行中のため開始できません。", comment: "Busy message"),
                 canRetry: false,
-                action: nil
+                action: nil,
+                preserveUIState: true
             )
             return
         }
@@ -989,7 +991,8 @@ final class MainWindowViewModel: ObservableObject {
         title: String,
         message: String,
         canRetry: Bool,
-        action: RecoverableAction?
+        action: RecoverableAction?,
+        preserveUIState: Bool = false
     ) {
         errorMessage = message
         inlineErrorTitle = title
@@ -998,7 +1001,10 @@ final class MainWindowViewModel: ObservableObject {
         lastRecoverableAction = canRetry ? action : nil
         criticalErrorTitle = nil
         criticalErrorMessage = nil
-        uiState = .idle
+        // 開始拒否の通知では進行中操作を維持し、実際の失敗時だけ待機状態に戻す。
+        if !preserveUIState {
+            uiState = .idle
+        }
     }
 
     private func presentCriticalError(title: String, message: String) {

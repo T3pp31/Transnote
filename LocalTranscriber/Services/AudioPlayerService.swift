@@ -209,11 +209,11 @@ final class AudioPlayerService {
         timeObserver = nil
     }
 
+    /// 保留中の開始だけを無効化し、再開後の終了通知用に完了コールバックは保持する。
     private func invalidatePendingPlayback() {
         playbackGeneration += 1
         pendingStartTime = nil
         pendingPlaybackGeneration = 0
-        onFinished = nil
         cancelStatusObservation()
     }
 }
