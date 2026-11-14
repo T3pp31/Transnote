@@ -80,14 +80,7 @@ jobs:
 
       - name: Run tests
         run: |
-          xcodebuild test \
-            -project "${{ env.PROJECT }}" \
-            -scheme "${{ env.SCHEME }}" \
-            -destination 'platform=macOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            -derivedDataPath "${{ env.DERIVED_DATA_PATH }}" \
-            -skip-testing:LocalTranscriberTests/ModelDownloadIntegrationTests \
-            -skip-testing:LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
+          bash scripts/run-tests.sh release
 
       - name: Archive Release build
         run: |
