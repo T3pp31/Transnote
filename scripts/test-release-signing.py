@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Release workflow signing regression tests without macOS or real credentials."""
 
+import itertools
 import os
 from pathlib import Path
 import re
@@ -33,6 +34,117 @@ mock_codesign() {
   fi
 }
 """
+
+
+def env_values(block, indent):
+    # Read only the workflow's single-line env mappings; no YAML dependency needed.
+    match = re.search(
+        rf"(?m)^{' ' * indent}env:\n((?:{' ' * (indent + 2)}[^\n]+\n)+)", block
+    )
+    if not match:
+        return {}
+    return dict(
+        line.strip().split(": ", 1)
+        for line in match[1].splitlines()
+        if not line.lstrip().startswith("#")
+    )
+
+
+def condition_value(expression, **contexts):
+    # Only the comparison/conjunction subset used by these gates is supported.
+    match = re.fullmatch(r"\$\{\{ (.+) \}\}", expression)
+    if not match:
+        raise AssertionError(f"Unsupported condition: {expression}")
+    results = []
+    for term in match[1].split(" && "):
+        comparison = re.fullmatch(r"(secrets|env)\.([A-Z_]+) (==|!=) '([^']*)'", term)
+        if not comparison:
+            raise AssertionError(f"Unsupported condition term: {term}")
+        scope, key, operator, expected = comparison.groups()
+        equal = contexts[scope].get(key, "") == expected
+        results.append(equal if operator == "==" else not equal)
+    return all(results)
+
+
+class ReleaseSecretScopeTests(unittest.TestCase):
+    FLAGS = {
+        "HAS_SIGNING_SECRETS": (
+            "MACOS_CERTIFICATE", "MACOS_CERTIFICATE_PWD", "MACOS_CERTIFICATE_IDENTITY",
+        ),
+        "HAS_NOTARIZATION_SECRETS": ("APPLE_ID", "APPLE_ID_PASSWORD", "APPLE_TEAM_ID"),
+    }
+    CONSUMERS = {
+        "name: Sign app with Developer ID": {
+            "CERTIFICATE_BASE64": "MACOS_CERTIFICATE",
+            "CERTIFICATE_PASSWORD": "MACOS_CERTIFICATE_PWD",
+            "CERTIFICATE_IDENTITY": "MACOS_CERTIFICATE_IDENTITY",
+        },
+        "name: Notarize app": {
+            "APPLE_ID": "APPLE_ID",
+            "APPLE_ID_PASSWORD": "APPLE_ID_PASSWORD",
+            "APPLE_TEAM_ID": "APPLE_TEAM_ID",
+        },
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text()
+        cls.header, *steps = re.split(r"^      - (?=name: |uses: )", workflow, flags=re.MULTILINE)
+        cls.steps = {step.splitlines()[0]: step for step in steps}
+        cls.job_env = env_values(cls.header, 4)
+
+    def test_shared_scopes_expose_only_boolean_presence_flags(self):
+        remaining = self.header
+        for flag, names in self.FLAGS.items():
+            expression = "${{ " + " && ".join(f"secrets.{name} != ''" for name in names) + " }}"
+            self.assertEqual(self.job_env.get(flag), expression)
+            remaining = remaining.replace(f"      {flag}: {expression}\n", "", 1)
+        # Also catches secret references in workflow-wide env or other job fields.
+        self.assertNotIn("secrets.", remaining)
+
+    def test_raw_secrets_are_only_in_the_consuming_steps_env(self):
+        for name in self.CONSUMERS:
+            self.assertIn(name, self.steps)
+        for name, step in self.steps.items():
+            with self.subTest(step=name):
+                values = env_values(step, 8)
+                remaining = step
+                for variable, secret in self.CONSUMERS.get(name, {}).items():
+                    expression = "${{ secrets." + secret + " }}"
+                    self.assertEqual(values.get(variable), expression)
+                    remaining = remaining.replace(f"          {variable}: {expression}\n", "", 1)
+                # Includes tests, archive, export, SBOM, DMG and third-party actions.
+                self.assertNotIn("secrets.", remaining)
+
+    def test_gates_preserve_unsigned_signed_and_notarized_paths(self):
+        gates = []
+        for name in self.CONSUMERS:
+            match = re.search(r"(?m)^        if: (.+)$", self.steps[name])
+            self.assertIsNotNone(match)
+            gates.append(match[1])
+        for flag in self.FLAGS:
+            self.assertIn(flag, self.job_env)
+        flags = {flag: self.job_env[flag] for flag in self.FLAGS}
+        secret_names = [name for names in self.FLAGS.values() for name in names]
+        # All 64 complete/missing/partial configurations, with and without signing success.
+        for present in itertools.product((False, True), repeat=len(secret_names)):
+            secrets = {
+                name: "dummy-value" if exists else ""
+                for name, exists in zip(secret_names, present)
+            }
+            env = {
+                flag: str(condition_value(value, secrets=secrets)).lower()
+                for flag, value in flags.items()
+            }
+            can_sign = all(secrets[name] for name in self.FLAGS["HAS_SIGNING_SECRETS"])
+            can_notarize = all(secrets[name] for name in self.FLAGS["HAS_NOTARIZATION_SECRETS"])
+            for signed in ("", "0", "1"):
+                with self.subTest(present=present, signed=signed):
+                    env["SIGNED"] = signed
+                    self.assertEqual(condition_value(gates[0], env=env), can_sign)
+                    self.assertEqual(
+                        condition_value(gates[1], env=env), can_notarize and signed == "1"
+                    )
 
 
 class ReleaseSigningTests(unittest.TestCase):
