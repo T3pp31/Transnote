@@ -18,15 +18,22 @@ struct AudioImportService: Sendable {
     }
 
     func importFile(from sourceURL: URL, preferredFileName: String? = nil) throws -> URL {
-        if isAlreadyImported(sourceURL) {
-            guard fileManager.fileExists(atPath: sourceURL.path) else {
-                throw AppError.fileNotFound
-            }
-            return sourceURL
-        }
-
         guard fileManager.fileExists(atPath: sourceURL.path) else {
             throw AppError.fileNotFound
+        }
+
+        let didAccessSource = sourceURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccessSource {
+                sourceURL.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        // Sandbox では security-scoped access 開始後に属性を読む。
+        // Imports/ 内のファイルも、コピーを省略する前に同じ検証を行う。
+        try validateImportFile(at: sourceURL)
+        if isAlreadyImported(sourceURL) {
+            return sourceURL
         }
 
         try fileManager.createDirectory(at: importsRoot, withIntermediateDirectories: true)
@@ -45,37 +52,14 @@ struct AudioImportService: Sendable {
             }
         }
 
-        let didAccessSource = sourceURL.startAccessingSecurityScopedResource()
-        defer {
-            if didAccessSource {
-                sourceURL.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        // security-scoped access を開始した後にファイル属性を読む。
-        // Sandbox 環境ではアクセス開始前の属性取得が失敗し得るため。
-        // サイズ超過はフォールバックせず、そのままエラーとして扱う。
-        try validateFileSize(at: sourceURL)
-
-        do {
-            try fileManager.copyItem(at: sourceURL, to: temporaryURL)
-        } catch {
-            // copyItem が部分コピーの途中で失敗した場合に temporaryURL へ残骸が残るため、
-            // 事前に削除してから copyFileStreaming へフォールバックする
-            removeFileIfExistsIfFailed(temporaryURL)
-
-            if fileManager.isReadableFile(atPath: sourceURL.path) {
-                try copyFileStreaming(from: sourceURL, to: temporaryURL)
-            } else {
-                throw AppError.fileAccessDenied
-            }
-        }
+        // copyItem は事前検証後に増加したファイルのコピー量を制限できないため、
+        // 常に書き込み前に累積サイズを検査するストリーミングコピーを使う。
+        try copyFileStreaming(from: sourceURL, to: temporaryURL)
 
         // 一時ファイルを最終 URL へ atomic に rename する（同名競合・部分ファイル防止）
         try fileManager.moveItem(at: temporaryURL, to: destinationURL)
 
-        // copyItem は元ファイルのmtimeを保存するため、クリーンアップ判定には
-        // ソースの録音日ではなく「取り込み日」を使う。
+        // クリーンアップ判定にはソースの録音日ではなく「取り込み日」を使う。
         try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: destinationURL.path)
 
         AppLogger.info(
@@ -86,10 +70,12 @@ struct AudioImportService: Sendable {
         return destinationURL
     }
 
-    private func validateFileSize(at url: URL) throws {
+    private func validateImportFile(at url: URL) throws {
         let attributes = try fileManager.attributesOfItem(atPath: url.path)
-        guard let fileSize = attributes[.size] as? NSNumber else {
-            return
+        guard attributes[.type] as? FileAttributeType == .typeRegular,
+              let fileSize = attributes[.size] as? NSNumber,
+              fileSize.int64Value >= 0 else {
+            throw AppError.fileAccessDenied
         }
         if fileSize.int64Value > maxImportFileSizeBytes {
             throw AppError.fileTooLarge
@@ -101,7 +87,9 @@ struct AudioImportService: Sendable {
             throw AppError.fileAccessDenied
         }
 
-        fileManager.createFile(atPath: destinationURL.path, contents: nil)
+        guard fileManager.createFile(atPath: destinationURL.path, contents: nil) else {
+            throw AppError.fileAccessDenied
+        }
 
         guard let outputStream = OutputStream(url: destinationURL, append: false) else {
             throw AppError.fileAccessDenied
@@ -115,18 +103,24 @@ struct AudioImportService: Sendable {
         }
 
         var buffer = [UInt8](repeating: 0, count: Self.copyBufferSize)
+        var copiedBytes: Int64 = 0
 
         // hasBytesAvailable は read の前に必ずしも正確ではないため、
         // read が 0（EOF）を返すまで読み続ける。
         while true {
             let bytesRead = inputStream.read(&buffer, maxLength: buffer.count)
             if bytesRead < 0 {
-                removeFileIfExistsIfFailed(destinationURL)
                 throw AppError.fileAccessDenied
             }
             if bytesRead == 0 {
                 break
             }
+
+            // 加算前に残り容量と比較し、オーバーフローと上限超過の書き込みを防ぐ。
+            guard Int64(bytesRead) <= maxImportFileSizeBytes - copiedBytes else {
+                throw AppError.fileTooLarge
+            }
+            copiedBytes += Int64(bytesRead)
 
             // OutputStream.write は部分書き込みを行うことがあるため、
             // 書き込めた分を進め、残りを再度書き込むループにする。
@@ -135,7 +129,6 @@ struct AudioImportService: Sendable {
                 let remaining = Array(buffer[writtenTotal..<bytesRead])
                 let bytesWritten = outputStream.write(remaining, maxLength: remaining.count)
                 if bytesWritten <= 0 {
-                    removeFileIfExistsIfFailed(destinationURL)
                     throw AppError.fileAccessDenied
                 }
                 writtenTotal += bytesWritten
@@ -143,9 +136,8 @@ struct AudioImportService: Sendable {
         }
     }
 
-    /// ファイルが存在する場合のみ削除する。importFile の失敗時に destinationURL の残骸
-    /// （copyItem の部分コピーや copyFileStreaming の途中で作成されたファイル）を
-    /// 取り除くためのヘルパー。失敗しても無視する。
+    /// ファイルが存在する場合のみ削除する。importFile の失敗時にストリームを閉じてから
+    /// 一時ファイルの残骸を取り除くためのヘルパー。失敗しても無視する。
     func removeFileIfExistsIfFailed(_ url: URL) {
         if fileManager.fileExists(atPath: url.path) {
             try? fileManager.removeItem(at: url)
