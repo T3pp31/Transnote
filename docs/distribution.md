@@ -7,6 +7,7 @@ Transnote の Release ビルド、DMG 作成、GitHub Releases 公開は GitHub 
 ```text
 vX.Y.Z タグ push または workflow_dispatch
   → テスト
+  → 実モデル取得・検出・ロードの必須テスト
   → Release archive（署名なし）
   → Transnote.app を取り出し
   → DMG 作成（Transnote.app + インストール.command + Applications リンク）
@@ -14,6 +15,8 @@ vX.Y.Z タグ push または workflow_dispatch
   → SBOM 生成（Transnote-<version>.cdx.json）
   → GitHub Release へアップロード（DMG + .sha256 + SBOM、本文にハッシュ記載）
 ```
+
+タグ・手動リリースのどちらでも、アーカイブ前に `ModelDownloadIntegrationTests` と `ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder` を `RUN_MODEL_INTEGRATION_TESTS=1` で個別実行します。Nightly の過去の結果ではなく、リリース対象のコードで tiny モデルの実取得・フォルダ検出・WhisperKit ロードを確認します。テスト失敗、セレクタ未検出、全件スキップ、結果解析失敗、120 分のタイムアウト時は配布に進みません。モデル配布元のネットワーク障害もリリースを止めるため、復旧後に再実行してください（実文字起こしや全モデルの品質を保証するテストではありません）。
 
 GitHub Pages は `main` ブランチの `site/` 更新時に自動デプロイされ、[releases/latest](https://github.com/T3pp31/Transnote/releases/latest) へ誘導します。
 
