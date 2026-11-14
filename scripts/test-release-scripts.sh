@@ -7,6 +7,7 @@ bash "$ROOT/scripts/test-create-dmg.sh"
 
 python3 "$ROOT/scripts/test-ci-package-resolved.py"
 python3 "$ROOT/scripts/test-run-tests.py"
+python3 "$ROOT/scripts/test-generate-site-config.py"
 bash "$ROOT/scripts/test-install-transnote.sh"
 
 WORK=$(mktemp -d)
