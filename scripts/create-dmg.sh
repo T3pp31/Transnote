@@ -99,7 +99,14 @@ cp "$DISTRIBUTION_PLIST" "${STAGING_DIR}/distribution.plist"
 cp "$INSTALL_SCRIPT_TEMPLATE" "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
 chmod +x "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
 if [[ -f "$GATEKEEPER_README" ]]; then
-  cp "$GATEKEEPER_README" "${STAGING_DIR}/初めにお読みください.txt"
+  source "${ROOT_DIR}/scripts/release-security-notice.sh"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ "$line" == '@SECURITY_NOTICE@' ]]; then
+      printf '%s\n' "$security_notice"
+    else
+      printf '%s\n' "$line"
+    fi
+  done < "$GATEKEEPER_README" > "${STAGING_DIR}/初めにお読みください.txt"
 fi
 ln -s /Applications "${STAGING_DIR}/Applications"
 
