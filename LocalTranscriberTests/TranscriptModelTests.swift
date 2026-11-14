@@ -413,6 +413,196 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(recent.first?.fullText, "こんにちは")
     }
 
+    func testHistoryStoreRecentReadsOnlyRequestedPayloads() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let transcripts = (0..<80).map { index in
+            Transcript(
+                sourceFileName: "meeting-\(index).wav",
+                createdAt: baseDate.addingTimeInterval(Double(index)),
+                fullText: String(repeating: "long transcript ", count: 256),
+                segments: (0..<32).map { TranscriptSegment(startTime: Double($0), endTime: Double($0 + 1), text: "segment") }
+            )
+        }
+        // 通常の保存では全ファイルの更新日時が作成日時より新しくなる。
+        for transcript in transcripts {
+            try writer.save(transcript)
+        }
+
+        let probe = HistoryTranscriptReadProbe()
+        // 別インスタンスでも、保存済みメタデータだけで上位候補を選べる。
+        let reader = HistoryStore(historyRoot: root, readTranscriptData: { try probe.read($0) })
+        let recent = reader.recent(limit: 3)
+        XCTAssertEqual(recent.map(\.id), transcripts.suffix(3).reversed().map(\.id))
+        XCTAssertEqual(recent.first?.segments.count, 32)
+        XCTAssertEqual(probe.urls.count, 3)
+        XCTAssertTrue(reader.recent(limit: 0).isEmpty)
+        XCTAssertTrue(reader.recent(limit: -1).isEmpty)
+        XCTAssertEqual(probe.urls.count, 3)
+
+        probe.reset()
+        XCTAssertEqual(reader.search(query: "", limit: 2).map(\.id), transcripts.suffix(2).reversed().map(\.id))
+        XCTAssertEqual(probe.urls.count, 2)
+
+        var edited = try XCTUnwrap(transcripts.last)
+        edited.fullText = "edited text"
+        try writer.save(edited)
+        probe.reset()
+        XCTAssertEqual(reader.recent(limit: 1).first?.fullText, "edited text")
+        XCTAssertEqual(probe.urls.count, 1)
+    }
+
+    func testHistoryStoreRecentOrdersByCreationDateWithOlderModificationDates() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let transcripts = (0..<3).map {
+            Transcript(sourceFileName: "meeting-\($0).wav", createdAt: baseDate.addingTimeInterval(Double($0)))
+        }
+        for (index, transcript) in transcripts.enumerated() {
+            try store.save(transcript)
+            // 作成日時の逆順、かつ全ての作成日時より古い更新日時にする。
+            try FileManager.default.setAttributes(
+                [.modificationDate: baseDate.addingTimeInterval(-Double(index + 1))],
+                ofItemAtPath: historyURL(for: transcript, in: root).path
+            )
+        }
+
+        XCTAssertEqual(store.recent(limit: 1).map(\.id), [transcripts[2].id])
+        XCTAssertEqual(store.recent(limit: 2).map(\.id), [transcripts[2].id, transcripts[1].id])
+    }
+
+    func testHistoryStoreRecentRebuildsMissingAndBrokenMetadataForLegacyFiles() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let nested = root.appendingPathComponent("nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let older = Transcript(sourceFileName: "older.wav", createdAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let newer = Transcript(sourceFileName: "newer.wav", createdAt: older.createdAt.addingTimeInterval(100))
+        try writeHistoryTranscript(older, at: historyURL(for: older, in: nested))
+        let newerURL = historyURL(for: newer, in: root)
+        try writeHistoryTranscript(newer, at: newerURL)
+        let newerPath = historyFilePath(newerURL)
+
+        let probe = HistoryTranscriptReadProbe()
+        let reader = HistoryStore(historyRoot: root, readTranscriptData: { try probe.read($0) })
+        XCTAssertEqual(reader.recent(limit: 1).map(\.id), [newer.id])
+        XCTAssertEqual(probe.urls.count, 3, "旧履歴2件の移行と上位1件の読み込み")
+        probe.reset()
+        XCTAssertEqual(reader.recent(limit: 1).map(\.id), [newer.id])
+        XCTAssertEqual(probe.urls.map(historyFilePath), [newerPath])
+
+        let metadataURL = recentMetadataURL(for: newerURL)
+        for brokenMetadata in [false, true] {
+            if brokenMetadata {
+                try Data("invalid metadata".utf8).write(to: metadataURL)
+            } else {
+                try FileManager.default.removeItem(at: metadataURL)
+            }
+            probe.reset()
+            XCTAssertEqual(reader.recent(limit: 1).map(\.id), [newer.id])
+            XCTAssertEqual(probe.urls.map(historyFilePath), [newerPath, newerPath])
+            probe.reset()
+            XCTAssertEqual(reader.recent(limit: 1).map(\.id), [newer.id])
+            XCTAssertEqual(probe.urls.map(historyFilePath), [newerPath])
+        }
+    }
+
+    func testHistoryStoreRecentInvalidatesMetadataForAtomicReplacementAndCorruption() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let older = Transcript(sourceFileName: "older.wav", createdAt: baseDate, fullText: "old")
+        let newer = Transcript(sourceFileName: "newer.wav", createdAt: baseDate.addingTimeInterval(100))
+        try store.save(older)
+        try store.save(newer)
+        let url = historyURL(for: older, in: root)
+        let previousAttributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let replacement = Transcript(
+            id: older.id, sourceFileName: older.sourceFileName,
+            createdAt: baseDate.addingTimeInterval(200), fullText: "new"
+        )
+        try writeHistoryTranscript(replacement, at: url)
+        // サイズ・更新日時が同じでも、atomic 置換のファイル番号で無効化する。
+        try FileManager.default.setAttributes(
+            [.modificationDate: try XCTUnwrap(previousAttributes[.modificationDate])], ofItemAtPath: url.path
+        )
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        XCTAssertEqual(attributes[.size] as? NSNumber, previousAttributes[.size] as? NSNumber)
+        XCTAssertNotEqual(attributes[.systemFileNumber] as? NSNumber, previousAttributes[.systemFileNumber] as? NSNumber)
+        XCTAssertEqual(store.recent(limit: 1).first?.fullText, "new")
+
+        try Data("invalid transcript".utf8).write(to: url)
+        XCTAssertEqual(store.recent(limit: 1).map(\.id), [newer.id])
+    }
+
+    func testHistoryStoreRecentContinuesAfterUnreadableAndUnsupportedPayloads() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let older = Transcript(sourceFileName: "older.wav", createdAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let newer = Transcript(sourceFileName: "newer.wav", createdAt: older.createdAt.addingTimeInterval(100))
+        try writer.save(older)
+        try writer.save(newer)
+        let unsupported = Transcript(
+            sourceFileName: "unsupported.wav", createdAt: newer.createdAt.addingTimeInterval(100),
+            schemaVersion: Transcript.currentSchemaVersion + 1
+        )
+        try writer.save(unsupported)
+        // 列挙された URL と表記が違っても、同じファイルへの失敗注入を行う。
+        let unavailableAlias = root.appendingPathComponent(".unavailable.json")
+        try FileManager.default.createSymbolicLink(
+            at: unavailableAlias, withDestinationURL: historyURL(for: newer, in: root)
+        )
+        let unavailablePath = historyFilePath(unavailableAlias)
+        let reader = HistoryStore(historyRoot: root, readTranscriptData: { url in
+            if historyFilePath(url) == unavailablePath { throw CocoaError(.fileReadNoPermission) }
+            return try Data(contentsOf: url)
+        })
+
+        XCTAssertEqual(reader.recent(limit: 1).map(\.id), [older.id])
+    }
+
+    func testHistoryStoreMetadataWriteFailureDoesNotFailSavingOrReading() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let transcript = Transcript(sourceFileName: "meeting.wav", fullText: "hello")
+        let metadataURL = recentMetadataURL(for: historyURL(for: transcript, in: root))
+        // メタデータの保存先をディレクトリで塞ぐ（本文は保存可能）。
+        try FileManager.default.createDirectory(at: metadataURL, withIntermediateDirectories: true)
+        let blockerURL = metadataURL.appendingPathComponent("blocker")
+        try Data("occupied".utf8).write(to: blockerURL)
+        let store = HistoryStore(historyRoot: root)
+        try store.save(transcript)
+        XCTAssertEqual(store.recent(limit: 1).map(\.id), [transcript.id])
+        XCTAssertEqual(store.recent(limit: 1).map(\.id), [transcript.id])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: blockerURL.path))
+    }
+
+    private func historyURL(for transcript: Transcript, in root: URL) -> URL {
+        root.appendingPathComponent("\(transcript.id.uuidString).json")
+    }
+
+    private func recentMetadataURL(for url: URL) -> URL {
+        url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).recent-v1.json")
+    }
+
+    private func writeHistoryTranscript(_ transcript: Transcript, at url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode(transcript).write(to: url, options: .atomic)
+    }
+
     func testHistoryStoreSearchLimitsByCreationDateInsteadOfModificationDate() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -639,6 +829,7 @@ final class TranscriptModelTests: XCTestCase {
         store.delete(transcript)
 
         XCTAssertTrue(store.recent().isEmpty)
+        XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
 
     }
 }
@@ -665,5 +856,34 @@ final class HistorySearchReadRecorder: @unchecked Sendable {
         counts[url.standardizedFileURL.path, default: 0] += 1
         lock.unlock()
         return try Data(contentsOf: url)
+    }
+}
+
+// temporaryDirectory と enumerator の URL は、ベース URL や /var の別名が異なり得る。
+private func historyFilePath(_ url: URL) -> String {
+    url.resolvingSymlinksInPath().standardizedFileURL.path
+}
+
+private final class HistoryTranscriptReadProbe: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedURLs: [URL] = []
+
+    var urls: [URL] {
+        lock.lock()
+        defer { lock.unlock() }
+        return recordedURLs
+    }
+
+    func read(_ url: URL) throws -> Data {
+        lock.lock()
+        recordedURLs.append(url)
+        lock.unlock()
+        return try Data(contentsOf: url)
+    }
+
+    func reset() {
+        lock.lock()
+        defer { lock.unlock() }
+        recordedURLs.removeAll()
     }
 }
