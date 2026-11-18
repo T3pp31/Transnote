@@ -196,6 +196,38 @@ final class HistorySearchViewModelTests: XCTestCase {
         XCTAssertEqual(reads.total, 4, "The default search closure must retain its store across queries and clears")
     }
 
+    func testNewQueryCancelsPendingSearchTask() async {
+        let oldStarted = expectation(description: "old search started")
+        let oldRelease = DispatchSemaphore(value: 0)
+        let latestStarted = expectation(description: "latest search started")
+        let latestTranscript = Transcript(sourceFileName: "latest.wav")
+        let model = HistorySearchViewModel(
+            searchHistory: { query in
+                if query == "old" {
+                    oldStarted.fulfill()
+                    _ = oldRelease.wait(timeout: .now() + 5)
+                    return [Transcript(sourceFileName: "old.wav")]
+                }
+                latestStarted.fulfill()
+                return [latestTranscript]
+            },
+            waitForDebounce: {}
+        )
+
+        let old = Task { await model.search(query: "old") }
+        await fulfillment(of: [oldStarted], timeout: 2)
+
+        // 実行中の走査は中断できないが、完了後に結果を反映しないこと。
+        let latest = Task { await model.search(query: "latest") }
+        await fulfillment(of: [latestStarted], timeout: 2)
+        await latest.value
+
+        oldRelease.signal()
+        await old.value
+
+        XCTAssertEqual(model.items.map(\.id), [latestTranscript.id], "古い検索の結果を反映しないこと")
+    }
+
     func testEmptyQueryLoadsWithoutDebounce() async {
         let transcript = Transcript(sourceFileName: "recent.wav")
         let model = HistorySearchViewModel(
