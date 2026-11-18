@@ -21,7 +21,7 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         for name in ("scripts/generate-site-config.py", "Config/github-config.json",
-                     "Config/Defaults.plist", "site/app.js"):
+                     "Config/distribution.plist", "Config/Defaults.plist", "site/app.js"):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)
@@ -56,10 +56,15 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.config.update({
             "expected_repository": "Example/OtherApp",
             "github_api_base": "https://api.github.com/repos/Example/OtherApp",
-            "fallback_download_url": "https://downloads.example.com/Other.dmg",
             "allowed_download_hosts": ["downloads.example.com", "github.com"],
         })
         self.config_path.write_text(json.dumps(self.config), encoding="utf-8")
+        distribution = plistlib.loads((self.root / "Config/distribution.plist").read_bytes())
+        distribution["AppName"] = "OtherApp"
+        (self.root / "Config/distribution.plist").write_bytes(plistlib.dumps(distribution))
+        fallback_url = (
+            "https://github.com/Example/OtherApp/releases/latest/download/OtherApp.dmg"
+        )
         before_app = self.app.read_text(encoding="utf-8")
         before_defaults = plistlib.loads(self.defaults.read_bytes())
         result = self.run_generator("--check")
@@ -74,19 +79,20 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.assertEqual(generated.split(BEGIN)[0], before_app.split(BEGIN)[0])
         self.assertEqual(generated.split(END)[1], before_app.split(END)[1])
         block = generated.split(BEGIN)[1].split(END)[0]
-        for variable, key in (
-            ("expectedRepository", "expected_repository"),
-            ("githubAPIBase", "github_api_base"),
-            ("fallbackDownloadURL", "fallback_download_url"),
-            ("allowedDownloadHosts", "allowed_download_hosts"),
+        for variable, value in (
+            ("expectedRepository", self.config["expected_repository"]),
+            ("githubAPIBase", self.config["github_api_base"]),
+            ("fallbackDownloadURL", fallback_url),
+            ("allowedDownloadHosts", self.config["allowed_download_hosts"]),
         ):
             self.assertIn(f"var {variable} =", block)
-            self.assertIn(json.dumps(self.config[key]), block)
+            self.assertIn(json.dumps(value), block)
         expected_defaults = dict(before_defaults)
         expected_defaults.update({
             "ExpectedGitHubRepository": self.config["expected_repository"],
             "GitHubReleasesAPIURL": self.config["github_api_base"] + "/releases/latest",
-            "UpdateDownloadFallbackURL": self.config["fallback_download_url"],
+            "UpdateDownloadFallbackURL": fallback_url,
+            "UpdateDMGAssetName": "OtherApp.dmg",
             "AllowedUpdateDownloadHosts": self.config["allowed_download_hosts"],
         })
         self.assertEqual(plistlib.loads(self.defaults.read_bytes()), expected_defaults)
@@ -101,6 +107,7 @@ class GenerateSiteConfigTests(unittest.TestCase):
             ("ExpectedGitHubRepository", "stale/repo"),
             ("GitHubReleasesAPIURL", "https://api.example.com/stale"),
             ("UpdateDownloadFallbackURL", "https://example.com/stale.dmg"),
+            ("UpdateDMGAssetName", "Stale.dmg"),
             ("AllowedUpdateDownloadHosts", ["stale.example.com"]),
         ):
             with self.subTest(key=key):

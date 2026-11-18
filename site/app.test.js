@@ -88,6 +88,10 @@ const fs = require('fs');
 const vm = require('vm');
 const source = fs.readFileSync(require.resolve('./app.js'), 'utf8');
 const config = require('../Config/github-config.json');
+// フォールバックURLは distribution.plist の AppName から app.js に生成される。
+const generatedFallbackURL = source.match(
+  /var fallbackDownloadURL =\s*("([^"]*)")/
+)[2];
 
 // 別リポジトリ・許可ホストへの設定変更が実際の動作に反映されることを確認する。
 const customConfig = {
@@ -160,7 +164,7 @@ test('generated site settings drive API requests and fallback URL', async functi
     config.github_api_base + '/releases/latest',
     config.github_api_base + '/releases?per_page=30'
   ]);
-  assert.strictEqual(site.button.href, config.fallback_download_url);
+  assert.strictEqual(site.button.href, generatedFallbackURL);
   assert.strictEqual(site.version.textContent, '最新版 v1.0.0');
 });
 
