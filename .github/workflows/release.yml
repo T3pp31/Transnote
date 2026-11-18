@@ -30,10 +30,31 @@ jobs:
       HAS_SIGNING_SECRETS: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_CERTIFICATE_PWD != '' && secrets.MACOS_CERTIFICATE_IDENTITY != '' }}
       HAS_NOTARIZATION_SECRETS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
+      - name: Normalize checkout ref
+        id: checkout_ref
+        env:
+          RELEASE_VERSION_INPUT: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+            echo "ref=${GITHUB_REF}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$RELEASE_VERSION_INPUT" ]; then
+            echo "workflow_dispatch requires the version input (e.g. v0.1.0)." >&2
+            exit 1
+          fi
+          version="${RELEASE_VERSION_INPUT#v}"
+          if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+            echo "Release version contains unsupported characters." >&2
+            exit 1
+          fi
+          echo "ref=v${version}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
+          ref: ${{ steps.checkout_ref.outputs.ref }}
 
       - name: Read Xcode version
         id: xcode_config
