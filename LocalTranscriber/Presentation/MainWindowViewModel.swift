@@ -175,11 +175,7 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
         self.historyStore = historyStore
-        self.audioPlayer.onPlaybackTimeUpdate = { [weak self] current, duration in
-            Task { @MainActor in
-                self?.updatePlaybackPosition(current: current, duration: duration)
-            }
-        }
+        configureAudioPlayerCallbacks()
         refreshModelAvailability()
     }
 
@@ -196,7 +192,16 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = dependencies.modelDownloadService
         self.audioPlayer = dependencies.audioPlayer ?? AudioPlayerService()
         self.historyStore = dependencies.historyStore
+        configureAudioPlayerCallbacks()
         refreshModelAvailability()
+    }
+
+    private func configureAudioPlayerCallbacks() {
+        audioPlayer.onPlaybackTimeUpdate = { [weak self] current, duration in
+            Task { @MainActor in
+                self?.updatePlaybackPosition(current: current, duration: duration)
+            }
+        }
     }
 
     private let operationCoordinator = OperationCoordinator()
