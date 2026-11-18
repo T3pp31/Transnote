@@ -832,6 +832,34 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
 
     }
+
+    func testSaveWithTemporaryWritesHistoryAndRecovery() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let recoveryURL = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        let recoveryData = try? Data(contentsOf: recoveryURL)
+        defer {
+            if let recoveryData {
+                try? recoveryData.write(to: recoveryURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: recoveryURL)
+            }
+        }
+
+        let transcript = Transcript(sourceFileName: "meeting.wav", fullText: "hello")
+        try HistoryStore(historyRoot: root).saveWithTemporary(transcript)
+
+        let saved = try XCTUnwrap(HistoryStore(historyRoot: root).recent(limit: 1).first)
+        XCTAssertEqual(saved.id, transcript.id)
+        XCTAssertEqual(saved.fullText, transcript.fullText)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let recovered = try decoder.decode(Transcript.self, from: Data(contentsOf: recoveryURL))
+        XCTAssertEqual(recovered.id, transcript.id)
+        XCTAssertEqual(recovered.fullText, transcript.fullText)
+    }
 }
 
 /// ストアと検索 ViewModel の回帰テストで、実ファイルの読み込み回数を検証する。

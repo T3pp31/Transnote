@@ -36,19 +36,41 @@ struct HistoryStore: Sendable {
     }
 
     func save(_ transcript: Transcript) throws {
+        let data = try encode(transcript)
+        try write(data, for: transcript)
+    }
+
+    /// 履歴と復旧用の両方へ同じエンコード結果を書き出す。
+    /// 同一 Transcript を2回エンコードするコストを避けるため。
+    func saveWithTemporary(_ transcript: Transcript) throws {
+        let data = try encode(transcript)
+        try write(data, for: transcript)
+        try writeTemporary(data)
+    }
+
+    private func encode(_ transcript: Transcript) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(transcript)
+    }
+
+    private func write(_ data: Data, for transcript: Transcript) throws {
         Self.metadataLock.lock()
         defer { Self.metadataLock.unlock() }
 
         try fileManager.createDirectory(at: historyRoot, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(transcript)
         let url = historyRoot.appendingPathComponent("\(transcript.id.uuidString).json")
         try data.write(to: url, options: .atomic)
         searchCache.invalidate(url)
         if let version = fileVersion(at: url) {
             saveRecentMetadata(createdAt: transcript.createdAt, fileVersion: version, at: url)
         }
+    }
+
+    private func writeTemporary(_ data: Data) throws {
+        try fileManager.createDirectory(at: AppDirectories.tempTranscriptsDirectory, withIntermediateDirectories: true)
+        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        try data.write(to: url, options: .atomic)
     }
 
     func recent(limit: Int = 50) -> [Transcript] {
@@ -251,12 +273,7 @@ struct HistoryStore: Sendable {
 
     /// クラッシュ復旧用に一時的な Transcript を保存する。
     func saveTemporary(_ transcript: Transcript) throws {
-        try fileManager.createDirectory(at: AppDirectories.tempTranscriptsDirectory, withIntermediateDirectories: true)
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(transcript)
-        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
-        try data.write(to: url, options: .atomic)
+        try writeTemporary(encode(transcript))
     }
 
     /// クラッシュ復旧用の一時 Transcript を読み込む。なければ nil。

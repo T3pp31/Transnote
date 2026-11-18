@@ -667,8 +667,6 @@ final class MainWindowViewModel: ObservableObject {
                 guard activeJobID == job.id else { return }
                 currentTranscript = transcript
                 baselineTranscriptText = transcript.fullText
-                try? historyStore.save(transcript)
-                try? historyStore.saveTemporary(transcript)
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
                 isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
@@ -678,6 +676,10 @@ final class MainWindowViewModel: ObservableObject {
                 refreshModelAvailability()
                 announcePhaseIfNeeded(.finished)
                 AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
+                let store = historyStore
+                Task.detached(priority: .utility) {
+                    try? store.saveWithTemporary(transcript)
+                }
             } catch {
                 if activeJobID == job.id, !Task.isCancelled {
                     handleError(error, context: .transcription)
