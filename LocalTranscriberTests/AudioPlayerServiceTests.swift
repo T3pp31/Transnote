@@ -70,6 +70,33 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertNil(viewModel.playingSegmentID)
     }
 
+    func testFailedStatusFromStaleItemDoesNotFinishCurrentPlayback() async throws {
+        let firstURL = try Self.makeSilentWAV(duration: 1.0)
+        let secondURL = try Self.makeSilentWAV(duration: 1.0)
+        defer {
+            try? FileManager.default.removeItem(at: firstURL)
+            try? FileManager.default.removeItem(at: secondURL)
+        }
+
+        var finishCount = 0
+        service.load(url: firstURL)
+        service.playSegment(start: 0, end: 1.0) {
+            finishCount += 1
+        }
+        let staleItem = try XCTUnwrap(service.currentItemForTesting)
+
+        // 新しい再生を開始した後で、旧 item の失敗通知が届く。
+        service.load(url: secondURL)
+        service.playSegment(start: 0, end: 1.0) {
+            finishCount += 1
+        }
+        service.handlePlayerItemStatusChange(staleItem, generation: 0)
+
+        try? await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(finishCount, 0, "古い item の失敗通知で現在の再生を終了しないこと")
+        XCTAssertTrue(service.hasActiveTimeObserver)
+    }
+
     func testOnSegmentFinishedCallbackFires() async throws {
         var finished = false
 

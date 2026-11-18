@@ -30,6 +30,11 @@ final class AudioPlayerService {
         timeObserver != nil
     }
 
+    /// テスト専用: 現在の AVPlayerItem を参照する。
+    var currentItemForTesting: AVPlayerItem? {
+        player?.currentItem
+    }
+
     func load(url: URL) {
         stop(resetPlayer: false)
         let item = AVPlayerItem(url: url)
@@ -72,7 +77,7 @@ final class AudioPlayerService {
             pendingPlaybackGeneration = generation
             statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
                 Task { @MainActor in
-                    self?.handlePlayerItemStatusChange(item)
+                    self?.handlePlayerItemStatusChange(item, generation: generation)
                 }
             }
         } else {
@@ -117,7 +122,7 @@ final class AudioPlayerService {
         }
     }
 
-    private func handlePlayerItemStatusChange(_ item: AVPlayerItem) {
+    func handlePlayerItemStatusChange(_ item: AVPlayerItem, generation: Int) {
         switch item.status {
         case .readyToPlay:
             cancelStatusObservation()
@@ -127,6 +132,8 @@ final class AudioPlayerService {
             }
         case .failed:
             cancelStatusObservation()
+            // 旧 item の失敗通知が、後から開始した再生を終了させないようにする。
+            guard playbackGeneration == generation, item === player?.currentItem else { return }
             let message = item.error?.localizedDescription ?? "unknown error"
             AppLogger.error("Audio playback failed to load: \(message)", logger: AppLogger.general)
             finishSegmentPlayback()
