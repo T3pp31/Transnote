@@ -258,6 +258,50 @@ final class MainWindowViewModelImportTests: XCTestCase {
         viewModel.cancelPendingFileImport()
     }
 
+    func testHandleImportsClearedClearsSelectionUnderImportsDirectory() throws {
+        let importsDirectory = AppDirectories.importsDirectory
+        let copiedURL = importsDirectory.appendingPathComponent("cleared-\(UUID().uuidString).wav")
+        defer { try? FileManager.default.removeItem(at: copiedURL) }
+        try Data("audio".utf8).write(to: copiedURL)
+
+        viewModel.selectedFile = AudioFileInfo(
+            url: copiedURL,
+            fileName: copiedURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 5,
+            formattedFileSize: "5 bytes"
+        )
+        AppSettings.shared.selectedModelID = "base"
+        viewModel.downloadedModelIDs = ["base"]
+        XCTAssertTrue(viewModel.canStartTranscription)
+
+        try FileManager.default.removeItem(at: copiedURL)
+        viewModel.handleImportsCleared()
+
+        XCTAssertNil(viewModel.selectedFile)
+        XCTAssertFalse(viewModel.canStartTranscription)
+        XCTAssertEqual(
+            viewModel.startTranscriptionDisabledReason,
+            L("音声ファイルを選択してください", comment: "Select an audio file")
+        )
+    }
+
+    func testHandleImportsClearedKeepsSelectionOutsideImportsDirectory() throws {
+        let externalURL = sourceRoot.appendingPathComponent("external.wav")
+        try Data("audio".utf8).write(to: externalURL)
+        viewModel.selectedFile = AudioFileInfo(
+            url: externalURL,
+            fileName: externalURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 5,
+            formattedFileSize: "5 bytes"
+        )
+
+        viewModel.handleImportsCleared()
+
+        XCTAssertEqual(viewModel.selectedFile?.url, externalURL)
+    }
+
     func testConfirmedTranscriptionRestartStillRequiresDownloadedModel() throws {
         let gate = AsyncGate()
         defer { gate.open() }

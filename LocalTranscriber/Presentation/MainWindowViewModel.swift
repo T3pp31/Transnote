@@ -219,7 +219,8 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     var canStartTranscription: Bool {
-        guard selectedFile != nil,
+        guard let selectedFile,
+              FileManager.default.fileExists(atPath: selectedFile.url.path),
               !isBusy,
               let model = settings.selectedModel else {
             return false
@@ -239,7 +240,7 @@ final class MainWindowViewModel: ObservableObject {
         if isBusy {
             return NSLocalizedString("文字起こし処理中です", comment: "Transcription is busy")
         }
-        if selectedFile == nil {
+        if selectedFile == nil || !FileManager.default.fileExists(atPath: selectedFile?.url.path ?? "") {
             return NSLocalizedString("音声ファイルを選択してください", comment: "Select an audio file")
         }
         if settings.selectedModel == nil {
@@ -837,6 +838,16 @@ final class MainWindowViewModel: ObservableObject {
         audioPlayer.stop()
         playingSegmentID = nil
         isSegmentPaused = false
+    }
+
+    /// Imports のクリア後に、削除済みの sandbox コピーを参照し続けないようにする。
+    func handleImportsCleared() {
+        guard let file = selectedFile,
+              file.url.standardizedFileURL.path.hasPrefix(
+                AppDirectories.importsDirectory.standardizedFileURL.path + "/"
+              ) else { return }
+        stopPlayback()
+        selectedFile = nil
     }
 
     func exportTranscript(format: ExportFormat) {
