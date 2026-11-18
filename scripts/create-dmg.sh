@@ -27,6 +27,32 @@ read_distribution_config() {
 
   APP_NAME="$(/usr/libexec/PlistBuddy -c "Print :AppName" "$DISTRIBUTION_PLIST")"
   INSTALL_SCRIPT_NAME="$(/usr/libexec/PlistBuddy -c "Print :InstallScriptName" "$DISTRIBUTION_PLIST")"
+
+  LEGACY_APP_NAMES=""
+  legacy_index=0
+  while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_index}" "$DISTRIBUTION_PLIST" 2>/dev/null)"; do
+    if [[ -z "$LEGACY_APP_NAMES" ]]; then
+      LEGACY_APP_NAMES="$legacy_name"
+    else
+      LEGACY_APP_NAMES="${LEGACY_APP_NAMES}、${legacy_name}"
+    fi
+    legacy_index=$((legacy_index + 1))
+  done
+}
+
+replace_readme_placeholders() {
+  local line
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    line="${line//@APP_NAME@/$APP_NAME}"
+    line="${line//@DMG_NAME@/$DMG_NAME}"
+    line="${line//@INSTALL_SCRIPT_NAME@/$INSTALL_SCRIPT_NAME}"
+    line="${line//@LEGACY_APP_NAMES@/$LEGACY_APP_NAMES}"
+    if [[ "$line" == '@SECURITY_NOTICE@' ]]; then
+      printf '%s\n' "$security_notice"
+    else
+      printf '%s\n' "$line"
+    fi
+  done
 }
 
 APP_PATH=""
@@ -100,13 +126,7 @@ cp "$INSTALL_SCRIPT_TEMPLATE" "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
 chmod +x "${STAGING_DIR}/${INSTALL_SCRIPT_NAME}"
 if [[ -f "$GATEKEEPER_README" ]]; then
   source "${ROOT_DIR}/scripts/release-security-notice.sh"
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    if [[ "$line" == '@SECURITY_NOTICE@' ]]; then
-      printf '%s\n' "$security_notice"
-    else
-      printf '%s\n' "$line"
-    fi
-  done < "$GATEKEEPER_README" > "${STAGING_DIR}/初めにお読みください.txt"
+  replace_readme_placeholders < "$GATEKEEPER_README" > "${STAGING_DIR}/初めにお読みください.txt"
 fi
 ln -s /Applications "${STAGING_DIR}/Applications"
 

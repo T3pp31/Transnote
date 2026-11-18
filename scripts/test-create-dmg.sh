@@ -21,7 +21,7 @@ import sys
 
 path = pathlib.Path(sys.argv[1])
 script = path.read_text()
-assert script.count('/usr/libexec/PlistBuddy') == 2
+assert script.count('/usr/libexec/PlistBuddy') >= 2
 path.write_text(script.replace('/usr/libexec/PlistBuddy', 'PlistBuddy'))
 PY
 
@@ -31,10 +31,20 @@ import plistlib
 import sys
 
 assert sys.argv[1] == '-c'
-command, key = sys.argv[2].split(' :')
+command, key = sys.argv[2].split(' :', 1)
 assert command == 'Print'
 with open(sys.argv[3], 'rb') as stream:
-    print(plistlib.load(stream)[key])
+    value = plistlib.load(stream)
+    parts = key.split(':')
+    for part in parts[1:] if parts[0] == '' else parts:
+        if isinstance(value, list):
+            index = int(part)
+            if index >= len(value):
+                sys.exit(1)
+            value = value[index]
+        else:
+            value = value[part]
+    print(value)
 MOCK
 
 cat > "$MOCK_BIN/hdiutil" <<'MOCK'
@@ -115,11 +125,22 @@ run_case() {
 
   python3 - "$ROOT/Config/dmg-gatekeeper-readme.txt" "$CASE_DIR/readme.txt" "$signing_state" <<'PY'
 from pathlib import Path
+import plistlib
 import sys
 
-prefix, suffix = Path(sys.argv[1]).read_text().split('@SECURITY_NOTICE@')
+template = Path(sys.argv[1]).read_text()
+config = plistlib.loads(Path(sys.argv[1]).parent.joinpath('distribution.plist').read_bytes())
+expected = (
+    template
+    .replace('@APP_NAME@', config['AppName'])
+    .replace('@DMG_NAME@', f"{config['AppName']}-1.2.3.dmg")
+    .replace('@INSTALL_SCRIPT_NAME@', config['InstallScriptName'])
+    .replace('@LEGACY_APP_NAMES@', '、'.join(config['LegacyAppNames']))
+)
+prefix, suffix = expected.split('@SECURITY_NOTICE@')
 readme = Path(sys.argv[2]).read_text()
 assert '@SECURITY_NOTICE@' not in readme, 'unexpanded notice placeholder'
+assert '@APP_NAME@' not in readme and '@DMG_NAME@' not in readme, 'unexpanded name placeholder'
 assert readme.startswith(prefix) and readme.endswith(suffix), 'installation steps changed'
 notice = readme[len(prefix):-len(suffix)]
 state = sys.argv[3]
