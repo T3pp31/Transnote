@@ -33,9 +33,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+
       - name: Verify site config is up to date
         run: |
           python3 scripts/generate-site-config.py --check
+
+      - name: Site JavaScript tests
+        run: |
+          cd site
+          node app.test.js
 
       - name: Prepare site assets
         run: cp Transnote.png site/Transnote.png
