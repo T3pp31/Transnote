@@ -23,6 +23,22 @@ class GatekeeperReadmeTests(unittest.TestCase):
         for target in (config["InstallScriptName"], config["AppName"], "このまま開く"):
             self.assertIn(target, step.group())
 
+    def test_release_rejects_app_name_with_shell_metacharacters(self):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Read distribution config\n", 1)[1]
+        step = step.split("\n      - name:", 1)[0]
+        self.assertIn(r'[[ "$app_name" =~ ^[0-9A-Za-z._-]+$ ]]', step)
+        self.assertIn("AppName must contain only alphanumerics", step)
+
+    def test_release_checksum_step_receives_paths_through_env(self):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Compute SHA256 checksums\n", 1)[1]
+        step = step.split("\n      - name:", 1)[0]
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        self.assertNotIn("${{", script, "run スクリプトへ式を直接埋め込まないこと")
+        self.assertIn('versioned_dmg="$VERSIONED_DMG"', script)
+        self.assertIn('latest_dmg="$LATEST_DMG"', script)
+
     def test_readme_keeps_build_specific_notice_in_one_placeholder(self):
         readme = (ROOT / "Config/dmg-gatekeeper-readme.txt").read_text(encoding="utf-8")
         self.assertEqual(readme.count("@SECURITY_NOTICE@"), 1)
@@ -34,15 +50,23 @@ class GatekeeperReadmeTests(unittest.TestCase):
         step = workflow.split("      - name: Prepare release notes\n", 1)[1]
         step = step.split("\n      - name:", 1)[0]
         script = textwrap.dedent(step.split("        run: |\n", 1)[1])
-        for expression, value in (
-            ("steps.dmg.outputs.versioned_dmg_name", "Transnote-1.2.3.dmg"),
-            ("steps.dmg.outputs.latest_dmg_name", "Transnote.dmg"),
-            ("steps.checksum.outputs.versioned_hash", "a" * 64),
-            ("steps.checksum.outputs.latest_hash", "a" * 64),
-        ):
-            script = script.replace("${{ " + expression + " }}", value)
-        self.assertNotIn("${{", script, "Unhandled workflow expression")
+        # GitHub 式は env: で渡す。run スクリプトへ直接補間しないことを確認する。
+        self.assertNotIn("${{", script, "run スクリプトへ式を直接埋め込まないこと")
         self.assertIn("source ./scripts/release-security-notice.sh", script)
+        step_header = step.split("        run: |\n", 1)[0]
+        step_env = set(
+            re.findall(r"(?m)^          ([A-Z0-9_]+): \$\{\{ [^}]+ \}\}$", step_header)
+        )
+        self.assertEqual(
+            step_env,
+            {"VERSIONED_DMG_NAME", "LATEST_DMG_NAME", "VERSIONED_HASH", "LATEST_HASH"},
+        )
+        env_values = {
+            "VERSIONED_DMG_NAME": "Transnote-1.2.3.dmg",
+            "LATEST_DMG_NAME": "Transnote.dmg",
+            "VERSIONED_HASH": "a" * 64,
+            "LATEST_HASH": "a" * 64,
+        }
 
         unsigned_note = "現時点では未署名ビルドを配布しています。"
         signed_notice = "Developer ID で署名済みのビルドです。公証は行われていません。"
@@ -62,6 +86,7 @@ class GatekeeperReadmeTests(unittest.TestCase):
                 env.pop("SIGNED", None)
                 env.pop("NOTARIZED", None)
                 env.update(APP_NAME="Transnote")
+                env.update(env_values)
                 env.update(flags)
                 result = subprocess.run(
                     ["bash", "-c", script], cwd=work, env=env, capture_output=True, text=True
