@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -17,7 +18,7 @@ LOAD = "LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFrom
 
 
 def model_test_steps(workflow_name):
-    # Exercise the workflow itself, rather than duplicating its validation logic.
+    # Exercise the workflow step and the shared script it invokes.
     workflow = (ROOT / f".github/workflows/{workflow_name}.yml").read_text(encoding="utf-8")
     steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
     scripts = []
@@ -32,7 +33,14 @@ def model_test_steps(workflow_name):
         scripts.append(textwrap.dedent(script))
     if not scripts:
         raise AssertionError(f"{workflow_name} model-test steps not found")
-    return "\n".join(scripts)
+    joined = "\n".join(scripts)
+    # ワークフローは共有スクリプトを呼ぶ。呼び出しを実際のスクリプトの関数本体に置き換える。
+    shared_script = (ROOT / "scripts/run-model-integration-tests.sh").read_text(encoding="utf-8")
+    body = "\n".join(
+        line for line in shared_script.splitlines()
+        if not line.startswith("#!") and line.strip() != "set -euo pipefail"
+    )
+    return joined.replace("bash scripts/run-model-integration-tests.sh", body)
 
 
 STUB = r'''#!/usr/bin/env python3
@@ -139,10 +147,18 @@ class NightlyWorkflowTests(unittest.TestCase):
                 "TEST_MODES": json.dumps(modes or {}),
                 "TOOL_FAILURE": tool_failure,
                 "TOOL_FAILURE_SELECTOR": failure_selector,
+                "GATE_NAME": self.workflow_name,
             }
+            # ワークフローは scripts/ 配下の共有スクリプトを呼ぶため、同じ配置で用意する。
+            (work / "scripts").mkdir()
+            shutil.copyfile(
+                ROOT / "scripts/run-model-integration-tests.sh",
+                work / "scripts/run-model-integration-tests.sh",
+            )
             wrappers = '''
 xcodebuild() { python3 "$TOOL_STUB" xcodebuild "$@"; }
 xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
+export -f xcodebuild xcrun
 '''
             result = subprocess.run(
                 ["bash", "-e", "-o", "pipefail", "-c", wrappers + model_test_steps(self.workflow_name)],
@@ -196,6 +212,20 @@ xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
         ))
         header = gate.split("        run: |\n", 1)[0]
         self.assertRegex(header, r"(?m)^          TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: ['\"]1['\"]$")
+
+    def test_workflow_delegates_to_shared_script(self):
+        workflow = (ROOT / f".github/workflows/{self.workflow_name}.yml").read_text()
+        steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
+        gate = next(step for step in steps if step.splitlines()[0] in (
+            "Run real-model tests (normally skipped)", "Run real-model tests (release gate)",
+        ))
+        body = gate.split("        run: |\n", 1)[1]
+        self.assertIn("bash scripts/run-model-integration-tests.sh", body)
+        self.assertNotIn("xcodebuild test", body, "ゲート処理をワークフローへ重複させないこと")
+        self.assertIn(
+            f"GATE_NAME: {self.workflow_name}",
+            gate.split("        run: |\n", 1)[0],
+        )
 
     def test_either_xcodebuild_failure_stops_the_gate(self):
         for selector in (DOWNLOAD, LOAD):
