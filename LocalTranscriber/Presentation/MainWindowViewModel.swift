@@ -478,7 +478,9 @@ final class MainWindowViewModel: ObservableObject {
         let pending = pendingFileImport
         cancelPendingFileImport()
         if let pending {
-            applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+            let imported = applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+            // インポート失敗時に旧ファイルへ再文字起こしすると、既存結果と編集が失われる。
+            guard imported else { return }
         }
         if shouldStartTranscription {
             startTranscription(replacingExistingResult: true)
@@ -491,7 +493,8 @@ final class MainWindowViewModel: ObservableObject {
         isPendingTranscriptionRestart = false
     }
 
-    private func applyFileImport(url: URL, preferredFileName: String?) {
+    @discardableResult
+    private func applyFileImport(url: URL, preferredFileName: String?) -> Bool {
         do {
             let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
             let importedURL = try audioImportService.importFile(
@@ -512,8 +515,10 @@ final class MainWindowViewModel: ObservableObject {
             selectedFile = info
             uiState = .idle
             progressDisplay = .idle()
+            return true
         } catch {
             handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
+            return false
         }
     }
 

@@ -232,6 +232,28 @@ final class MainWindowViewModelImportTests: XCTestCase {
         viewModel.cancelPendingFileImport()
     }
 
+    func testApplyPendingFileImportDoesNotRestartTranscriptionWhenImportFails() throws {
+        let gate = AsyncGate()
+        defer { gate.open() }
+        let selectedFile = try prepareTranscriptionRestart(gate: gate)
+
+        viewModel.startTranscription()
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+
+        // インポート元が存在しないため、applyFileImport は失敗する。
+        viewModel.selectFile(url: sourceRoot.appendingPathComponent("missing.wav"))
+        XCTAssertNotNil(viewModel.pendingFileImport)
+
+        viewModel.applyPendingFileImport()
+
+        XCTAssertNil(viewModel.transcriptionTask, "インポート失敗後に旧ファイルの文字起こしを開始しないこと")
+        XCTAssertEqual(viewModel.selectedFile, selectedFile)
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "existing text")
+        XCTAssertEqual(viewModel.transcriptText, "existing text")
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
     func testCancelledTranscriptionRestartKeepsResultAndRequiresConfirmationAgain() throws {
         let gate = AsyncGate()
         defer { gate.open() }
