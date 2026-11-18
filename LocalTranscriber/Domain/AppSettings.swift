@@ -138,7 +138,10 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     }
 
     var recommendedModel: ModelOption? {
+        // モデル構成が変わって推奨IDが存在しない場合は既定モデルへフォールバックする。
         models.first { $0.id == recommendedModelID }
+            ?? models.first { $0.id == AppConfig.shared.defaultModelID }
+            ?? models.first
     }
 
     var selectedLanguage: LanguageOption? {

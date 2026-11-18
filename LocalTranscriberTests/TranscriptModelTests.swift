@@ -284,6 +284,32 @@ final class TranscriptModelTests: XCTestCase {
     }
 
     @MainActor
+    func testRecommendedModelFallsBackWhenRecommendedIDIsNotConfigured() {
+        // 推奨ID（実行環境依存）がモデル一覧にない構成でも nil にしない。
+        let config = AppConfig(
+            supportedExtensions: ["wav"],
+            defaultModelID: "custom-default",
+            defaultLanguageID: "en",
+            modelsDirectoryName: "Models",
+            models: [
+                ModelOption(id: "custom-default", displayName: "Default", whisperKitModelName: "custom-default"),
+                ModelOption(id: "custom-other", displayName: "Other", whisperKitModelName: "custom-other"),
+            ],
+            languages: [LanguageOption(id: "en", displayName: "English")],
+            updateCheckEnabled: true,
+            githubReleasesAPIURL: URL(string: "https://api.github.com/repos/T3pp31/Transnote/releases/latest")!,
+            updateDownloadFallbackURL: URL(string: "https://github.com/T3pp31/Transnote")!,
+            updateDMGAssetName: "Transnote.dmg"
+        )
+        let suiteName = "RecommendedModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(config: config, defaults: defaults)
+
+        XCTAssertEqual(settings.recommendedModel?.id, "custom-default")
+    }
+
+    @MainActor
     func testAppSettingsSharedHasValidSelection() {
         let settings = AppSettings.shared
         XCTAssertFalse(settings.models.isEmpty)
