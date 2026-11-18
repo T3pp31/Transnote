@@ -83,7 +83,11 @@ final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
     @Published var selectedFile: AudioFileInfo?
-    @Published var transcriptText: String = ""
+    @Published var transcriptText: String = "" {
+        didSet {
+            hasNonEmptyTranscriptText = !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
     @Published var currentTranscript: Transcript? {
         didSet {
             // 全文編集・復元・書き出しなど、セグメント編集以外の更新で位置情報を無効化する。
@@ -127,6 +131,8 @@ final class MainWindowViewModel: ObservableObject {
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
     private var hasSegmentTextEdits = false
+    /// transcriptText 更新時に算出する。body 再評価のたびに全文を trimming しないため。
+    private var hasNonEmptyTranscriptText = false
 
     private struct SegmentTextEditLocation {
         let id: UUID
@@ -305,7 +311,7 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     var canExport: Bool {
-        currentTranscript != nil && !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        currentTranscript != nil && hasNonEmptyTranscriptText
     }
 
     var canCopyTranscript: Bool {
