@@ -350,4 +350,30 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         XCTAssertEqual(display.accessibilityLabel, expectedLabel)
         XCTAssertEqual(display.accessibilityValue, expectedValue)
     }
+
+    func testProgressDetailKeysExistInEnglishLocalization() {
+        let appBundle = Bundle(for: MainWindowViewModel.self)
+        guard let englishPath = appBundle.path(forResource: "en", ofType: "lproj")
+        else {
+            XCTFail("en.lproj を読み込めないこと")
+            return
+        }
+        guard let englishBundle = Bundle(path: englishPath) else {
+            XCTFail("en.lproj を読み込めないこと")
+            return
+        }
+
+        let keys = [
+            "初回のモデル読み込みは時間がかかることがあります",
+            "音声を読み込んでいます（モデルの前処理）",
+            "文字起こしの準備をしています。",
+            "途中結果を表示中",
+            "複数ファイルのドロップには対応していません。1つの音声ファイルをドロップしてください。",
+            "対応している音声ファイルを読み込めませんでした。",
+        ]
+        for key in keys {
+            let value = NSLocalizedString(key, bundle: englishBundle, comment: "")
+            XCTAssertNotEqual(value, key, "\(key) に英語訳が登録されていること")
+        }
+    }
 }
