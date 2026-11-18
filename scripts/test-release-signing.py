@@ -223,9 +223,26 @@ class ReleaseSigningTests(unittest.TestCase):
                 "create-keychain", "set-keychain-settings", "unlock-keychain",
                 "import", "set-key-partition-list", "list-keychain",
                 "codesign", "codesign",
+                "lock-keychain", "delete-keychain",
             ],
         )
         self.assertEqual(self.github_env.read_text(), "SIGNED=1\n")
+
+    def test_signing_keychain_is_destroyed_after_signing(self):
+        result = self.run_step()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        events = self.log.read_text().splitlines()
+        self.assertEqual(events[-2:], ["lock-keychain", "delete-keychain"])
+        self.assertLess(events.index("codesign"), events.index("lock-keychain"))
+
+    def test_keychain_cleanup_script_removes_certificate_file(self):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Sign app with Developer ID\n", 1)[1]
+        step = step.split("\n      - name:", 1)[0]
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        self.assertIn('security lock-keychain "$KEYCHAIN"', script)
+        self.assertIn('security delete-keychain "$KEYCHAIN"', script)
+        self.assertIn('rm -f "$RUNNER_TEMP/certificate.p12"', script)
 
     def test_keychain_failures_stop_before_signing(self):
         for command in ("import", "set-key-partition-list"):

@@ -172,6 +172,12 @@ jobs:
           /usr/bin/codesign -d --entitlements :- "$APP_PATH" | grep -q 'com.apple.security.app-sandbox'
           echo "SIGNED=1" >> "$GITHUB_ENV"
 
+          # 後続ステップはチェックアウトした ref 内のスクリプトを実行するため、
+          # Developer ID 秘密鍵を保持したキーチェーンを残さない。
+          security lock-keychain "$KEYCHAIN"
+          security delete-keychain "$KEYCHAIN"
+          rm -f "$RUNNER_TEMP/certificate.p12"
+
       - name: Notarize app
         if: ${{ env.HAS_NOTARIZATION_SECRETS == 'true' && env.SIGNED == '1' }}
         env:
