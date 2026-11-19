@@ -33,7 +33,18 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
+
+      - name: Verify release commit is on main
+        run: |
+          set -euo pipefail
+          # 未レビューのコミットを署名秘密情報付きで実行しないよう、main の祖先に限定する。
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Release ref $GITHUB_REF must be an ancestor of main." >&2
+            exit 1
+          fi
 
       - name: Read Xcode version
         id: xcode_config
