@@ -85,7 +85,12 @@ final class MainWindowViewModel: ObservableObject {
     @Published var selectedFile: AudioFileInfo?
     @Published var transcriptText: String = "" {
         didSet {
-            hasNonEmptyTranscriptText = !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            // 同値の再代入（TextEditor 経由の updateTranscriptText など）では再計算しない。
+            guard transcriptText != oldValue else { return }
+            // 全文の trimmed 文字列を生成せず、最初の非空白文字で早期終了する。
+            hasNonEmptyTranscriptText = transcriptText.unicodeScalars.contains {
+                !CharacterSet.whitespacesAndNewlines.contains($0)
+            }
         }
     }
     @Published var currentTranscript: Transcript? {
