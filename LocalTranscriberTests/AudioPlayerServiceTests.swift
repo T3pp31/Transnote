@@ -71,30 +71,58 @@ final class AudioPlayerServiceTests: XCTestCase {
     }
 
     func testFailedStatusFromStaleItemDoesNotFinishCurrentPlayback() async throws {
-        let firstURL = try Self.makeSilentWAV(duration: 1.0)
+        // 音声として解釈できないファイルを使い、旧 item を確実に .failed にする。
+        let brokenURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("broken-\(UUID().uuidString).wav")
+        try Data("not an audio file".utf8).write(to: brokenURL)
         let secondURL = try Self.makeSilentWAV(duration: 1.0)
         defer {
-            try? FileManager.default.removeItem(at: firstURL)
+            try? FileManager.default.removeItem(at: brokenURL)
             try? FileManager.default.removeItem(at: secondURL)
         }
 
         var finishCount = 0
-        service.load(url: firstURL)
+        service.load(url: brokenURL)
         service.playSegment(start: 0, end: 1.0) {
             finishCount += 1
         }
         let staleItem = try XCTUnwrap(service.currentItemForTesting)
+        let staleGeneration = 1
 
-        // 新しい再生を開始した後で、旧 item の失敗通知が届く。
+        // 旧 item の失敗が確定する前に新しい再生を開始する。
         service.load(url: secondURL)
         service.playSegment(start: 0, end: 1.0) {
             finishCount += 1
         }
-        service.handlePlayerItemStatusChange(staleItem, generation: 0)
 
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        let failed = await waitUntil(timeout: 3.0) { staleItem.status == .failed }
+        XCTAssertTrue(failed, "旧 item が .failed になること")
+
+        // 旧 item の失敗通知（旧世代）が遅れて届く。
+        service.handlePlayerItemStatusChange(staleItem, generation: staleGeneration)
+
+        let started = await waitUntil(timeout: 3.0) { self.service.hasActiveTimeObserver }
+        XCTAssertTrue(started, "古い item の失敗通知で新しい再生の開始が妨げられないこと")
         XCTAssertEqual(finishCount, 0, "古い item の失敗通知で現在の再生を終了しないこと")
-        XCTAssertTrue(service.hasActiveTimeObserver)
+        XCTAssertTrue(service.isPlaying)
+    }
+
+    func testFailedStatusOfCurrentItemFinishesPlayback() async throws {
+        let brokenURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("broken-\(UUID().uuidString).wav")
+        try Data("not an audio file".utf8).write(to: brokenURL)
+        defer { try? FileManager.default.removeItem(at: brokenURL) }
+
+        var finishCount = 0
+        service.load(url: brokenURL)
+        service.playSegment(start: 0, end: 1.0) {
+            finishCount += 1
+        }
+
+        let finished = await waitUntil(timeout: 3.0) { finishCount == 1 }
+        XCTAssertTrue(finished, "現在の item の失敗では完了コールバックが呼ばれること")
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
     }
 
     func testOnSegmentFinishedCallbackFires() async throws {

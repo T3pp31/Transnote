@@ -123,6 +123,9 @@ final class AudioPlayerService {
     }
 
     func handlePlayerItemStatusChange(_ item: AVPlayerItem, generation: Int) {
+        // 旧 item / 旧世代の通知は、現在の再生の statusObservation を解除したり
+        // 再生を終了させたりしないよう、分岐より前にまとめて無視する。
+        guard playbackGeneration == generation, item === player?.currentItem else { return }
         switch item.status {
         case .readyToPlay:
             cancelStatusObservation()
@@ -132,8 +135,6 @@ final class AudioPlayerService {
             }
         case .failed:
             cancelStatusObservation()
-            // 旧 item の失敗通知が、後から開始した再生を終了させないようにする。
-            guard playbackGeneration == generation, item === player?.currentItem else { return }
             let message = item.error?.localizedDescription ?? "unknown error"
             AppLogger.error("Audio playback failed to load: \(message)", logger: AppLogger.general)
             finishSegmentPlayback()
