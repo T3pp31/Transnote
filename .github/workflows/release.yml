@@ -158,6 +158,13 @@ jobs:
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          # 後続ステップはチェックアウトした ref 内のスクリプトを実行するため、
+          # 成否にかかわらず Developer ID 秘密鍵を保持したキーチェーンを残さない。
+          cleanup_signing() {
+            security delete-keychain "$KEYCHAIN" || true
+            rm -f "$RUNNER_TEMP/certificate.p12"
+          }
+          trap cleanup_signing EXIT
           security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
@@ -171,12 +178,6 @@ jobs:
             --sign "$CERTIFICATE_IDENTITY" "$APP_PATH"
           /usr/bin/codesign -d --entitlements :- "$APP_PATH" | grep -q 'com.apple.security.app-sandbox'
           echo "SIGNED=1" >> "$GITHUB_ENV"
-
-          # 後続ステップはチェックアウトした ref 内のスクリプトを実行するため、
-          # Developer ID 秘密鍵を保持したキーチェーンを残さない。
-          security lock-keychain "$KEYCHAIN"
-          security delete-keychain "$KEYCHAIN"
-          rm -f "$RUNNER_TEMP/certificate.p12"
 
       - name: Notarize app
         if: ${{ env.HAS_NOTARIZATION_SECRETS == 'true' && env.SIGNED == '1' }}
