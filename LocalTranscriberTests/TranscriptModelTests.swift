@@ -292,8 +292,9 @@ final class TranscriptModelTests: XCTestCase {
             defaultLanguageID: "en",
             modelsDirectoryName: "Models",
             models: [
-                ModelOption(id: "custom-default", displayName: "Default", whisperKitModelName: "custom-default"),
+                // 先頭以外に既定モデルを置き、先頭へのフォールバックと区別する。
                 ModelOption(id: "custom-other", displayName: "Other", whisperKitModelName: "custom-other"),
+                ModelOption(id: "custom-default", displayName: "Default", whisperKitModelName: "custom-default"),
             ],
             languages: [LanguageOption(id: "en", displayName: "English")],
             updateCheckEnabled: true,
