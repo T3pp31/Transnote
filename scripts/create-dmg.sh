@@ -32,9 +32,9 @@ read_distribution_config() {
   legacy_index=0
   while legacy_name="$(/usr/libexec/PlistBuddy -c "Print :LegacyAppNames:${legacy_index}" "$DISTRIBUTION_PLIST" 2>/dev/null)"; do
     if [[ -z "$LEGACY_APP_NAMES" ]]; then
-      LEGACY_APP_NAMES="$legacy_name"
+      LEGACY_APP_NAMES="${legacy_name}.app"
     else
-      LEGACY_APP_NAMES="${LEGACY_APP_NAMES}、${legacy_name}"
+      LEGACY_APP_NAMES="${LEGACY_APP_NAMES}、${legacy_name}.app"
     fi
     legacy_index=$((legacy_index + 1))
   done
@@ -46,6 +46,10 @@ replace_readme_placeholders() {
     line="${line//@APP_NAME@/$APP_NAME}"
     line="${line//@DMG_NAME@/$DMG_NAME}"
     line="${line//@INSTALL_SCRIPT_NAME@/$INSTALL_SCRIPT_NAME}"
+    if [[ -z "$LEGACY_APP_NAMES" ]]; then
+      # 旧アプリ名が無い場合は補足の括弧書きごと省く
+      line="${line//（および @LEGACY_APP_NAMES@）/}"
+    fi
     line="${line//@LEGACY_APP_NAMES@/$LEGACY_APP_NAMES}"
     if [[ "$line" == '@SECURITY_NOTICE@' ]]; then
       printf '%s\n' "$security_notice"

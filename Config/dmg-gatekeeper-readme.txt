@@ -70,7 +70,7 @@ macOS 14までは右クリック →「開く」も使えます。
 ■ 手動インストール（方法 A〜C がすべて失敗した場合）
 
 1. 実行中の @APP_NAME@ を終了する
-2. Applications 内の @APP_NAME@.app（および @LEGACY_APP_NAMES@.app）を削除する
+2. Applications 内の @APP_NAME@.app（および @LEGACY_APP_NAMES@）を削除する
 3. DMG 内の @APP_NAME@ を Applications フォルダへドラッグする
 4. Applications 内の @APP_NAME@ を【方法 C】で許可する。
    macOS 14までは右クリック →「開く」も使える。

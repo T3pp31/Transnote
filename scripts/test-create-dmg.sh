@@ -126,6 +126,7 @@ run_case() {
   python3 - "$ROOT/Config/dmg-gatekeeper-readme.txt" "$CASE_DIR/readme.txt" "$signing_state" <<'PY'
 from pathlib import Path
 import plistlib
+import re
 import sys
 
 template = Path(sys.argv[1]).read_text()
@@ -135,12 +136,12 @@ expected = (
     .replace('@APP_NAME@', config['AppName'])
     .replace('@DMG_NAME@', f"{config['AppName']}-1.2.3.dmg")
     .replace('@INSTALL_SCRIPT_NAME@', config['InstallScriptName'])
-    .replace('@LEGACY_APP_NAMES@', '、'.join(config['LegacyAppNames']))
+    .replace('@LEGACY_APP_NAMES@', '、'.join(f'{name}.app' for name in config['LegacyAppNames']))
 )
 prefix, suffix = expected.split('@SECURITY_NOTICE@')
 readme = Path(sys.argv[2]).read_text()
 assert '@SECURITY_NOTICE@' not in readme, 'unexpanded notice placeholder'
-assert '@APP_NAME@' not in readme and '@DMG_NAME@' not in readme, 'unexpanded name placeholder'
+assert not re.search(r'@[A-Z_]+@', readme), 'unexpanded placeholder'
 assert readme.startswith(prefix) and readme.endswith(suffix), 'installation steps changed'
 notice = readme[len(prefix):-len(suffix)]
 state = sys.argv[3]
