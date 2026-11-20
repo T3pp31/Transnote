@@ -201,11 +201,14 @@ final class HistorySearchViewModelTests: XCTestCase {
         let oldRelease = DispatchSemaphore(value: 0)
         let latestStarted = expectation(description: "latest search started")
         let latestTranscript = Transcript(sourceFileName: "latest.wav")
+        let oldCancellation = CancellationRecorder()
         let model = HistorySearchViewModel(
             searchHistory: { query in
                 if query == "old" {
                     oldStarted.fulfill()
-                    _ = oldRelease.wait(timeout: .now() + 5)
+                    let released = oldRelease.wait(timeout: .now() + 5)
+                    XCTAssertEqual(released, .success, "古い走査は新しい検索の開始後に解放されること")
+                    oldCancellation.record(Task.isCancelled)
                     return [Transcript(sourceFileName: "old.wav")]
                 }
                 latestStarted.fulfill()
@@ -226,6 +229,7 @@ final class HistorySearchViewModelTests: XCTestCase {
         await old.value
 
         XCTAssertEqual(model.items.map(\.id), [latestTranscript.id], "古い検索の結果を反映しないこと")
+        XCTAssertEqual(oldCancellation.value, true, "新しい検索語で古い走査タスクがキャンセルされること")
     }
 
     func testEmptyQueryLoadsWithoutDebounce() async {
@@ -271,5 +275,22 @@ private actor ManualHistoryDebounce {
         for waiter in pending {
             waiter.resume()
         }
+    }
+}
+
+private final class CancellationRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: Bool?
+
+    var value: Bool? {
+        lock.lock()
+        defer { lock.unlock() }
+        return recorded
+    }
+
+    func record(_ isCancelled: Bool) {
+        lock.lock()
+        recorded = isCancelled
+        lock.unlock()
     }
 }
