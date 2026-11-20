@@ -15,8 +15,10 @@ class ReleaseRefAncestryTests(unittest.TestCase):
     def setUpClass(cls):
         cls.steps = re.split(r"(?m)^      - ", WORKFLOW)[1:]
         cls.checkout_index = next(
-            i for i, step in enumerate(cls.steps) if "actions/checkout@" in step
+            (i for i, step in enumerate(cls.steps) if "actions/checkout@" in step), None
         )
+        if cls.checkout_index is None:
+            raise AssertionError("actions/checkout ステップが見つからない")
         cls.verify = next(
             (step for step in cls.steps if "name: Verify release commit is on main" in step),
             None,
@@ -26,20 +28,35 @@ class ReleaseRefAncestryTests(unittest.TestCase):
         checkout = self.steps[self.checkout_index]
         self.assertRegex(checkout, r"(?m)^          fetch-depth: 0$")
 
-    def test_ancestry_check_runs_before_build_steps(self):
+    def test_ancestry_check_runs_right_after_checkout(self):
         self.assertIsNotNone(self.verify, "main の祖先検証ステップが必要")
-        verify_index = self.steps.index(self.verify)
-        self.assertGreater(verify_index, self.checkout_index)
-        for name in ("Read Xcode version", "Archive Release build", "Sign app with Developer ID"):
-            step_index = next(
-                i for i, step in enumerate(self.steps) if f"name: {name}" in step
-            )
-            self.assertLess(verify_index, step_index, f"{name} より前に検証すること")
+        self.assertEqual(
+            self.steps.index(self.verify),
+            self.checkout_index + 1,
+            "checkout 直後に祖先検証を行うこと",
+        )
 
     def test_ancestry_check_rejects_commits_not_on_main(self):
-        self.assertIn("git fetch --no-tags origin main", self.verify)
-        self.assertIn("git merge-base --is-ancestor HEAD origin/main", self.verify)
-        self.assertIn("must be an ancestor of main", self.verify)
+        self.assertIsNotNone(self.verify, "main の祖先検証ステップが必要")
+        self.assertIn(
+            "git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main",
+            self.verify,
+        )
+        # 同名タグ origin/main で回避されないよう完全修飾 ref を使う。
+        self.assertIn(
+            'git merge-base --is-ancestor "$head_sha" refs/remotes/origin/main',
+            self.verify,
+        )
+        self.assertIn("if ! git merge-base", self.verify)
+        self.assertIn("exit 1", self.verify)
+        self.assertIn("set -euo pipefail", self.verify)
+        self.assertNotIn("continue-on-error", self.verify)
+        self.assertNotRegex(self.verify, r"(?m)^        if:")
+
+    def test_failure_message_reports_checked_ref(self):
+        self.assertIsNotNone(self.verify, "main の祖先検証ステップが必要")
+        self.assertIn("RELEASE_REF:", self.verify)
+        self.assertIn("$RELEASE_REF ($head_sha) must be an ancestor of main", self.verify)
 
 
 if __name__ == "__main__":
