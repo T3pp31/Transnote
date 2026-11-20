@@ -89,9 +89,10 @@ const vm = require('vm');
 const source = fs.readFileSync(require.resolve('./app.js'), 'utf8');
 const config = require('../Config/github-config.json');
 // フォールバックURLは distribution.plist の AppName から app.js に生成される。
-const generatedFallbackURL = source.match(
-  /var fallbackDownloadURL =\s*("([^"]*)")/
-)[2];
+// 生成ブロックの書式は scripts/generate-site-config.py の render_block を正とする。
+const generatedFallbackMatch = source.match(/var fallbackDownloadURL =\s*("([^"]*)")/);
+assert.ok(generatedFallbackMatch, 'app.js に生成された fallbackDownloadURL がありません');
+const generatedFallbackURL = generatedFallbackMatch[2];
 
 // 別リポジトリ・許可ホストへの設定変更が実際の動作に反映されることを確認する。
 const customConfig = {
@@ -113,6 +114,7 @@ async function runSite(settings, release, overrideConfig) {
   if (overrideConfig) {
     const variables = {
       fallbackDownloadURL: settings.fallback_download_url,
+      dmgAssetName: 'Transnote.dmg',
       expectedRepository: settings.expected_repository,
       allowedDownloadHosts: settings.allowed_download_hosts,
       githubAPIBase: settings.github_api_base

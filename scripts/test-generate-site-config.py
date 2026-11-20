@@ -60,10 +60,10 @@ class GenerateSiteConfigTests(unittest.TestCase):
         })
         self.config_path.write_text(json.dumps(self.config), encoding="utf-8")
         distribution = plistlib.loads((self.root / "Config/distribution.plist").read_bytes())
-        distribution["AppName"] = "OtherApp"
+        distribution["AppName"] = "RenamedApp"
         (self.root / "Config/distribution.plist").write_bytes(plistlib.dumps(distribution))
         fallback_url = (
-            "https://github.com/Example/OtherApp/releases/latest/download/OtherApp.dmg"
+            "https://github.com/Example/OtherApp/releases/latest/download/RenamedApp.dmg"
         )
         before_app = self.app.read_text(encoding="utf-8")
         before_defaults = plistlib.loads(self.defaults.read_bytes())
@@ -83,6 +83,7 @@ class GenerateSiteConfigTests(unittest.TestCase):
             ("expectedRepository", self.config["expected_repository"]),
             ("githubAPIBase", self.config["github_api_base"]),
             ("fallbackDownloadURL", fallback_url),
+            ("dmgAssetName", "RenamedApp.dmg"),
             ("allowedDownloadHosts", self.config["allowed_download_hosts"]),
         ):
             self.assertIn(f"var {variable} =", block)
@@ -92,7 +93,7 @@ class GenerateSiteConfigTests(unittest.TestCase):
             "ExpectedGitHubRepository": self.config["expected_repository"],
             "GitHubReleasesAPIURL": self.config["github_api_base"] + "/releases/latest",
             "UpdateDownloadFallbackURL": fallback_url,
-            "UpdateDMGAssetName": "OtherApp.dmg",
+            "UpdateDMGAssetName": "RenamedApp.dmg",
             "AllowedUpdateDownloadHosts": self.config["allowed_download_hosts"],
         })
         self.assertEqual(plistlib.loads(self.defaults.read_bytes()), expected_defaults)
@@ -100,6 +101,26 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.assert_success(self.run_generator("--check"))
         self.assert_success(self.run_generator())
         self.assertEqual(self.snapshot(), generated_files)
+
+    def test_app_name_only_change_is_detected(self):
+        distribution = plistlib.loads((self.root / "Config/distribution.plist").read_bytes())
+        distribution["AppName"] = "RenamedApp"
+        (self.root / "Config/distribution.plist").write_bytes(plistlib.dumps(distribution))
+        result = self.run_generator("--check")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(str(self.app), result.stderr)
+        self.assertIn(str(self.defaults), result.stderr)
+
+    def test_missing_app_name_fails_without_traceback(self):
+        distribution = plistlib.loads((self.root / "Config/distribution.plist").read_bytes())
+        del distribution["AppName"]
+        (self.root / "Config/distribution.plist").write_bytes(plistlib.dumps(distribution))
+        before = self.snapshot()
+        result = self.run_generator("--check")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("AppName", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(self.snapshot(), before)
 
     def test_check_detects_each_stale_plist_key_without_writing(self):
         original = self.defaults.read_bytes()
