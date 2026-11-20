@@ -44,8 +44,15 @@ struct HistoryStore: Sendable {
     /// 同一 Transcript を2回エンコードするコストを避けるため。
     func saveWithTemporary(_ transcript: Transcript) throws {
         let data = try encode(transcript)
-        try write(data, for: transcript)
+        // 履歴と復旧用は別ディレクトリのため、片方の失敗でもう片方の試行を妨げない。
+        var historyError: Error?
+        do {
+            try write(data, for: transcript)
+        } catch {
+            historyError = error
+        }
         try writeTemporary(data)
+        if let historyError { throw historyError }
     }
 
     private func encode(_ transcript: Transcript) throws -> Data {

@@ -665,6 +665,17 @@ final class MainWindowViewModel: ObservableObject {
                 )
 
                 guard activeJobID == job.id else { return }
+                // エンコードと書き込みは MainActor 外で行うが、完了表示より前に
+                // 保存完了を待つ（完了直後の終了で履歴・復旧データが失われないように）。
+                let store = historyStore
+                await Task.detached(priority: .utility) {
+                    do {
+                        try store.saveWithTemporary(transcript)
+                    } catch {
+                        AppLogger.error("Failed to save transcript: \(error.localizedDescription)", logger: AppLogger.transcription)
+                    }
+                }.value
+                guard activeJobID == job.id else { return }
                 currentTranscript = transcript
                 baselineTranscriptText = transcript.fullText
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
@@ -676,10 +687,6 @@ final class MainWindowViewModel: ObservableObject {
                 refreshModelAvailability()
                 announcePhaseIfNeeded(.finished)
                 AppLogger.info("Transcription completed for \(file.fileName)", logger: AppLogger.transcription)
-                let store = historyStore
-                Task.detached(priority: .utility) {
-                    try? store.saveWithTemporary(transcript)
-                }
             } catch {
                 if activeJobID == job.id, !Task.isCancelled {
                     handleError(error, context: .transcription)
