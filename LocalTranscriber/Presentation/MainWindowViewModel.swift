@@ -218,14 +218,17 @@ final class MainWindowViewModel: ObservableObject {
         operationCoordinator.activeOperation != nil || isDownloadingModel
     }
 
-    var canStartTranscription: Bool {
+    /// 選択中のファイルが実在する場合だけ返す。削除済みの参照を各機能で使わないための単一の判定源。
+    var existingSelectedFile: AudioFileInfo? {
         guard let selectedFile,
-              FileManager.default.fileExists(atPath: selectedFile.url.path),
-              !isBusy,
-              let model = settings.selectedModel else {
-            return false
+              FileManager.default.fileExists(atPath: selectedFile.url.path) else {
+            return nil
         }
-        return isModelDownloaded(model)
+        return selectedFile
+    }
+
+    var canStartTranscription: Bool {
+        startTranscriptionDisabledReason == nil
     }
 
     var canDownloadSelectedModel: Bool {
@@ -240,7 +243,7 @@ final class MainWindowViewModel: ObservableObject {
         if isBusy {
             return NSLocalizedString("文字起こし処理中です", comment: "Transcription is busy")
         }
-        if selectedFile == nil || !FileManager.default.fileExists(atPath: selectedFile?.url.path ?? "") {
+        if existingSelectedFile == nil {
             return NSLocalizedString("音声ファイルを選択してください", comment: "Select an audio file")
         }
         if settings.selectedModel == nil {
@@ -789,7 +792,13 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func playSegment(_ segment: TranscriptSegment) {
-        guard let file = selectedFile else { return }
+        guard let file = existingSelectedFile else {
+            showToast(
+                NSLocalizedString("音声ファイルが見つからないため再生できません", comment: "Audio file missing for playback"),
+                icon: "exclamationmark.triangle.fill"
+            )
+            return
+        }
 
         if audioPlayer.loadedURL != file.url {
             audioPlayer.load(url: file.url)

@@ -275,10 +275,38 @@ final class MainWindowViewModelImportTests: XCTestCase {
         viewModel.downloadedModelIDs = ["base"]
         XCTAssertTrue(viewModel.canStartTranscription)
 
+        viewModel.playingSegmentID = UUID()
+        viewModel.isSegmentPaused = true
         try FileManager.default.removeItem(at: copiedURL)
         viewModel.handleImportsCleared()
 
         XCTAssertNil(viewModel.selectedFile)
+        XCTAssertNil(viewModel.playingSegmentID)
+        XCTAssertFalse(viewModel.isSegmentPaused)
+        XCTAssertFalse(viewModel.canStartTranscription)
+        XCTAssertEqual(
+            viewModel.startTranscriptionDisabledReason,
+            L("音声ファイルを選択してください", comment: "Select an audio file")
+        )
+    }
+
+    func testCannotStartTranscriptionWhenSelectedFileWasDeleted() throws {
+        let externalURL = sourceRoot.appendingPathComponent("deleted.wav")
+        try Data("audio".utf8).write(to: externalURL)
+        viewModel.selectedFile = AudioFileInfo(
+            url: externalURL,
+            fileName: externalURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 5,
+            formattedFileSize: "5 bytes"
+        )
+        AppSettings.shared.selectedModelID = "base"
+        viewModel.downloadedModelIDs = ["base"]
+        XCTAssertTrue(viewModel.canStartTranscription)
+
+        try FileManager.default.removeItem(at: externalURL)
+
+        XCTAssertNotNil(viewModel.selectedFile)
         XCTAssertFalse(viewModel.canStartTranscription)
         XCTAssertEqual(
             viewModel.startTranscriptionDisabledReason,
