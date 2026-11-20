@@ -33,15 +33,9 @@ def model_test_steps(workflow_name):
         scripts.append(textwrap.dedent(script))
     if not scripts:
         raise AssertionError(f"{workflow_name} model-test steps not found")
-    joined = "\n".join(scripts)
-    # ワークフローは共有スクリプトを呼ぶ。呼び出しを実際のスクリプトの関数本体に置き換える。
-    shared_script = (ROOT / "scripts/run-model-integration-tests.sh").read_text(encoding="utf-8")
-    body = "\n".join(
-        line for line in shared_script.splitlines()
-        if not line.startswith("#!") and line.strip() != "set -euo pipefail"
-    )
-    return joined.replace("bash scripts/run-model-integration-tests.sh", body)
-
+    # 呼び出しは置換せず、実際に `bash scripts/run-model-integration-tests.sh` を
+    # 子プロセスとして起動し、共有スクリプト自身のシェル設定と環境変数の引き継ぎも検証する。
+    return "\n".join(scripts)
 
 STUB = r'''#!/usr/bin/env python3
 import json
@@ -130,7 +124,7 @@ class NightlyWorkflowSecurityTests(unittest.TestCase):
 class NightlyWorkflowTests(unittest.TestCase):
     workflow_name = "nightly"
 
-    def run_workflow(self, modes=None, tool_failure="", failure_selector=""):
+    def run_workflow(self, modes=None, tool_failure="", failure_selector="", override_settings=True):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             stub = work / "tool-stub.py"
@@ -140,15 +134,20 @@ class NightlyWorkflowTests(unittest.TestCase):
                 "TOOL_STUB": str(stub),
                 "RUN_MODEL_INTEGRATION_TESTS": "1",
                 "TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS": "1",
-                "PROJECT": "Test Project.xcodeproj",
-                "SCHEME": "Test Scheme",
-                "DERIVED_DATA_PATH": "Test DerivedData",
                 "TEST_SELECTORS": json.dumps([DOWNLOAD, LOAD]),
                 "TEST_MODES": json.dumps(modes or {}),
                 "TOOL_FAILURE": tool_failure,
                 "TOOL_FAILURE_SELECTOR": failure_selector,
                 "GATE_NAME": self.workflow_name,
             }
+            for key in ("PROJECT", "SCHEME", "DERIVED_DATA_PATH", "RESULT_ROOT"):
+                env.pop(key, None)
+            if override_settings:
+                env.update({
+                    "PROJECT": "Test Project.xcodeproj",
+                    "SCHEME": "Test Scheme",
+                    "DERIVED_DATA_PATH": "Test DerivedData",
+                })
             # ワークフローは scripts/ 配下の共有スクリプトを呼ぶため、同じ配置で用意する。
             (work / "scripts").mkdir()
             shutil.copyfile(
@@ -184,8 +183,10 @@ export -f xcodebuild xcrun
             with self.subTest(selector=selector):
                 result, _ = self.run_workflow({selector: "missing"})
                 self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertIn("FAIL:", result.stderr)
-                self.assertIn(selector, result.stderr)
+                self.assertIn(
+                    f"FAIL: {self.workflow_name} real-model tests did not execute for {selector}",
+                    result.stderr,
+                )
 
     def test_either_fully_skipped_selector_fails(self):
         for selector in (DOWNLOAD, LOAD):
@@ -241,6 +242,20 @@ export -f xcodebuild xcrun
             with self.subTest(failure=failure):
                 result, _ = self.run_workflow(tool_failure=failure)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_default_build_settings_when_workflow_does_not_override(self):
+        # Nightly は PROJECT 等を設定しないため、共有スクリプトの既定値が実効設定になる。
+        if self.workflow_name != "nightly":
+            self.skipTest("release はワークフローの env で設定する")
+        result, invocations = self.run_workflow(override_settings=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for args in invocations:
+            for flag, value in (
+                ("-project", "LocalTranscriber.xcodeproj"),
+                ("-scheme", "LocalTranscriber"),
+                ("-derivedDataPath", "DerivedData"),
+            ):
+                self.assertEqual(args[args.index(flag) + 1], value)
 
 
 class ReleaseModelWorkflowTests(NightlyWorkflowTests):
