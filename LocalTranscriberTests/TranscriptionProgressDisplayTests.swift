@@ -363,17 +363,21 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
             return
         }
 
-        let keys = [
-            "初回のモデル読み込みは時間がかかることがあります",
-            "音声を読み込んでいます（モデルの前処理）",
-            "文字起こしの準備をしています。",
-            "途中結果を表示中",
-            "複数ファイルのドロップには対応していません。1つの音声ファイルをドロップしてください。",
-            "対応している音声ファイルを読み込めませんでした。",
+        // 英語値を明示し、別キーの訳のコピペや未翻訳の値を検出する。
+        let expected: [(key: String, english: String)] = [
+            ("初回のモデル読み込みは時間がかかることがあります", "The first model load may take some time"),
+            ("音声を読み込んでいます（モデルの前処理）", "Loading audio (model preprocessing)"),
+            ("文字起こしの準備をしています。", "Preparing transcription."),
+            ("途中結果を表示中", "Showing partial results"),
+            (
+                "複数ファイルのドロップには対応していません。1つの音声ファイルをドロップしてください。",
+                "Dropping multiple files is not supported. Drop a single audio file."
+            ),
+            ("対応している音声ファイルを読み込めませんでした。", "Could not load a supported audio file."),
         ]
-        for key in keys {
+        for (key, english) in expected {
             let value = NSLocalizedString(key, bundle: englishBundle, comment: "")
-            XCTAssertNotEqual(value, key, "\(key) に英語訳が登録されていること")
+            XCTAssertEqual(value, english, "\(key) に正しい英語訳が登録されていること")
         }
     }
 }

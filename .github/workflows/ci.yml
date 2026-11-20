@@ -121,6 +121,10 @@ jobs:
           cd site
           node app.test.js
 
+      - name: Localization key tests
+        run: |
+          python3 scripts/test-localization-keys.py
+
       - name: Release script tests
         run: |
           bash scripts/test-release-scripts.sh
