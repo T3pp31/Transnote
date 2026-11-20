@@ -236,6 +236,8 @@ final class MainWindowViewModelImportTests: XCTestCase {
         let gate = AsyncGate()
         defer { gate.open() }
         let selectedFile = try prepareTranscriptionRestart(gate: gate)
+        // 未保存の編集が失われないことを検証するため、baseline と異なる内容にする。
+        viewModel.transcriptText = "edited text"
 
         viewModel.startTranscription()
         XCTAssertTrue(viewModel.confirmFileImport)
@@ -250,7 +252,11 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertNil(viewModel.transcriptionTask, "インポート失敗後に旧ファイルの文字起こしを開始しないこと")
         XCTAssertEqual(viewModel.selectedFile, selectedFile)
         XCTAssertEqual(viewModel.currentTranscript?.fullText, "existing text")
-        XCTAssertEqual(viewModel.transcriptText, "existing text")
+        XCTAssertEqual(viewModel.transcriptText, "edited text", "未保存の編集を保持すること")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: selectedFile.url.path),
+            "インポート失敗時に旧ファイルの sandbox コピーを削除しないこと"
+        )
         XCTAssertNotNil(viewModel.errorMessage)
     }
 
