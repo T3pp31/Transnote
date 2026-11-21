@@ -1,11 +1,11 @@
-Transnote インストール手順
+@APP_NAME@ インストール手順
 ==========================
 
 ■ このビルドの署名・公証について
 
 @SECURITY_NOTICE@
 
-※ この案内は **Transnote について**のものです。他のアプリで同様の警告が出たときは、
+※ この案内は **@APP_NAME@ について**のものです。他のアプリで同様の警告が出たときは、
 そのアプリの配布元が信頼できるか必ず確認してください。
 
 ■ 警告が表示された場合
@@ -15,8 +15,8 @@ macOS 14 / 15 で表示されることがある警告の例と対処：
 
 | 表示される文言（例） | 対処 |
 | --- | --- |
-| 「“Transnote” は、マルウェアでないことを確認できないため、開くことができません」 | 「完了」または「キャンセル」で閉じ、下記【方法 C】のシステム設定から許可 |
-| 「“インストール.command” は開いていません」 / 「開くことができません」 | 「ゴミ箱に入れる」は押さず「完了」で閉じ、下記【方法 A】のターミナルから実行 |
+| 「“@APP_NAME@” は、マルウェアでないことを確認できないため、開くことができません」 | 「完了」または「キャンセル」で閉じ、下記【方法 C】のシステム設定から許可 |
+| 「“@INSTALL_SCRIPT_NAME@” は開いていません」 / 「開くことができません」 | 「ゴミ箱に入れる」は押さず「完了」で閉じ、下記【方法 A】のターミナルから実行 |
 | 「開発元を確認できません」 | 【方法 A】または【方法 C】。macOS 15では右クリック→「開く」は使えません |
 
 「ゴミ箱に入れる」ボタンは押さないでください。押すとファイルが消えるだけで、
@@ -24,7 +24,7 @@ macOS 14 / 15 で表示されることがある警告の例と対処：
 
 ■ インストール手順
 
-0. GitHub Release から Transnote.dmg と Transnote.dmg.sha256 の両方を
+0. GitHub Release から @DMG_NAME@ と @DMG_NAME@.sha256 の両方を
    ダウンロードし、同じフォルダ（例: ダウンロード）に保存してください。
    インストールスクリプトは DMG の SHA256 を自動検証します。
 
@@ -34,21 +34,21 @@ macOS 14 / 15 で表示されることがある警告の例と対処：
    （Spotlight で「ターミナル」と検索しても開けます）
 2. 次の1行目を貼り付けて Enter を押す:
 
-bash "/Volumes/Transnote/インストール.command"
+bash "/Volumes/@APP_NAME@/@INSTALL_SCRIPT_NAME@"
 
-※ DMG のボリューム名が Transnote でない場合（例: Transnote 1）は、
+※ DMG のボリューム名が @APP_NAME@ でない場合（例: @APP_NAME@ 1）は、
   Finder 左サイドバーに表示されている名前に合わせてパスを変更してください。
 
-  例: bash "/Volumes/Transnote 1/インストール.command"
+  例: bash "/Volumes/@APP_NAME@ 1/@INSTALL_SCRIPT_NAME@"
 
-3. インストールが完了すると Transnote が起動します。
+3. インストールが完了すると @APP_NAME@ が起動します。
 4. Finder で DMG を取り出してください（マウントしたままだとアプリが複数見えます）。
 
 【方法 B】右クリック →「開く」（macOS 14まで）
 
 方法 A でうまくいかない場合、またはターミナルを使いたくない場合に試してください。
 
-1. インストール.command を右クリック（Control + クリック）
+1. @INSTALL_SCRIPT_NAME@ を右クリック（Control + クリック）
 2. メニューから「開く」を選ぶ
 3. 確認ダイアログで「開く」を押す
 
@@ -59,8 +59,8 @@ bash "/Volumes/Transnote/インストール.command"
 
 1. 警告ダイアログは「完了」で閉じる（「ゴミ箱に入れる」は押さない）
 2. システム設定 → プライバシーとセキュリティ を開く
-3. 下の方に、ブロックされた項目（インストーラーの場合は「インストール.command」、
-   アプリ本体の場合は「Transnote」または「Transnote.app」）に関する「このまま開く」があれば押す
+3. 下の方に、ブロックされた項目（インストーラーの場合は「@INSTALL_SCRIPT_NAME@」、
+   アプリ本体の場合は「@APP_NAME@」または「@APP_NAME@.app」）に関する「このまま開く」があれば押す
 
 ■ インストール後
 
@@ -69,11 +69,11 @@ macOS 14までは右クリック →「開く」も使えます。
 
 ■ 手動インストール（方法 A〜C がすべて失敗した場合）
 
-1. 実行中の Transnote を終了する
-2. Applications 内の Transnote.app（および LocalTranscriber.app）を削除する
-3. DMG 内の Transnote を Applications フォルダへドラッグする
-4. Applications 内の Transnote を【方法 C】で許可する。
+1. 実行中の @APP_NAME@ を終了する
+2. Applications 内の @APP_NAME@.app（および @LEGACY_APP_NAMES@）を削除する
+3. DMG 内の @APP_NAME@ を Applications フォルダへドラッグする
+4. Applications 内の @APP_NAME@ を【方法 C】で許可する。
    macOS 14までは右クリック →「開く」も使える。
 
-旧バージョンが残っていると Transnote 2.app などの重複ができるため、
-通常は方法 A のインストール.command を推奨します。
+旧バージョンが残っていると @APP_NAME@ 2.app などの重複ができるため、
+通常は方法 A の @INSTALL_SCRIPT_NAME@ を推奨します。
