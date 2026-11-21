@@ -12,6 +12,7 @@ struct SettingsView: View {
     let onDiskUsage: (ModelOption) -> String?
     let modelsRevision: Int
     let onModelsCleared: () -> Void
+    let onImportsCleared: () -> Void
 
     @State private var isConfirmingModelDelete = false
 
@@ -217,7 +218,7 @@ struct SettingsView: View {
                     directory: AppDirectories.importsDirectory,
                     icon: "tray",
                     isBusy: isBusy,
-                    onCleared: nil
+                    onCleared: onImportsCleared
                 )
                 StorageRow(
                     title: "Models",

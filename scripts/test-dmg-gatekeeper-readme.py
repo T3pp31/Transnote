@@ -15,12 +15,11 @@ ROOT = Path(__file__).resolve().parent.parent
 
 class GatekeeperReadmeTests(unittest.TestCase):
     def test_method_c_describes_both_permission_targets(self):
-        config = plistlib.loads((ROOT / "Config/distribution.plist").read_bytes())
         readme = (ROOT / "Config/dmg-gatekeeper-readme.txt").read_text(encoding="utf-8")
         method_c = readme.split("【方法 C】システム設定から許可\n", 1)[1].split("\n■", 1)[0]
         step = re.search(r"^3\..*(?:\n[ \t]+.*)*", method_c, re.MULTILINE)
         self.assertIsNotNone(step, "方法 C の許可対象を説明する手順3がありません")
-        for target in (config["InstallScriptName"], config["AppName"], "このまま開く"):
+        for target in ("@INSTALL_SCRIPT_NAME@", "@APP_NAME@", "このまま開く"):
             self.assertIn(target, step.group())
 
     def test_release_rejects_app_name_with_shell_metacharacters(self):
@@ -63,6 +62,20 @@ class GatekeeperReadmeTests(unittest.TestCase):
         self.assertNotIn("${{", script, "run スクリプトへ式を直接埋め込まないこと")
         self.assertIn('versioned_dmg="$VERSIONED_DMG"', script)
         self.assertIn('latest_dmg="$LATEST_DMG"', script)
+
+    def test_readme_uses_distribution_placeholders_instead_of_hardcoded_names(self):
+        readme = (ROOT / "Config/dmg-gatekeeper-readme.txt").read_text(encoding="utf-8")
+        for placeholder in ("@APP_NAME@", "@DMG_NAME@", "@INSTALL_SCRIPT_NAME@", "@LEGACY_APP_NAMES@"):
+            self.assertIn(placeholder, readme)
+        for hardcoded in ("Transnote", "インストール.command", "LocalTranscriber.app"):
+            self.assertNotIn(hardcoded, readme, f"案内文に {hardcoded} が直接書かれています")
+
+    def test_create_dmg_replaces_readme_placeholders_from_distribution_config(self):
+        script = (ROOT / "scripts/create-dmg.sh").read_text(encoding="utf-8")
+        for placeholder in ("@APP_NAME@", "@DMG_NAME@", "@INSTALL_SCRIPT_NAME@", "@LEGACY_APP_NAMES@"):
+            self.assertIn(placeholder, script)
+        self.assertIn("replace_readme_placeholders", script)
+        self.assertIn("Print :LegacyAppNames:", script)
 
     def test_readme_keeps_build_specific_notice_in_one_placeholder(self):
         readme = (ROOT / "Config/dmg-gatekeeper-readme.txt").read_text(encoding="utf-8")

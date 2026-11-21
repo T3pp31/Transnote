@@ -30,37 +30,7 @@ jobs:
       HAS_SIGNING_SECRETS: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_CERTIFICATE_PWD != '' && secrets.MACOS_CERTIFICATE_IDENTITY != '' }}
       HAS_NOTARIZATION_SECRETS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
-
-      - name: Read Xcode version
-        id: xcode_config
-        run: |
-          set -euo pipefail
-          version="$(python3 scripts/read-xcode-version.py)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
-        with:
-          xcode-version: ${{ steps.xcode_config.outputs.version }}
-
-      - name: Read distribution config
-        run: |
-          set -euo pipefail
-          app_name="$(/usr/libexec/PlistBuddy -c 'Print :AppName' Config/distribution.plist)"
-          if [[ -z "$app_name" || "$app_name" == *$'\n'* || "$app_name" == *$'\r'* ]]; then
-            echo "AppName must be a non-empty single-line value." >&2
-            exit 1
-          fi
-          # AppName は DMG 名・Release 本文へ展開されるため、シェルメタ文字を拒否する。
-          if ! [[ "$app_name" =~ ^[0-9A-Za-z._-]+$ ]]; then
-            echo "AppName must contain only alphanumerics, '.', '_' or '-'." >&2
-            exit 1
-          fi
-          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
-
+      # バージョンの正規化・検証はこの1ステップに集約し、checkout 前に実行する。
       - name: Resolve release version
         id: version
         env:
@@ -88,6 +58,37 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && steps.version.outputs.tag || github.ref }}
+
+      - name: Read Xcode version
+        id: xcode_config
+        run: |
+          set -euo pipefail
+          version="$(python3 scripts/read-xcode-version.py)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: ${{ steps.xcode_config.outputs.version }}
+
+      - name: Read distribution config
+        run: |
+          set -euo pipefail
+          app_name="$(/usr/libexec/PlistBuddy -c 'Print :AppName' Config/distribution.plist)"
+          if [[ -z "$app_name" || "$app_name" == *$'\n'* || "$app_name" == *$'\r'* ]]; then
+            echo "AppName must be a non-empty single-line value." >&2
+            exit 1
+          fi
+          # AppName は DMG 名・Release 本文へ展開されるため、シェルメタ文字を拒否する。
+          if ! [[ "$app_name" =~ ^[0-9A-Za-z._-]+$ ]]; then
+            echo "AppName must contain only alphanumerics, '.', '_' or '-'." >&2
+            exit 1
+          fi
+          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
+
       - name: Sync MARKETING_VERSION
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
@@ -104,34 +105,10 @@ jobs:
         env:
           RUN_MODEL_INTEGRATION_TESTS: '1'
           TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: '1'
+          GATE_NAME: release
         run: |
           set -euo pipefail
-          # Validate selectors separately so one passing suite cannot hide an
-          # unmatched selector or a test skipped by its environment guard.
-          for TEST_IDENTIFIER in \
-            LocalTranscriberTests/ModelDownloadIntegrationTests \
-            LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
-          do
-            RESULT_BUNDLE="$DERIVED_DATA_PATH/TestResults/ReleaseModelTests-${TEST_IDENTIFIER##*/}.xcresult"
-            rm -rf "$RESULT_BUNDLE"
-            xcodebuild test \
-              -project "$PROJECT" \
-              -scheme "$SCHEME" \
-              -destination 'platform=macOS' \
-              CODE_SIGNING_ALLOWED=NO \
-              -derivedDataPath "$DERIVED_DATA_PATH" \
-              -resultBundlePath "$RESULT_BUNDLE" \
-              "-only-testing:$TEST_IDENTIFIER"
-
-            summary="$(xcrun xcresulttool get test-results summary --path "$RESULT_BUNDLE" --compact)"
-            total="$(echo "$summary" | python3 -c 'import json,sys; print(json.load(sys.stdin)["totalTestCount"])')"
-            executed="$(echo "$summary" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(sum(item["passedTests"] + item["failedTests"] + item["expectedFailures"] for item in data["devicesAndConfigurations"]))')"
-            echo "Executed tests for $TEST_IDENTIFIER: $executed (total: $total)"
-            if [[ "$total" -eq 0 || "$executed" -eq 0 ]]; then
-              echo "FAIL: release real-model tests did not execute for $TEST_IDENTIFIER" >&2
-              exit 1
-            fi
-          done
+          bash scripts/run-model-integration-tests.sh
 
       - name: Archive Release build
         run: |
@@ -163,6 +140,13 @@ jobs:
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          # 後続ステップはチェックアウトした ref 内のスクリプトを実行するため、
+          # 成否にかかわらず Developer ID 秘密鍵を保持したキーチェーンを残さない。
+          cleanup_signing() {
+            security delete-keychain "$KEYCHAIN" || true
+            rm -f "$RUNNER_TEMP/certificate.p12"
+          }
+          trap cleanup_signing EXIT
           security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"

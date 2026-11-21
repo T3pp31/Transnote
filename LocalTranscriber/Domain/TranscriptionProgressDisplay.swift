@@ -13,13 +13,15 @@ struct TranscriptionProgressDisplay: Equatable {
     let primaryLabel: String
     let detailLabel: String?
     let presentablePartialText: String?
+    /// アクセシビリティラベルにモデル名として連結できる値。詳細表示の先頭要素とは独立させる。
+    let modelDisplayName: String?
 
     var accessibilityLabel: String {
-        if let modelName = detailLabel?.components(separatedBy: " · ").first, !modelName.isEmpty {
+        if let modelDisplayName, !modelDisplayName.isEmpty {
             return String(
                 format: NSLocalizedString("%@、%@", comment: "Progress label and model name"),
                 primaryLabel,
-                modelName
+                modelDisplayName
             )
         }
         return primaryLabel
@@ -81,7 +83,8 @@ struct TranscriptionProgressDisplay: Equatable {
             fraction: fraction,
             primaryLabel: primaryLabel,
             detailLabel: detailLabel,
-            presentablePartialText: presentablePartialText
+            presentablePartialText: presentablePartialText,
+            modelDisplayName: update.modelDisplayName
         )
     }
 
@@ -92,7 +95,8 @@ struct TranscriptionProgressDisplay: Equatable {
             fraction: nil,
             primaryLabel: NSLocalizedString("待機中", comment: "Idle state label"),
             detailLabel: nil,
-            presentablePartialText: nil
+            presentablePartialText: nil,
+            modelDisplayName: nil
         )
     }
 
@@ -103,7 +107,8 @@ struct TranscriptionProgressDisplay: Equatable {
             fraction: 1.0,
             primaryLabel: NSLocalizedString("完了", comment: "Done state label"),
             detailLabel: nil,
-            presentablePartialText: nil
+            presentablePartialText: nil,
+            modelDisplayName: nil
         )
     }
 

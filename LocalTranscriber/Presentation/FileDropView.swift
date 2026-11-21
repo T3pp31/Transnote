@@ -209,7 +209,10 @@ struct FileDropView: View {
         guard index < typeIdentifiers.count else {
             AppLogger.error("Drop import failed: unsupported dropped item", logger: AppLogger.fileAccess)
             finishDrop(generation: generation) {
-                self.dropErrorMessage = "対応している音声ファイルを読み込めませんでした。"
+                self.dropErrorMessage = NSLocalizedString(
+                    "対応している音声ファイルを読み込めませんでした。",
+                    comment: "Drop import failed for unsupported item"
+                )
             }
             return
         }

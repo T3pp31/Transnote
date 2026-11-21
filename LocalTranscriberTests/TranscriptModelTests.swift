@@ -284,6 +284,33 @@ final class TranscriptModelTests: XCTestCase {
     }
 
     @MainActor
+    func testRecommendedModelFallsBackWhenRecommendedIDIsNotConfigured() {
+        // 推奨ID（実行環境依存）がモデル一覧にない構成でも nil にしない。
+        let config = AppConfig(
+            supportedExtensions: ["wav"],
+            defaultModelID: "custom-default",
+            defaultLanguageID: "en",
+            modelsDirectoryName: "Models",
+            models: [
+                // 先頭以外に既定モデルを置き、先頭へのフォールバックと区別する。
+                ModelOption(id: "custom-other", displayName: "Other", whisperKitModelName: "custom-other"),
+                ModelOption(id: "custom-default", displayName: "Default", whisperKitModelName: "custom-default"),
+            ],
+            languages: [LanguageOption(id: "en", displayName: "English")],
+            updateCheckEnabled: true,
+            githubReleasesAPIURL: URL(string: "https://api.github.com/repos/T3pp31/Transnote/releases/latest")!,
+            updateDownloadFallbackURL: URL(string: "https://github.com/T3pp31/Transnote")!,
+            updateDMGAssetName: "Transnote.dmg"
+        )
+        let suiteName = "RecommendedModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(config: config, defaults: defaults)
+
+        XCTAssertEqual(settings.recommendedModel?.id, "custom-default")
+    }
+
+    @MainActor
     func testAppSettingsSharedHasValidSelection() {
         let settings = AppSettings.shared
         XCTAssertFalse(settings.models.isEmpty)
@@ -831,6 +858,34 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertTrue(store.recent().isEmpty)
         XCTAssertTrue(try FileManager.default.contentsOfDirectory(atPath: root.path).isEmpty)
 
+    }
+
+    func testSaveWithTemporaryWritesHistoryAndRecovery() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let recoveryURL = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        let recoveryData = try? Data(contentsOf: recoveryURL)
+        defer {
+            if let recoveryData {
+                try? recoveryData.write(to: recoveryURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: recoveryURL)
+            }
+        }
+
+        let transcript = Transcript(sourceFileName: "meeting.wav", fullText: "hello")
+        try HistoryStore(historyRoot: root).saveWithTemporary(transcript)
+
+        let saved = try XCTUnwrap(HistoryStore(historyRoot: root).recent(limit: 1).first)
+        XCTAssertEqual(saved.id, transcript.id)
+        XCTAssertEqual(saved.fullText, transcript.fullText)
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let recovered = try decoder.decode(Transcript.self, from: Data(contentsOf: recoveryURL))
+        XCTAssertEqual(recovered.id, transcript.id)
+        XCTAssertEqual(recovered.fullText, transcript.fullText)
     }
 }
 

@@ -121,8 +121,10 @@ final class StorageSizeStateTests: XCTestCase {
         // 初回判定でディレクトリ索引をキャッシュした状態から削除する。
         let availability = ModelAvailabilityService(modelsRoot: root)
         let viewModel = MainWindowViewModel(settings: settings, modelAvailability: availability)
+        let sampleURL = root.appendingPathComponent("sample.wav")
+        try Data(count: 64).write(to: sampleURL)
         viewModel.selectedFile = AudioFileInfo(
-            url: root.appendingPathComponent("sample.wav"),
+            url: sampleURL,
             fileName: "sample.wav",
             fileExtension: "wav",
             fileSizeBytes: 64,
