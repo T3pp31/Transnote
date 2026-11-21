@@ -33,8 +33,7 @@ def model_test_steps(workflow_name):
         scripts.append(textwrap.dedent(script))
     if not scripts:
         raise AssertionError(f"{workflow_name} model-test steps not found")
-    # 呼び出しは置換せず、実際に `bash scripts/run-model-integration-tests.sh` を
-    # 子プロセスとして起動し、共有スクリプト自身のシェル設定と環境変数の引き継ぎも検証する。
+    # 呼び出しは置換せず、run_workflow() がコピーした共有スクリプトを実際に起動する。
     return "\n".join(scripts)
 
 STUB = r'''#!/usr/bin/env python3
