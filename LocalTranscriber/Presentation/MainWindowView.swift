@@ -120,7 +120,8 @@ struct MainWindowView: View {
                 onDeleteSelectedModel: viewModel.deleteSelectedModel,
                 onDiskUsage: viewModel.modelDiskUsageText,
                 modelsRevision: viewModel.downloadedModelIDs.count,
-                onModelsCleared: viewModel.refreshModelAvailability
+                onModelsCleared: viewModel.refreshModelAvailability,
+                onImportsCleared: viewModel.handleImportsCleared
             )
         }
         .sheet(isPresented: $showingHistory) {

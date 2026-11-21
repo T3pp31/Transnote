@@ -51,6 +51,16 @@
         }
       }
     },
+    "音声ファイルが見つからないため再生できません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot play because the audio file was not found"
+          }
+        }
+      }
+    },
     "音声ファイルを選択してください": {
       "localizations": {
         "en": {

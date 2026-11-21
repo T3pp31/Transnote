@@ -41,8 +41,8 @@ bash "/Volumes/Transnote/インストール.command"
 
   例: bash "/Volumes/Transnote 1/インストール.command"
 
-4. インストールが完了すると Transnote が起動します。
-5. Finder で DMG を取り出してください（マウントしたままだとアプリが複数見えます）。
+3. インストールが完了すると Transnote が起動します。
+4. Finder で DMG を取り出してください（マウントしたままだとアプリが複数見えます）。
 
 【方法 B】右クリック →「開く」（macOS 14まで）
 

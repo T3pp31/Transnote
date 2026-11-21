@@ -78,6 +78,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     let supportedExtensions: [String]
 
     private let defaults: UserDefaults
+    private let defaultModelID: String
     private let modelKey = "selectedModelID"
     private let languageKey = "selectedLanguageID"
     private let updateCheckKey = "updateCheckEnabled"
@@ -86,6 +87,7 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
 
     init(config: AppConfig = .shared, defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        defaultModelID = config.defaultModelID
         models = config.models
         languages = config.languages
         supportedExtensions = config.supportedExtensions
@@ -138,7 +140,10 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     }
 
     var recommendedModel: ModelOption? {
+        // モデル構成が変わって推奨IDが存在しない場合は既定モデルへフォールバックする。
         models.first { $0.id == recommendedModelID }
+            ?? models.first { $0.id == defaultModelID }
+            ?? models.first
     }
 
     var selectedLanguage: LanguageOption? {
