@@ -141,7 +141,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         XCTAssertEqual(display.style, .indeterminate)
         XCTAssertNil(display.fraction)
         XCTAssertTrue(display.detailLabel?.contains("Small") == true)
-        XCTAssertTrue(display.detailLabel?.contains("時間がかかる") == true)
+        XCTAssertTrue(
+            display.detailLabel?.contains(
+                L("初回のモデル読み込みは時間がかかることがあります", comment: "Loading model indeterminate progress guidance")
+            ) == true
+        )
     }
 
     func testTranscribingUsesDeterminateStyle() {
@@ -171,7 +175,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
 
         XCTAssertEqual(display.style, .indeterminate)
         XCTAssertTrue(display.detailLabel?.contains("Base") == true)
-        XCTAssertTrue(display.detailLabel?.contains("時間がかかる") == true)
+        XCTAssertTrue(
+            display.detailLabel?.contains(
+                L("初回のモデル読み込みは時間がかかることがあります", comment: "Loading model indeterminate progress guidance")
+            ) == true
+        )
     }
 
     func testTranscribingWithPartialTextIncludesPartialGuidance() {
@@ -183,7 +191,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
 
         let display = TranscriptionProgressDisplay.from(update: update)
 
-        XCTAssertTrue(display.detailLabel?.contains("途中結果") == true)
+        XCTAssertTrue(
+            display.detailLabel?.contains(
+                L("途中結果を表示中", comment: "Partial transcription guidance")
+            ) == true
+        )
         XCTAssertTrue(display.detailLabel?.contains("50%") == true)
     }
 
@@ -197,7 +209,7 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
             ("<| |> <｜ ｜>", nil),
             ("<|ja|> こんにちは 🌏 <｜endoftext｜>", "こんにちは 🌏"),
         ]
-        let guidance = NSLocalizedString("途中結果を表示中", comment: "Partial transcription guidance")
+        let guidance = L("途中結果を表示中", comment: "Partial transcription guidance")
 
         for (raw, presentable) in cases {
             for fraction in [0.0, 0.5] {
