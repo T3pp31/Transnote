@@ -141,7 +141,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         XCTAssertEqual(display.style, .indeterminate)
         XCTAssertNil(display.fraction)
         XCTAssertTrue(display.detailLabel?.contains("Small") == true)
-        XCTAssertTrue(display.detailLabel?.contains("時間がかかる") == true)
+        XCTAssertTrue(
+            display.detailLabel?.contains(
+                L("初回のモデル読み込みは時間がかかることがあります", comment: "Loading model indeterminate progress guidance")
+            ) == true
+        )
     }
 
     func testTranscribingUsesDeterminateStyle() {
@@ -171,7 +175,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
 
         XCTAssertEqual(display.style, .indeterminate)
         XCTAssertTrue(display.detailLabel?.contains("Base") == true)
-        XCTAssertTrue(display.detailLabel?.contains("時間がかかる") == true)
+        XCTAssertTrue(
+            display.detailLabel?.contains(
+                L("初回のモデル読み込みは時間がかかることがあります", comment: "Loading model indeterminate progress guidance")
+            ) == true
+        )
     }
 
     func testTranscribingWithPartialTextIncludesPartialGuidance() {
@@ -183,7 +191,11 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
 
         let display = TranscriptionProgressDisplay.from(update: update)
 
-        XCTAssertTrue(display.detailLabel?.contains("途中結果") == true)
+        XCTAssertTrue(
+            display.detailLabel?.contains(
+                L("途中結果を表示中", comment: "Partial transcription guidance")
+            ) == true
+        )
         XCTAssertTrue(display.detailLabel?.contains("50%") == true)
     }
 
@@ -197,7 +209,7 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
             ("<| |> <｜ ｜>", nil),
             ("<|ja|> こんにちは 🌏 <｜endoftext｜>", "こんにちは 🌏"),
         ]
-        let guidance = NSLocalizedString("途中結果を表示中", comment: "Partial transcription guidance")
+        let guidance = L("途中結果を表示中", comment: "Partial transcription guidance")
 
         for (raw, presentable) in cases {
             for fraction in [0.0, 0.5] {
@@ -349,6 +361,36 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         )
         XCTAssertEqual(display.accessibilityLabel, expectedLabel)
         XCTAssertEqual(display.accessibilityValue, expectedValue)
+    }
+
+    func testProgressDetailKeysExistInEnglishLocalization() {
+        let appBundle = Bundle(for: MainWindowViewModel.self)
+        guard let englishPath = appBundle.path(forResource: "en", ofType: "lproj")
+        else {
+            XCTFail("en.lproj を読み込めないこと")
+            return
+        }
+        guard let englishBundle = Bundle(path: englishPath) else {
+            XCTFail("en.lproj を読み込めないこと")
+            return
+        }
+
+        // 英語値を明示し、別キーの訳のコピペや未翻訳の値を検出する。
+        let expected: [(key: String, english: String)] = [
+            ("初回のモデル読み込みは時間がかかることがあります", "The first model load may take some time"),
+            ("音声を読み込んでいます（モデルの前処理）", "Loading audio (model preprocessing)"),
+            ("文字起こしの準備をしています。", "Preparing transcription."),
+            ("途中結果を表示中", "Showing partial results"),
+            (
+                "複数ファイルのドロップには対応していません。1つの音声ファイルをドロップしてください。",
+                "Dropping multiple files is not supported. Drop a single audio file."
+            ),
+            ("対応している音声ファイルを読み込めませんでした。", "Could not load a supported audio file."),
+        ]
+        for (key, english) in expected {
+            let value = NSLocalizedString(key, bundle: englishBundle, comment: "")
+            XCTAssertEqual(value, english, "\(key) に正しい英語訳が登録されていること")
+        }
     }
 
     func testTranscribingAccessibilityLabelDoesNotUsePercentOrGuidanceAsModelName() {
