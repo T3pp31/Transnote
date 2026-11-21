@@ -70,6 +70,21 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertNil(viewModel.playingSegmentID)
     }
 
+    func testDependencyInitWiresPlaybackTimeUpdateCallback() async {
+        var dependencies = AppDependencies()
+        dependencies.audioPlayer = service
+        let viewModel = MainWindowViewModel(dependencies: dependencies)
+
+        XCTAssertNotNil(service.onPlaybackTimeUpdate, "init(dependencies:) でも再生位置コールバックを設定すること")
+
+        service.onPlaybackTimeUpdate?(0, 10)
+
+        let updated = await waitUntil(timeout: 2.0) {
+            viewModel.playbackPositionText == "00:10"
+        }
+        XCTAssertTrue(updated, "再生位置コールバックで playbackPositionText が更新されること")
+    }
+
     func testOnSegmentFinishedCallbackFires() async throws {
         var finished = false
 
