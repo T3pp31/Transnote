@@ -30,32 +30,7 @@ jobs:
       HAS_SIGNING_SECRETS: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_CERTIFICATE_PWD != '' && secrets.MACOS_CERTIFICATE_IDENTITY != '' }}
       HAS_NOTARIZATION_SECRETS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          persist-credentials: false
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
-
-      - name: Read Xcode version
-        id: xcode_config
-        run: |
-          set -euo pipefail
-          version="$(python3 scripts/read-xcode-version.py)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
-        with:
-          xcode-version: ${{ steps.xcode_config.outputs.version }}
-
-      - name: Read distribution config
-        run: |
-          set -euo pipefail
-          app_name="$(/usr/libexec/PlistBuddy -c 'Print :AppName' Config/distribution.plist)"
-          if [[ -z "$app_name" || "$app_name" == *$'\n'* || "$app_name" == *$'\r'* ]]; then
-            echo "AppName must be a non-empty single-line value." >&2
-            exit 1
-          fi
-          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
-
+      # バージョンの正規化・検証はこの1ステップに集約し、checkout 前に実行する。
       - name: Resolve release version
         id: version
         env:
@@ -82,6 +57,32 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && steps.version.outputs.tag || github.ref }}
+
+      - name: Read Xcode version
+        id: xcode_config
+        run: |
+          set -euo pipefail
+          version="$(python3 scripts/read-xcode-version.py)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: ${{ steps.xcode_config.outputs.version }}
+
+      - name: Read distribution config
+        run: |
+          set -euo pipefail
+          app_name="$(/usr/libexec/PlistBuddy -c 'Print :AppName' Config/distribution.plist)"
+          if [[ -z "$app_name" || "$app_name" == *$'\n'* || "$app_name" == *$'\r'* ]]; then
+            echo "AppName must be a non-empty single-line value." >&2
+            exit 1
+          fi
+          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
 
       - name: Sync MARKETING_VERSION
         env:
