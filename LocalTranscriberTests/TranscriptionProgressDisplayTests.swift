@@ -350,4 +350,37 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         XCTAssertEqual(display.accessibilityLabel, expectedLabel)
         XCTAssertEqual(display.accessibilityValue, expectedValue)
     }
+
+    func testTranscribingAccessibilityLabelDoesNotUsePercentOrGuidanceAsModelName() {
+        let percentOnly = TranscriptionProgressDisplay.from(
+            update: .make(phase: .transcribing, fraction: 0.32)
+        )
+        XCTAssertEqual(
+            percentOnly.accessibilityLabel,
+            TranscriptionProgressPhase.transcribing.localizedDisplayName,
+            "進捗率のみの詳細をモデル名として連結しないこと"
+        )
+
+        let partialGuidance = TranscriptionProgressDisplay.from(
+            update: .make(phase: .transcribing, fraction: 0.5, partialText: "hello")
+        )
+        XCTAssertEqual(
+            partialGuidance.accessibilityLabel,
+            TranscriptionProgressPhase.transcribing.localizedDisplayName,
+            "案内文をモデル名として連結しないこと"
+        )
+    }
+
+    func testTranscribingAccessibilityLabelIncludesModelNameWhenProvided() {
+        let display = TranscriptionProgressDisplay.from(
+            update: .make(phase: .transcribing, fraction: 0.32, modelDisplayName: "Base")
+        )
+        let expectedLabel = String(
+            format: NSLocalizedString("%@、%@", comment: "Progress label and model name"),
+            TranscriptionProgressPhase.transcribing.localizedDisplayName,
+            "Base"
+        )
+
+        XCTAssertEqual(display.accessibilityLabel, expectedLabel)
+    }
 }
