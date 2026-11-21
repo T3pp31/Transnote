@@ -232,6 +232,34 @@ final class MainWindowViewModelImportTests: XCTestCase {
         viewModel.cancelPendingFileImport()
     }
 
+    func testApplyPendingFileImportDoesNotRestartTranscriptionWhenImportFails() throws {
+        let gate = AsyncGate()
+        defer { gate.open() }
+        let selectedFile = try prepareTranscriptionRestart(gate: gate)
+        // 未保存の編集が失われないことを検証するため、baseline と異なる内容にする。
+        viewModel.transcriptText = "edited text"
+
+        viewModel.startTranscription()
+        XCTAssertTrue(viewModel.confirmFileImport)
+        XCTAssertNil(viewModel.pendingFileImport)
+
+        // インポート元が存在しないため、applyFileImport は失敗する。
+        viewModel.selectFile(url: sourceRoot.appendingPathComponent("missing.wav"))
+        XCTAssertNotNil(viewModel.pendingFileImport)
+
+        viewModel.applyPendingFileImport()
+
+        XCTAssertNil(viewModel.transcriptionTask, "インポート失敗後に旧ファイルの文字起こしを開始しないこと")
+        XCTAssertEqual(viewModel.selectedFile, selectedFile)
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "existing text")
+        XCTAssertEqual(viewModel.transcriptText, "edited text", "未保存の編集を保持すること")
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: selectedFile.url.path),
+            "インポート失敗時に旧ファイルの sandbox コピーを削除しないこと"
+        )
+        XCTAssertNotNil(viewModel.errorMessage)
+    }
+
     func testCancelledTranscriptionRestartKeepsResultAndRequiresConfirmationAgain() throws {
         let gate = AsyncGate()
         defer { gate.open() }
@@ -256,6 +284,78 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertTrue(viewModel.confirmFileImport)
         XCTAssertNil(viewModel.transcriptionTask)
         viewModel.cancelPendingFileImport()
+    }
+
+    func testHandleImportsClearedClearsSelectionUnderImportsDirectory() throws {
+        let importsDirectory = AppDirectories.importsDirectory
+        let copiedURL = importsDirectory.appendingPathComponent("cleared-\(UUID().uuidString).wav")
+        defer { try? FileManager.default.removeItem(at: copiedURL) }
+        try Data("audio".utf8).write(to: copiedURL)
+
+        viewModel.selectedFile = AudioFileInfo(
+            url: copiedURL,
+            fileName: copiedURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 5,
+            formattedFileSize: "5 bytes"
+        )
+        AppSettings.shared.selectedModelID = "base"
+        viewModel.downloadedModelIDs = ["base"]
+        XCTAssertTrue(viewModel.canStartTranscription)
+
+        viewModel.playingSegmentID = UUID()
+        viewModel.isSegmentPaused = true
+        try FileManager.default.removeItem(at: copiedURL)
+        viewModel.handleImportsCleared()
+
+        XCTAssertNil(viewModel.selectedFile)
+        XCTAssertNil(viewModel.playingSegmentID)
+        XCTAssertFalse(viewModel.isSegmentPaused)
+        XCTAssertFalse(viewModel.canStartTranscription)
+        XCTAssertEqual(
+            viewModel.startTranscriptionDisabledReason,
+            L("音声ファイルを選択してください", comment: "Select an audio file")
+        )
+    }
+
+    func testCannotStartTranscriptionWhenSelectedFileWasDeleted() throws {
+        let externalURL = sourceRoot.appendingPathComponent("deleted.wav")
+        try Data("audio".utf8).write(to: externalURL)
+        viewModel.selectedFile = AudioFileInfo(
+            url: externalURL,
+            fileName: externalURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 5,
+            formattedFileSize: "5 bytes"
+        )
+        AppSettings.shared.selectedModelID = "base"
+        viewModel.downloadedModelIDs = ["base"]
+        XCTAssertTrue(viewModel.canStartTranscription)
+
+        try FileManager.default.removeItem(at: externalURL)
+
+        XCTAssertNotNil(viewModel.selectedFile)
+        XCTAssertFalse(viewModel.canStartTranscription)
+        XCTAssertEqual(
+            viewModel.startTranscriptionDisabledReason,
+            L("音声ファイルを選択してください", comment: "Select an audio file")
+        )
+    }
+
+    func testHandleImportsClearedKeepsSelectionOutsideImportsDirectory() throws {
+        let externalURL = sourceRoot.appendingPathComponent("external.wav")
+        try Data("audio".utf8).write(to: externalURL)
+        viewModel.selectedFile = AudioFileInfo(
+            url: externalURL,
+            fileName: externalURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 5,
+            formattedFileSize: "5 bytes"
+        )
+
+        viewModel.handleImportsCleared()
+
+        XCTAssertEqual(viewModel.selectedFile?.url, externalURL)
     }
 
     func testConfirmedTranscriptionRestartStillRequiresDownloadedModel() throws {

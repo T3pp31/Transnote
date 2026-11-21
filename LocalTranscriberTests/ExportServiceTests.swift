@@ -32,14 +32,24 @@ final class ExportServiceTests: XCTestCase {
     }
 
     func testJSONExportIsValidAndRoundTrips() throws {
-        let content = try exportService.content(for: sampleTranscript, format: .json)
+        // computed property のため、比較対象は同じインスタンスを保持する。
+        let transcript = sampleTranscript
+        let content = try exportService.content(for: transcript, format: .json)
         let data = content.data(using: .utf8)!
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         let decoded = try decoder.decode(Transcript.self, from: data)
-        XCTAssertEqual(decoded.sourceFileName, sampleTranscript.sourceFileName)
-        XCTAssertEqual(decoded.fullText, sampleTranscript.fullText)
-        XCTAssertEqual(decoded.segments.count, sampleTranscript.segments.count)
+        XCTAssertEqual(decoded.id, transcript.id)
+        XCTAssertEqual(decoded.sourceFileName, transcript.sourceFileName)
+        XCTAssertEqual(decoded.language, transcript.language)
+        XCTAssertEqual(decoded.fullText, transcript.fullText)
+        XCTAssertEqual(decoded.segments.count, transcript.segments.count)
+        for (decodedSegment, expected) in zip(decoded.segments, transcript.segments) {
+            XCTAssertEqual(decodedSegment.id, expected.id)
+            XCTAssertEqual(decodedSegment.startTime, expected.startTime)
+            XCTAssertEqual(decodedSegment.endTime, expected.endTime)
+            XCTAssertEqual(decodedSegment.text, expected.text)
+        }
     }
 
     func testSRTExportFormat() throws {

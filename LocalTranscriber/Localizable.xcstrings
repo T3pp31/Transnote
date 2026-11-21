@@ -51,6 +51,16 @@
         }
       }
     },
+    "音声ファイルが見つからないため再生できません": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cannot play because the audio file was not found"
+          }
+        }
+      }
+    },
     "音声ファイルを選択してください": {
       "localizations": {
         "en": {
@@ -791,6 +801,16 @@
         }
       }
     },
+    "文字起こしの準備をしています。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing transcription."
+          }
+        }
+      }
+    },
     "文字起こし言語": {
       "localizations": {
         "en": {
@@ -807,6 +827,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "In progress"
+          }
+        }
+      }
+    },
+    "途中結果を表示中": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Showing partial results"
+          }
+        }
+      }
+    },
+    "複数ファイルのドロップには対応していません。1つの音声ファイルをドロップしてください。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dropping multiple files is not supported. Drop a single audio file."
+          }
+        }
+      }
+    },
+    "対応している音声ファイルを読み込めませんでした。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Could not load a supported audio file."
+          }
+        }
+      }
+    },
+    "初回のモデル読み込みは時間がかかることがあります": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The first model load may take some time"
+          }
+        }
+      }
+    },
+    "音声を読み込んでいます（モデルの前処理）": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading audio (model preprocessing)"
           }
         }
       }

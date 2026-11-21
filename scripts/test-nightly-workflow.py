@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -17,7 +18,7 @@ LOAD = "LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFrom
 
 
 def model_test_steps(workflow_name):
-    # Exercise the workflow itself, rather than duplicating its validation logic.
+    # Exercise the workflow step and the shared script it invokes.
     workflow = (ROOT / f".github/workflows/{workflow_name}.yml").read_text(encoding="utf-8")
     steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
     scripts = []
@@ -32,8 +33,8 @@ def model_test_steps(workflow_name):
         scripts.append(textwrap.dedent(script))
     if not scripts:
         raise AssertionError(f"{workflow_name} model-test steps not found")
+    # 呼び出しは置換せず、run_workflow() がコピーした共有スクリプトを実際に起動する。
     return "\n".join(scripts)
-
 
 STUB = r'''#!/usr/bin/env python3
 import json
@@ -122,7 +123,7 @@ class NightlyWorkflowSecurityTests(unittest.TestCase):
 class NightlyWorkflowTests(unittest.TestCase):
     workflow_name = "nightly"
 
-    def run_workflow(self, modes=None, tool_failure="", failure_selector=""):
+    def run_workflow(self, modes=None, tool_failure="", failure_selector="", override_settings=True):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             stub = work / "tool-stub.py"
@@ -132,17 +133,30 @@ class NightlyWorkflowTests(unittest.TestCase):
                 "TOOL_STUB": str(stub),
                 "RUN_MODEL_INTEGRATION_TESTS": "1",
                 "TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS": "1",
-                "PROJECT": "Test Project.xcodeproj",
-                "SCHEME": "Test Scheme",
-                "DERIVED_DATA_PATH": "Test DerivedData",
                 "TEST_SELECTORS": json.dumps([DOWNLOAD, LOAD]),
                 "TEST_MODES": json.dumps(modes or {}),
                 "TOOL_FAILURE": tool_failure,
                 "TOOL_FAILURE_SELECTOR": failure_selector,
+                "GATE_NAME": self.workflow_name,
             }
+            for key in ("PROJECT", "SCHEME", "DERIVED_DATA_PATH", "RESULT_ROOT"):
+                env.pop(key, None)
+            if override_settings:
+                env.update({
+                    "PROJECT": "Test Project.xcodeproj",
+                    "SCHEME": "Test Scheme",
+                    "DERIVED_DATA_PATH": "Test DerivedData",
+                })
+            # ワークフローは scripts/ 配下の共有スクリプトを呼ぶため、同じ配置で用意する。
+            (work / "scripts").mkdir()
+            shutil.copyfile(
+                ROOT / "scripts/run-model-integration-tests.sh",
+                work / "scripts/run-model-integration-tests.sh",
+            )
             wrappers = '''
 xcodebuild() { python3 "$TOOL_STUB" xcodebuild "$@"; }
 xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
+export -f xcodebuild xcrun
 '''
             result = subprocess.run(
                 ["bash", "-e", "-o", "pipefail", "-c", wrappers + model_test_steps(self.workflow_name)],
@@ -168,8 +182,10 @@ xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
             with self.subTest(selector=selector):
                 result, _ = self.run_workflow({selector: "missing"})
                 self.assertNotEqual(result.returncode, 0, result.stdout)
-                self.assertIn("FAIL:", result.stderr)
-                self.assertIn(selector, result.stderr)
+                self.assertIn(
+                    f"FAIL: {self.workflow_name} real-model tests did not execute for {selector}",
+                    result.stderr,
+                )
 
     def test_either_fully_skipped_selector_fails(self):
         for selector in (DOWNLOAD, LOAD):
@@ -197,6 +213,20 @@ xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
         header = gate.split("        run: |\n", 1)[0]
         self.assertRegex(header, r"(?m)^          TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: ['\"]1['\"]$")
 
+    def test_workflow_delegates_to_shared_script(self):
+        workflow = (ROOT / f".github/workflows/{self.workflow_name}.yml").read_text()
+        steps = re.split(r"^      - name: ", workflow, flags=re.MULTILINE)
+        gate = next(step for step in steps if step.splitlines()[0] in (
+            "Run real-model tests (normally skipped)", "Run real-model tests (release gate)",
+        ))
+        body = gate.split("        run: |\n", 1)[1]
+        self.assertIn("bash scripts/run-model-integration-tests.sh", body)
+        self.assertNotIn("xcodebuild test", body, "ゲート処理をワークフローへ重複させないこと")
+        self.assertIn(
+            f"GATE_NAME: {self.workflow_name}",
+            gate.split("        run: |\n", 1)[0],
+        )
+
     def test_either_xcodebuild_failure_stops_the_gate(self):
         for selector in (DOWNLOAD, LOAD):
             with self.subTest(selector=selector):
@@ -211,6 +241,20 @@ xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
             with self.subTest(failure=failure):
                 result, _ = self.run_workflow(tool_failure=failure)
                 self.assertNotEqual(result.returncode, 0, result.stdout)
+
+    def test_default_build_settings_when_workflow_does_not_override(self):
+        # Nightly は PROJECT 等を設定しないため、共有スクリプトの既定値が実効設定になる。
+        if self.workflow_name != "nightly":
+            self.skipTest("release はワークフローの env で設定する")
+        result, invocations = self.run_workflow(override_settings=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for args in invocations:
+            for flag, value in (
+                ("-project", "LocalTranscriber.xcodeproj"),
+                ("-scheme", "LocalTranscriber"),
+                ("-derivedDataPath", "DerivedData"),
+            ):
+                self.assertEqual(args[args.index(flag) + 1], value)
 
 
 class ReleaseModelWorkflowTests(NightlyWorkflowTests):

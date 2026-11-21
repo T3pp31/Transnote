@@ -30,15 +30,43 @@ jobs:
       HAS_SIGNING_SECRETS: ${{ secrets.MACOS_CERTIFICATE != '' && secrets.MACOS_CERTIFICATE_PWD != '' && secrets.MACOS_CERTIFICATE_IDENTITY != '' }}
       HAS_NOTARIZATION_SECRETS: ${{ secrets.APPLE_ID != '' && secrets.APPLE_ID_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' }}
     steps:
+      # バージョンの正規化・検証はこの1ステップに集約し、checkout 前に実行する。
+      - name: Resolve release version
+        id: version
+        env:
+          RELEASE_VERSION_INPUT: ${{ github.event.inputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            raw="$RELEASE_VERSION_INPUT"
+            if [ -z "$raw" ]; then
+              echo "workflow_dispatch requires the version input (e.g. v0.1.0)." >&2
+              exit 1
+            fi
+          else
+            raw="${GITHUB_REF_NAME}"
+          fi
+          version="${raw#v}"
+          if [ -z "$version" ]; then
+            echo "Could not determine release version." >&2
+            exit 1
+          fi
+          if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
+            echo "Release version contains unsupported characters." >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
+
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && steps.version.outputs.tag || github.ref }}
 
       - name: Verify release commit is on main
         env:
-          RELEASE_REF: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || github.ref }}
+          RELEASE_REF: ${{ github.event_name == 'workflow_dispatch' && steps.version.outputs.tag || github.ref }}
         run: |
           set -euo pipefail
           # 未レビューのコミットを署名秘密情報付きで実行しないよう、main の祖先に限定する。
@@ -69,34 +97,12 @@ jobs:
             echo "AppName must be a non-empty single-line value." >&2
             exit 1
           fi
+          # AppName は DMG 名・Release 本文へ展開されるため、シェルメタ文字を拒否する。
+          if ! [[ "$app_name" =~ ^[0-9A-Za-z._-]+$ ]]; then
+            echo "AppName must contain only alphanumerics, '.', '_' or '-'." >&2
+            exit 1
+          fi
           printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
-
-      - name: Resolve release version
-        id: version
-        env:
-          RELEASE_VERSION_INPUT: ${{ github.event.inputs.version }}
-        run: |
-          set -euo pipefail
-          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
-            raw="$RELEASE_VERSION_INPUT"
-            if [ -z "$raw" ]; then
-              echo "workflow_dispatch requires the version input (e.g. v0.1.0)." >&2
-              exit 1
-            fi
-          else
-            raw="${GITHUB_REF_NAME}"
-          fi
-          version="${raw#v}"
-          if [ -z "$version" ]; then
-            echo "Could not determine release version." >&2
-            exit 1
-          fi
-          if ! [[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]]; then
-            echo "Release version contains unsupported characters." >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
       - name: Sync MARKETING_VERSION
         env:
@@ -114,34 +120,10 @@ jobs:
         env:
           RUN_MODEL_INTEGRATION_TESTS: '1'
           TEST_RUNNER_RUN_MODEL_INTEGRATION_TESTS: '1'
+          GATE_NAME: release
         run: |
           set -euo pipefail
-          # Validate selectors separately so one passing suite cannot hide an
-          # unmatched selector or a test skipped by its environment guard.
-          for TEST_IDENTIFIER in \
-            LocalTranscriberTests/ModelDownloadIntegrationTests \
-            LocalTranscriberTests/ModelAvailabilityPathTests/testWhisperKitLoadsFromDetectedModelFolder
-          do
-            RESULT_BUNDLE="$DERIVED_DATA_PATH/TestResults/ReleaseModelTests-${TEST_IDENTIFIER##*/}.xcresult"
-            rm -rf "$RESULT_BUNDLE"
-            xcodebuild test \
-              -project "$PROJECT" \
-              -scheme "$SCHEME" \
-              -destination 'platform=macOS' \
-              CODE_SIGNING_ALLOWED=NO \
-              -derivedDataPath "$DERIVED_DATA_PATH" \
-              -resultBundlePath "$RESULT_BUNDLE" \
-              "-only-testing:$TEST_IDENTIFIER"
-
-            summary="$(xcrun xcresulttool get test-results summary --path "$RESULT_BUNDLE" --compact)"
-            total="$(echo "$summary" | python3 -c 'import json,sys; print(json.load(sys.stdin)["totalTestCount"])')"
-            executed="$(echo "$summary" | python3 -c 'import json,sys; data=json.load(sys.stdin); print(sum(item["passedTests"] + item["failedTests"] + item["expectedFailures"] for item in data["devicesAndConfigurations"]))')"
-            echo "Executed tests for $TEST_IDENTIFIER: $executed (total: $total)"
-            if [[ "$total" -eq 0 || "$executed" -eq 0 ]]; then
-              echo "FAIL: release real-model tests did not execute for $TEST_IDENTIFIER" >&2
-              exit 1
-            fi
-          done
+          bash scripts/run-model-integration-tests.sh
 
       - name: Archive Release build
         run: |
@@ -173,6 +155,13 @@ jobs:
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          # 後続ステップはチェックアウトした ref 内のスクリプトを実行するため、
+          # 成否にかかわらず Developer ID 秘密鍵を保持したキーチェーンを残さない。
+          cleanup_signing() {
+            security delete-keychain "$KEYCHAIN" || true
+            rm -f "$RUNNER_TEMP/certificate.p12"
+          }
+          trap cleanup_signing EXIT
           security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
@@ -247,10 +236,13 @@ jobs:
 
       - name: Compute SHA256 checksums
         id: checksum
+        env:
+          VERSIONED_DMG: ${{ steps.dmg.outputs.dmg_path }}
+          LATEST_DMG: ${{ steps.dmg.outputs.latest_dmg_path }}
         run: |
           set -euo pipefail
-          versioned_dmg="${{ steps.dmg.outputs.dmg_path }}"
-          latest_dmg="${{ steps.dmg.outputs.latest_dmg_path }}"
+          versioned_dmg="$VERSIONED_DMG"
+          latest_dmg="$LATEST_DMG"
           versioned_sha256="${versioned_dmg}.sha256"
           latest_sha256="${latest_dmg}.sha256"
           (cd "$(dirname "$versioned_dmg")" && shasum -a 256 "$(basename "$versioned_dmg")" > "$(basename "$versioned_sha256")")
@@ -264,10 +256,16 @@ jobs:
 
       - name: Prepare release notes
         id: notes
+        env:
+          VERSIONED_DMG_NAME: ${{ steps.dmg.outputs.versioned_dmg_name }}
+          LATEST_DMG_NAME: ${{ steps.dmg.outputs.latest_dmg_name }}
+          VERSIONED_HASH: ${{ steps.checksum.outputs.versioned_hash }}
+          LATEST_HASH: ${{ steps.checksum.outputs.latest_hash }}
         run: |
           set -euo pipefail
           source ./scripts/release-security-notice.sh
 
+          # 値は env 経由で受け取り、変数展開だけを行う（コマンド置換は実行しない）。
           cat > release_body.md <<EOF
           $security_notice
 
@@ -281,13 +279,13 @@ jobs:
 
           | ファイル | SHA256 |
           | --- | --- |
-          | \`${{ steps.dmg.outputs.versioned_dmg_name }}\` | \`${{ steps.checksum.outputs.versioned_hash }}\` |
-          | \`${{ steps.dmg.outputs.latest_dmg_name }}\` | \`${{ steps.checksum.outputs.latest_hash }}\` |
+          | \`${VERSIONED_DMG_NAME}\` | \`${VERSIONED_HASH}\` |
+          | \`${LATEST_DMG_NAME}\` | \`${LATEST_HASH}\` |
 
           \`.sha256\` ファイルも Release 資産として同梱しています。
 
           \`\`\`bash
-          shasum -a 256 -c ${{ steps.dmg.outputs.versioned_dmg_name }}.sha256
+          shasum -a 256 -c ${VERSIONED_DMG_NAME}.sha256
           \`\`\`
 
           詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。

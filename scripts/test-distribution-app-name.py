@@ -145,8 +145,18 @@ class DistributionAppNameTests(unittest.TestCase):
                            ("CIArtifactName", self.sbom_config["CIArtifactName"])):
             self.assertEqual(self.success(self.run_bash("scripts/generate-sbom.sh", "--print", key)), value)
 
+    def test_app_name_with_unsafe_characters_is_rejected(self):
+        for name in ("別名 App", "App Name", "App;id", "$(id)", "`id`", "App'x", "a/b"):
+            with self.subTest(name=name):
+                self.set_name(name)
+                self.github_env.write_text("")
+                result = self.run_bash("-c", workflow_script("Read distribution config"))
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("AppName must contain only alphanumerics", result.stderr)
+                self.assertEqual(self.github_env.read_text(), "")
+
     def test_rename_propagates_to_export_dmg_and_both_sboms(self):
-        name = "別名 App"
+        name = "Alt.App_2-x"  # 許可文字種のみを使った別名
         self.set_name(name)  # 配布設定だけを変更する。
         values = self.resolve_name()
         source = self.root / values["ARCHIVE_PATH"] / "Products/Applications" / f"{name}.app"
