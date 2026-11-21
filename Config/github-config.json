@@ -5,6 +5,5 @@
     "objects.githubusercontent.com",
     "release-assets.githubusercontent.com"
   ],
-  "github_api_base": "https://api.github.com/repos/T3pp31/Transnote",
-  "fallback_download_url": "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg"
+  "github_api_base": "https://api.github.com/repos/T3pp31/Transnote"
 }

@@ -21,7 +21,7 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         for name in ("scripts/generate-site-config.py", "Config/github-config.json",
-                     "Config/Defaults.plist", "site/app.js"):
+                     "Config/distribution.plist", "Config/Defaults.plist", "site/app.js"):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, target)
@@ -56,10 +56,15 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.config.update({
             "expected_repository": "Example/OtherApp",
             "github_api_base": "https://api.github.com/repos/Example/OtherApp",
-            "fallback_download_url": "https://downloads.example.com/Other.dmg",
             "allowed_download_hosts": ["downloads.example.com", "github.com"],
         })
         self.config_path.write_text(json.dumps(self.config), encoding="utf-8")
+        distribution = plistlib.loads((self.root / "Config/distribution.plist").read_bytes())
+        distribution["AppName"] = "RenamedApp"
+        (self.root / "Config/distribution.plist").write_bytes(plistlib.dumps(distribution))
+        fallback_url = (
+            "https://github.com/Example/OtherApp/releases/latest/download/RenamedApp.dmg"
+        )
         before_app = self.app.read_text(encoding="utf-8")
         before_defaults = plistlib.loads(self.defaults.read_bytes())
         result = self.run_generator("--check")
@@ -74,19 +79,21 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.assertEqual(generated.split(BEGIN)[0], before_app.split(BEGIN)[0])
         self.assertEqual(generated.split(END)[1], before_app.split(END)[1])
         block = generated.split(BEGIN)[1].split(END)[0]
-        for variable, key in (
-            ("expectedRepository", "expected_repository"),
-            ("githubAPIBase", "github_api_base"),
-            ("fallbackDownloadURL", "fallback_download_url"),
-            ("allowedDownloadHosts", "allowed_download_hosts"),
+        for variable, value in (
+            ("expectedRepository", self.config["expected_repository"]),
+            ("githubAPIBase", self.config["github_api_base"]),
+            ("fallbackDownloadURL", fallback_url),
+            ("dmgAssetName", "RenamedApp.dmg"),
+            ("allowedDownloadHosts", self.config["allowed_download_hosts"]),
         ):
             self.assertIn(f"var {variable} =", block)
-            self.assertIn(json.dumps(self.config[key]), block)
+            self.assertIn(json.dumps(value), block)
         expected_defaults = dict(before_defaults)
         expected_defaults.update({
             "ExpectedGitHubRepository": self.config["expected_repository"],
             "GitHubReleasesAPIURL": self.config["github_api_base"] + "/releases/latest",
-            "UpdateDownloadFallbackURL": self.config["fallback_download_url"],
+            "UpdateDownloadFallbackURL": fallback_url,
+            "UpdateDMGAssetName": "RenamedApp.dmg",
             "AllowedUpdateDownloadHosts": self.config["allowed_download_hosts"],
         })
         self.assertEqual(plistlib.loads(self.defaults.read_bytes()), expected_defaults)
@@ -95,12 +102,33 @@ class GenerateSiteConfigTests(unittest.TestCase):
         self.assert_success(self.run_generator())
         self.assertEqual(self.snapshot(), generated_files)
 
+    def test_app_name_only_change_is_detected(self):
+        distribution = plistlib.loads((self.root / "Config/distribution.plist").read_bytes())
+        distribution["AppName"] = "RenamedApp"
+        (self.root / "Config/distribution.plist").write_bytes(plistlib.dumps(distribution))
+        result = self.run_generator("--check")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(str(self.app), result.stderr)
+        self.assertIn(str(self.defaults), result.stderr)
+
+    def test_missing_app_name_fails_without_traceback(self):
+        distribution = plistlib.loads((self.root / "Config/distribution.plist").read_bytes())
+        del distribution["AppName"]
+        (self.root / "Config/distribution.plist").write_bytes(plistlib.dumps(distribution))
+        before = self.snapshot()
+        result = self.run_generator("--check")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("AppName", result.stderr)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertEqual(self.snapshot(), before)
+
     def test_check_detects_each_stale_plist_key_without_writing(self):
         original = self.defaults.read_bytes()
         for key, value in (
             ("ExpectedGitHubRepository", "stale/repo"),
             ("GitHubReleasesAPIURL", "https://api.example.com/stale"),
             ("UpdateDownloadFallbackURL", "https://example.com/stale.dmg"),
+            ("UpdateDMGAssetName", "Stale.dmg"),
             ("AllowedUpdateDownloadHosts", ["stale.example.com"]),
         ):
             with self.subTest(key=key):
