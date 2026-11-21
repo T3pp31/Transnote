@@ -82,6 +82,11 @@ jobs:
             echo "AppName must be a non-empty single-line value." >&2
             exit 1
           fi
+          # AppName は DMG 名・Release 本文へ展開されるため、シェルメタ文字を拒否する。
+          if ! [[ "$app_name" =~ ^[0-9A-Za-z._-]+$ ]]; then
+            echo "AppName must contain only alphanumerics, '.', '_' or '-'." >&2
+            exit 1
+          fi
           printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
 
       - name: Sync MARKETING_VERSION
@@ -216,10 +221,13 @@ jobs:
 
       - name: Compute SHA256 checksums
         id: checksum
+        env:
+          VERSIONED_DMG: ${{ steps.dmg.outputs.dmg_path }}
+          LATEST_DMG: ${{ steps.dmg.outputs.latest_dmg_path }}
         run: |
           set -euo pipefail
-          versioned_dmg="${{ steps.dmg.outputs.dmg_path }}"
-          latest_dmg="${{ steps.dmg.outputs.latest_dmg_path }}"
+          versioned_dmg="$VERSIONED_DMG"
+          latest_dmg="$LATEST_DMG"
           versioned_sha256="${versioned_dmg}.sha256"
           latest_sha256="${latest_dmg}.sha256"
           (cd "$(dirname "$versioned_dmg")" && shasum -a 256 "$(basename "$versioned_dmg")" > "$(basename "$versioned_sha256")")
@@ -233,10 +241,16 @@ jobs:
 
       - name: Prepare release notes
         id: notes
+        env:
+          VERSIONED_DMG_NAME: ${{ steps.dmg.outputs.versioned_dmg_name }}
+          LATEST_DMG_NAME: ${{ steps.dmg.outputs.latest_dmg_name }}
+          VERSIONED_HASH: ${{ steps.checksum.outputs.versioned_hash }}
+          LATEST_HASH: ${{ steps.checksum.outputs.latest_hash }}
         run: |
           set -euo pipefail
           source ./scripts/release-security-notice.sh
 
+          # 値は env 経由で受け取り、変数展開だけを行う（コマンド置換は実行しない）。
           cat > release_body.md <<EOF
           $security_notice
 
@@ -250,13 +264,13 @@ jobs:
 
           | ファイル | SHA256 |
           | --- | --- |
-          | \`${{ steps.dmg.outputs.versioned_dmg_name }}\` | \`${{ steps.checksum.outputs.versioned_hash }}\` |
-          | \`${{ steps.dmg.outputs.latest_dmg_name }}\` | \`${{ steps.checksum.outputs.latest_hash }}\` |
+          | \`${VERSIONED_DMG_NAME}\` | \`${VERSIONED_HASH}\` |
+          | \`${LATEST_DMG_NAME}\` | \`${LATEST_HASH}\` |
 
           \`.sha256\` ファイルも Release 資産として同梱しています。
 
           \`\`\`bash
-          shasum -a 256 -c ${{ steps.dmg.outputs.versioned_dmg_name }}.sha256
+          shasum -a 256 -c ${VERSIONED_DMG_NAME}.sha256
           \`\`\`
 
           詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
