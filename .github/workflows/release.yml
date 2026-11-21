@@ -135,6 +135,13 @@ jobs:
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          # 後続ステップはチェックアウトした ref 内のスクリプトを実行するため、
+          # 成否にかかわらず Developer ID 秘密鍵を保持したキーチェーンを残さない。
+          cleanup_signing() {
+            security delete-keychain "$KEYCHAIN" || true
+            rm -f "$RUNNER_TEMP/certificate.p12"
+          }
+          trap cleanup_signing EXIT
           security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
