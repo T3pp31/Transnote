@@ -232,6 +232,30 @@ final class HistorySearchViewModelTests: XCTestCase {
         XCTAssertEqual(oldCancellation.value, true, "新しい検索語で古い走査タスクがキャンセルされること")
     }
 
+    func testCanceledQueryDuringDebounceDoesNotStartSearch() async {
+        let started = expectation(description: "debounce started")
+        let release = DispatchSemaphore(value: 0)
+        let searched = CancellationRecorder()
+        let model = HistorySearchViewModel(
+            searchHistory: { _ in
+                searched.record(false)
+                return []
+            },
+            waitForDebounce: {
+                started.fulfill()
+                XCTAssertEqual(release.wait(timeout: .now() + 5), .success)
+            }
+        )
+
+        let search = Task { await model.search(query: "canceled") }
+        await fulfillment(of: [started], timeout: 2)
+        search.cancel()
+        release.signal()
+        await search.value
+
+        XCTAssertNil(searched.value, "デバウンス中にキャンセルされた検索は走査を開始しないこと")
+    }
+
     func testEmptyQueryLoadsWithoutDebounce() async {
         let transcript = Transcript(sourceFileName: "recent.wav")
         let model = HistorySearchViewModel(
