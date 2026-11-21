@@ -30,6 +30,11 @@ final class AudioPlayerService {
         timeObserver != nil
     }
 
+    /// テスト専用: 現在の AVPlayerItem を参照する。
+    var currentItemForTesting: AVPlayerItem? {
+        player?.currentItem
+    }
+
     func load(url: URL) {
         stop(resetPlayer: false)
         let item = AVPlayerItem(url: url)
@@ -72,7 +77,7 @@ final class AudioPlayerService {
             pendingPlaybackGeneration = generation
             statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
                 Task { @MainActor in
-                    self?.handlePlayerItemStatusChange(item)
+                    self?.handlePlayerItemStatusChange(item, generation: generation)
                 }
             }
         } else {
@@ -117,7 +122,10 @@ final class AudioPlayerService {
         }
     }
 
-    private func handlePlayerItemStatusChange(_ item: AVPlayerItem) {
+    func handlePlayerItemStatusChange(_ item: AVPlayerItem, generation: Int) {
+        // 旧 item / 旧世代の通知は、現在の再生の statusObservation を解除したり
+        // 再生を終了させたりしないよう、分岐より前にまとめて無視する。
+        guard playbackGeneration == generation, item === player?.currentItem else { return }
         switch item.status {
         case .readyToPlay:
             cancelStatusObservation()

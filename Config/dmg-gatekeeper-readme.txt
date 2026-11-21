@@ -41,8 +41,8 @@ bash "/Volumes/@APP_NAME@/@INSTALL_SCRIPT_NAME@"
 
   例: bash "/Volumes/@APP_NAME@ 1/@INSTALL_SCRIPT_NAME@"
 
-4. インストールが完了すると @APP_NAME@ が起動します。
-5. Finder で DMG を取り出してください（マウントしたままだとアプリが複数見えます）。
+3. インストールが完了すると @APP_NAME@ が起動します。
+4. Finder で DMG を取り出してください（マウントしたままだとアプリが複数見えます）。
 
 【方法 B】右クリック →「開く」（macOS 14まで）
 

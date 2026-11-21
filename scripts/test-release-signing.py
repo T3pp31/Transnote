@@ -223,9 +223,24 @@ class ReleaseSigningTests(unittest.TestCase):
                 "create-keychain", "set-keychain-settings", "unlock-keychain",
                 "import", "set-key-partition-list", "list-keychain",
                 "codesign", "codesign",
+                "delete-keychain",
             ],
         )
         self.assertEqual(self.github_env.read_text(), "SIGNED=1\n")
+
+    def test_certificate_file_is_removed_after_signing(self):
+        result = self.run_step()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse((self.root / "certificate.p12").exists())
+
+    def test_keychain_is_destroyed_even_when_signing_fails(self):
+        for command in ("import", "set-key-partition-list", "list-keychain"):
+            with self.subTest(command=command):
+                result = self.run_step(fail_command=command)
+                self.assertEqual(result.returncode, 9, result.stderr)
+                events = self.log.read_text().splitlines()
+                self.assertEqual(events[-1], "delete-keychain")
+                self.assertFalse((self.root / "certificate.p12").exists())
 
     def test_keychain_failures_stop_before_signing(self):
         for command in ("import", "set-key-partition-list"):
@@ -233,7 +248,7 @@ class ReleaseSigningTests(unittest.TestCase):
                 result = self.run_step(fail_command=command)
                 self.assertEqual(result.returncode, 9, result.stderr)
                 events = self.log.read_text().splitlines()
-                self.assertEqual(events[-1], command)
+                self.assertEqual(events[-2:], [command, "delete-keychain"])
                 self.assertNotIn("codesign", events)
                 self.assertEqual(self.github_env.read_text(), "")
 
