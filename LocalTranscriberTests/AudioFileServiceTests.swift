@@ -1,3 +1,4 @@
+import CryptoKit
 import XCTest
 @testable import LocalTranscriber
 
@@ -194,6 +195,38 @@ final class AudioFileServiceTests: XCTestCase {
                 of: tempRoot.appendingPathComponent("missing.wav")
             )
         )
+    }
+
+    func testSHA256ReturnsDigestForExistingFile() throws {
+        let url = tempRoot.appendingPathComponent("abc.txt")
+        try Data("abc".utf8).write(to: url)
+
+        XCTAssertEqual(
+            AudioFileService.sha256(of: url),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        )
+    }
+
+    func testSHA256ReturnsDigestForEmptyFile() throws {
+        let url = tempRoot.appendingPathComponent("empty.bin")
+        try Data().write(to: url)
+
+        XCTAssertEqual(
+            AudioFileService.sha256(of: url),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        )
+    }
+
+    func testSHA256ReadsAcrossMultipleChunks() throws {
+        let url = tempRoot.appendingPathComponent("large.bin")
+        let data = Data(repeating: 0x61, count: 200_000)
+        try data.write(to: url)
+
+        var hasher = SHA256()
+        hasher.update(data: data)
+        let expected = hasher.finalize().map { String(format: "%02x", $0) }.joined()
+
+        XCTAssertEqual(AudioFileService.sha256(of: url), expected)
     }
 
     // MARK: - drop services / supported audio types (#244)
