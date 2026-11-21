@@ -323,6 +323,24 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertTrue(viewModel.canCopyTranscript)
     }
 
+    func testCanExportTracksTranscriptTextUpdatesIncludingWhitespaceOnly() {
+        viewModel = MainWindowViewModel()
+        viewModel.currentTranscript = Transcript(sourceFileName: "a.wav", fullText: "text")
+        XCTAssertFalse(viewModel.canExport)
+
+        viewModel.transcriptText = "text"
+        XCTAssertTrue(viewModel.canExport)
+
+        viewModel.transcriptText = "   \n\t "
+        XCTAssertFalse(viewModel.canExport)
+
+        viewModel.transcriptText = "  text  "
+        XCTAssertTrue(viewModel.canExport)
+
+        viewModel.transcriptText = ""
+        XCTAssertFalse(viewModel.canExport)
+    }
+
     func testRecoverableModelNotDownloadedErrorUsesInlineBannerOnly() {
         AppSettings.shared.selectedModelID = "base"
         viewModel = MainWindowViewModel()

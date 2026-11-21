@@ -227,8 +227,10 @@ PY
 
 python3 "$ROOT/scripts/test-release-signing.py"
 python3 "$ROOT/scripts/test-release-action-security.py"
+python3 "$ROOT/scripts/test-release-checkout-ref.py"
 bash "$ROOT/scripts/test-export-release-app.sh"
 python3 "$ROOT/scripts/test-nightly-workflow.py"
+python3 "$ROOT/scripts/test-pages-workflow.py"
 bash "$ROOT/scripts/test-check-swift-format.sh"
 
 echo "ALL RELEASE SCRIPT TESTS PASSED"

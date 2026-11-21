@@ -83,7 +83,16 @@ final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
     @Published var selectedFile: AudioFileInfo?
-    @Published var transcriptText: String = ""
+    @Published var transcriptText: String = "" {
+        didSet {
+            // 同値の再代入（TextEditor 経由の updateTranscriptText など）では再計算しない。
+            guard transcriptText != oldValue else { return }
+            // 全文の trimmed 文字列を生成せず、最初の非空白文字で早期終了する。
+            hasNonEmptyTranscriptText = transcriptText.unicodeScalars.contains {
+                !CharacterSet.whitespacesAndNewlines.contains($0)
+            }
+        }
+    }
     @Published var currentTranscript: Transcript? {
         didSet {
             // 全文編集・復元・書き出しなど、セグメント編集以外の更新で位置情報を無効化する。
@@ -127,6 +136,8 @@ final class MainWindowViewModel: ObservableObject {
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
     private var hasSegmentTextEdits = false
+    /// transcriptText 更新時に算出する。body 再評価のたびに全文を trimming しないため。
+    private var hasNonEmptyTranscriptText = false
 
     private struct SegmentTextEditLocation {
         let id: UUID
@@ -175,11 +186,7 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
         self.historyStore = historyStore
-        self.audioPlayer.onPlaybackTimeUpdate = { [weak self] current, duration in
-            Task { @MainActor in
-                self?.updatePlaybackPosition(current: current, duration: duration)
-            }
-        }
+        configureAudioPlayerCallbacks()
         refreshModelAvailability()
     }
 
@@ -196,7 +203,16 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = dependencies.modelDownloadService
         self.audioPlayer = dependencies.audioPlayer ?? AudioPlayerService()
         self.historyStore = dependencies.historyStore
+        configureAudioPlayerCallbacks()
         refreshModelAvailability()
+    }
+
+    private func configureAudioPlayerCallbacks() {
+        audioPlayer.onPlaybackTimeUpdate = { [weak self] current, duration in
+            Task { @MainActor in
+                self?.updatePlaybackPosition(current: current, duration: duration)
+            }
+        }
     }
 
     private let operationCoordinator = OperationCoordinator()
@@ -218,13 +234,17 @@ final class MainWindowViewModel: ObservableObject {
         operationCoordinator.activeOperation != nil || isDownloadingModel
     }
 
-    var canStartTranscription: Bool {
-        guard selectedFile != nil,
-              !isBusy,
-              let model = settings.selectedModel else {
-            return false
+    /// 選択中のファイルが実在する場合だけ返す。削除済みの参照を各機能で使わないための単一の判定源。
+    var existingSelectedFile: AudioFileInfo? {
+        guard let selectedFile,
+              FileManager.default.fileExists(atPath: selectedFile.url.path) else {
+            return nil
         }
-        return isModelDownloaded(model)
+        return selectedFile
+    }
+
+    var canStartTranscription: Bool {
+        startTranscriptionDisabledReason == nil
     }
 
     var canDownloadSelectedModel: Bool {
@@ -239,7 +259,7 @@ final class MainWindowViewModel: ObservableObject {
         if isBusy {
             return NSLocalizedString("文字起こし処理中です", comment: "Transcription is busy")
         }
-        if selectedFile == nil {
+        if existingSelectedFile == nil {
             return NSLocalizedString("音声ファイルを選択してください", comment: "Select an audio file")
         }
         if settings.selectedModel == nil {
@@ -300,7 +320,7 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     var canExport: Bool {
-        currentTranscript != nil && !transcriptText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        currentTranscript != nil && hasNonEmptyTranscriptText
     }
 
     var canCopyTranscript: Bool {
@@ -478,7 +498,9 @@ final class MainWindowViewModel: ObservableObject {
         let pending = pendingFileImport
         cancelPendingFileImport()
         if let pending {
-            applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+            let imported = applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
+            // インポート失敗時に旧ファイルへ再文字起こしすると、既存結果と編集が失われる。
+            guard imported else { return }
         }
         if shouldStartTranscription {
             startTranscription(replacingExistingResult: true)
@@ -491,7 +513,8 @@ final class MainWindowViewModel: ObservableObject {
         isPendingTranscriptionRestart = false
     }
 
-    private func applyFileImport(url: URL, preferredFileName: String?) {
+    @discardableResult
+    private func applyFileImport(url: URL, preferredFileName: String?) -> Bool {
         do {
             let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
             let importedURL = try audioImportService.importFile(
@@ -512,8 +535,10 @@ final class MainWindowViewModel: ObservableObject {
             selectedFile = info
             uiState = .idle
             progressDisplay = .idle()
+            return true
         } catch {
             handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
+            return false
         }
     }
 
@@ -654,10 +679,19 @@ final class MainWindowViewModel: ObservableObject {
                 )
 
                 guard activeJobID == job.id else { return }
+                // エンコードと書き込みは MainActor 外で行うが、完了表示より前に
+                // 保存完了を待つ（完了直後の終了で履歴・復旧データが失われないように）。
+                let store = historyStore
+                await Task.detached(priority: .utility) {
+                    do {
+                        try store.saveWithTemporary(transcript)
+                    } catch {
+                        AppLogger.error("Failed to save transcript: \(error.localizedDescription)", logger: AppLogger.transcription)
+                    }
+                }.value
+                guard activeJobID == job.id else { return }
                 currentTranscript = transcript
                 baselineTranscriptText = transcript.fullText
-                try? historyStore.save(transcript)
-                try? historyStore.saveTemporary(transcript)
                 transcriptText = TranscriptTextSanitizer.presentableText(from: transcript.fullText)
                     ?? TranscriptTextSanitizer.sanitize(transcript.fullText)
                 isEditingTranscript = !Self.hasPlayableSegments(in: transcript)
@@ -788,7 +822,13 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func playSegment(_ segment: TranscriptSegment) {
-        guard let file = selectedFile else { return }
+        guard let file = existingSelectedFile else {
+            showToast(
+                NSLocalizedString("音声ファイルが見つからないため再生できません", comment: "Audio file missing for playback"),
+                icon: "exclamationmark.triangle.fill"
+            )
+            return
+        }
 
         if audioPlayer.loadedURL != file.url {
             audioPlayer.load(url: file.url)
@@ -837,6 +877,16 @@ final class MainWindowViewModel: ObservableObject {
         audioPlayer.stop()
         playingSegmentID = nil
         isSegmentPaused = false
+    }
+
+    /// Imports のクリア後に、削除済みの sandbox コピーを参照し続けないようにする。
+    func handleImportsCleared() {
+        guard let file = selectedFile,
+              file.url.standardizedFileURL.path.hasPrefix(
+                AppDirectories.importsDirectory.standardizedFileURL.path + "/"
+              ) else { return }
+        stopPlayback()
+        selectedFile = nil
     }
 
     func exportTranscript(format: ExportFormat) {
