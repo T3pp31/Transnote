@@ -27,8 +27,33 @@ class GatekeeperReadmeTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
         step = workflow.split("      - name: Read distribution config\n", 1)[1]
         step = step.split("\n      - name:", 1)[0]
-        self.assertIn(r'[[ "$app_name" =~ ^[0-9A-Za-z._-]+$ ]]', step)
-        self.assertIn("AppName must contain only alphanumerics", step)
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        validation = script.split('app_name="$(', 1)[1]
+        validation = validation.split("\n", 1)[1]
+        validation = validation.split("printf 'APP_NAME=", 1)[0]
+        validation = "app_name=\"$TEST_APP_NAME\"\n" + validation
+
+        for app_name in ("Transnote", "Transnote-1.2.3", "Transnote_v2"):
+            with self.subTest(app_name=app_name), tempfile.TemporaryDirectory() as work:
+                result = subprocess.run(
+                    ["bash", "-c", validation],
+                    cwd=work,
+                    env={**os.environ, "TEST_APP_NAME": app_name},
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+        for app_name in ("Transnote;id", "$(id)", "`id`", "Transnote\n1"):
+            with self.subTest(app_name=app_name), tempfile.TemporaryDirectory() as work:
+                result = subprocess.run(
+                    ["bash", "-c", validation],
+                    cwd=work,
+                    env={**os.environ, "TEST_APP_NAME": app_name},
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(result.returncode, 0, "シェルメタ文字を含む AppName は拒否すること")
 
     def test_release_checksum_step_receives_paths_through_env(self):
         workflow = (ROOT / ".github/workflows/release.yml").read_text()
