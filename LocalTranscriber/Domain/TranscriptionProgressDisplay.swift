@@ -46,7 +46,17 @@ struct TranscriptionProgressDisplay: Equatable {
         let primaryLabel = update.phase.localizedDisplayName
         let clampedFraction = min(1.0, max(0.0, update.fraction.isFinite ? update.fraction : 0))
         // 表示可否の判定と本文更新で、同じ累積テキストを再サニタイズしない。
-        let presentablePartialText = update.partialText.flatMap(TranscriptTextSanitizer.presentableText(from:))
+        // TranscriptPartialTextBuilder 等で事前サニタイズ済みの場合は正規表現走査自体を省略する。
+        let presentablePartialText: String?
+        if let partialText = update.partialText {
+            if update.isPartialTextSanitized {
+                presentablePartialText = partialText.isEmpty ? nil : partialText
+            } else {
+                presentablePartialText = TranscriptTextSanitizer.presentableText(from: partialText)
+            }
+        } else {
+            presentablePartialText = nil
+        }
         let detailLabel = makeDetailLabel(
             for: update,
             fraction: clampedFraction,
