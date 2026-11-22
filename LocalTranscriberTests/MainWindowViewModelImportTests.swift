@@ -28,7 +28,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         try? FileManager.default.removeItem(at: sourceRoot)
     }
 
-    func testSelectFileImportsExtensionlessM4APlaceholderName() throws {
+    func testSelectFileImportsExtensionlessM4APlaceholderName() async throws {
         let sourceURL = sourceRoot.appendingPathComponent("CFNetworkDownload_tmp")
         let m4aHeader = Data([
             0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70,
@@ -38,6 +38,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         FileManager.default.createFile(atPath: sourceURL.path, contents: m4aHeader)
 
         viewModel.selectFile(url: sourceURL)
+        await viewModel.importTask?.value
 
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.selectedFile?.fileExtension, "m4a")
@@ -47,27 +48,29 @@ final class MainWindowViewModelImportTests: XCTestCase {
         )
     }
 
-    func testSelectFileImportsPlaceholderDropNameWithPreferredFileName() throws {
+    func testSelectFileImportsPlaceholderDropNameWithPreferredFileName() async throws {
         let sourceURL = sourceRoot.appendingPathComponent("file URL")
         FileManager.default.createFile(atPath: sourceURL.path, contents: Data("fake audio".utf8))
 
         viewModel.selectFile(url: sourceURL)
+        await viewModel.importTask?.value
 
         XCTAssertNotNil(viewModel.errorMessage)
     }
 
-    func testSelectFileImportsPlaceholderDropNameWithDropPreferredFileName() throws {
+    func testSelectFileImportsPlaceholderDropNameWithDropPreferredFileName() async throws {
         let sourceURL = sourceRoot.appendingPathComponent("file URL")
         FileManager.default.createFile(atPath: sourceURL.path, contents: Data("fake audio".utf8))
 
         viewModel.selectFile(url: sourceURL, preferredFileName: "recording.m4a")
+        await viewModel.importTask?.value
 
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.selectedFile?.fileExtension, "m4a")
         XCTAssertEqual(viewModel.selectedFile?.fileName, "recording.m4a")
     }
 
-    func testSelectFileImportsPlaceholderDropNameWithM4AContent() throws {
+    func testSelectFileImportsPlaceholderDropNameWithM4AContent() async throws {
         let sourceURL = sourceRoot.appendingPathComponent("file URL")
         let m4aHeader = Data([
             0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70,
@@ -77,6 +80,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         FileManager.default.createFile(atPath: sourceURL.path, contents: m4aHeader)
 
         viewModel.selectFile(url: sourceURL)
+        await viewModel.importTask?.value
 
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertEqual(viewModel.selectedFile?.fileExtension, "m4a")
@@ -91,7 +95,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         viewModel.transcriptText = "existing text"
     }
 
-    func testSelectFileAppliesImmediatelyWhenThereIsNoExistingResult() throws {
+    func testSelectFileAppliesImmediatelyWhenThereIsNoExistingResult() async throws {
         let sourceURL = sourceRoot.appendingPathComponent("CFNetworkDownload_tmp")
         let m4aHeader = Data([
             0x00, 0x00, 0x00, 0x1c, 0x66, 0x74, 0x79, 0x70,
@@ -101,6 +105,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         FileManager.default.createFile(atPath: sourceURL.path, contents: m4aHeader)
 
         viewModel.selectFile(url: sourceURL)
+        await viewModel.importTask?.value
 
         XCTAssertFalse(viewModel.confirmFileImport)
         XCTAssertNil(viewModel.pendingFileImport)
@@ -128,7 +133,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptText, "existing text")
     }
 
-    func testApplyPendingFileImportReplacesResultAfterConfirmation() throws {
+    func testApplyPendingFileImportReplacesResultAfterConfirmation() async throws {
         seedExistingTranscriptResult()
         let sourceURL = sourceRoot.appendingPathComponent("CFNetworkDownload_tmp")
         let m4aHeader = Data([
@@ -140,6 +145,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
 
         viewModel.selectFile(url: sourceURL)
         viewModel.applyPendingFileImport()
+        await viewModel.importTask?.value
 
         XCTAssertFalse(viewModel.confirmFileImport)
         XCTAssertNil(viewModel.pendingFileImport)
@@ -191,7 +197,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         }
         let gate = AsyncGate()
         defer { gate.open() }
-        let selectedFile = try prepareTranscriptionRestart(gate: gate)
+        let selectedFile = try await prepareTranscriptionRestart(gate: gate)
         viewModel.transcriptText = "edited text"
 
         viewModel.startTranscription()
@@ -232,10 +238,10 @@ final class MainWindowViewModelImportTests: XCTestCase {
         viewModel.cancelPendingFileImport()
     }
 
-    func testApplyPendingFileImportDoesNotRestartTranscriptionWhenImportFails() throws {
+    func testApplyPendingFileImportDoesNotRestartTranscriptionWhenImportFails() async throws {
         let gate = AsyncGate()
         defer { gate.open() }
-        let selectedFile = try prepareTranscriptionRestart(gate: gate)
+        let selectedFile = try await prepareTranscriptionRestart(gate: gate)
         // 未保存の編集が失われないことを検証するため、baseline と異なる内容にする。
         viewModel.transcriptText = "edited text"
 
@@ -248,6 +254,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertNotNil(viewModel.pendingFileImport)
 
         viewModel.applyPendingFileImport()
+        await viewModel.importTask?.value
 
         XCTAssertNil(viewModel.transcriptionTask, "インポート失敗後に旧ファイルの文字起こしを開始しないこと")
         XCTAssertEqual(viewModel.selectedFile, selectedFile)
@@ -260,10 +267,10 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertNotNil(viewModel.errorMessage)
     }
 
-    func testCancelledTranscriptionRestartKeepsResultAndRequiresConfirmationAgain() throws {
+    func testCancelledTranscriptionRestartKeepsResultAndRequiresConfirmationAgain() async throws {
         let gate = AsyncGate()
         defer { gate.open() }
-        let selectedFile = try prepareTranscriptionRestart(gate: gate)
+        let selectedFile = try await prepareTranscriptionRestart(gate: gate)
         let transcriptID = viewModel.currentTranscript?.id
         viewModel.transcriptText = "edited text"
 
@@ -358,10 +365,10 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertEqual(viewModel.selectedFile?.url, externalURL)
     }
 
-    func testConfirmedTranscriptionRestartStillRequiresDownloadedModel() throws {
+    func testConfirmedTranscriptionRestartStillRequiresDownloadedModel() async throws {
         let gate = AsyncGate()
         defer { gate.open() }
-        _ = try prepareTranscriptionRestart(gate: gate)
+        _ = try await prepareTranscriptionRestart(gate: gate)
         let transcriptID = viewModel.currentTranscript?.id
 
         viewModel.startTranscription()
@@ -384,7 +391,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         viewModel.cancelPendingFileImport()
     }
 
-    private func prepareTranscriptionRestart(gate: AsyncGate) throws -> AudioFileInfo {
+    private func prepareTranscriptionRestart(gate: AsyncGate) async throws -> AudioFileInfo {
         viewModel = MainWindowViewModel(
             transcriber: MockTranscriber(gate: gate),
             audioImportService: AudioImportService(importsRoot: importsRoot),
@@ -395,6 +402,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         let sourceURL = sourceRoot.appendingPathComponent("restart.wav")
         XCTAssertTrue(FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8)))
         viewModel.selectFile(url: sourceURL)
+        await viewModel.importTask?.value
         let selectedFile = try XCTUnwrap(viewModel.selectedFile)
         viewModel.restoreTranscript(Transcript(sourceFileName: selectedFile.fileName, fullText: "existing text"))
         return selectedFile
@@ -415,6 +423,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         let sourceURL = sourceRoot.appendingPathComponent("race.wav")
         FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8))
         vm.selectFile(url: sourceURL)
+        await vm.importTask?.value
 
         vm.startTranscription()
         XCTAssertTrue(vm.isBusy)
@@ -423,6 +432,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         let replacement = sourceRoot.appendingPathComponent("other.wav")
         FileManager.default.createFile(atPath: replacement.path, contents: Data("x".utf8))
         vm.selectFile(url: replacement)
+        await vm.importTask?.value
 
         XCTAssertEqual(vm.selectedFile?.url, before)
         gate.open()
@@ -497,6 +507,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         let sourceURL = sourceRoot.appendingPathComponent("stale-task.wav")
         XCTAssertTrue(FileManager.default.createFile(atPath: sourceURL.path, contents: Data("audio".utf8)))
         vm.selectFile(url: sourceURL)
+        await vm.importTask?.value
 
         vm.startTranscription()
         let oldTask = try XCTUnwrap(vm.transcriptionTask)
@@ -529,6 +540,79 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertNil(vm.transcriptionTask)
     }
 
+    // MARK: - Async off-main-thread import & cancellation (#802)
+
+    func testSelectFileRunsImportOffMainThreadAndSupportsCancellation() async throws {
+        let started = expectation(description: "Background file import started")
+        let release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+
+        let blockingManager = BlockingImportFileManager(
+            onCreateTemporaryFile: { isMainThread in
+                XCTAssertFalse(isMainThread, "ファイルコピーは MainActor 外で実行すること")
+                started.fulfill()
+                _ = release.wait(timeout: .now() + 5)
+            }
+        )
+        let vm = MainWindowViewModel(
+            audioImportService: AudioImportService(importsRoot: importsRoot, fileManager: blockingManager)
+        )
+
+        let sourceURL = sourceRoot.appendingPathComponent("large.wav")
+        try Data(repeating: 0x41, count: 128 * 1024).write(to: sourceURL)
+
+        vm.selectFile(url: sourceURL)
+        await fulfillment(of: [started], timeout: 5)
+
+        // バックグラウンド取り込み中は操作が無効化され、キャンセル可能であること。
+        XCTAssertTrue(vm.isImportingFile)
+        XCTAssertTrue(vm.isBusy)
+        XCTAssertTrue(vm.canCancel)
+        XCTAssertNil(vm.selectedFile)
+
+        // 取り込み中にキャンセルすると直ちに busy 解除され、一時ファイルも残らないこと。
+        let task = try XCTUnwrap(vm.importTask)
+        vm.cancelCurrentOperation()
+        XCTAssertFalse(vm.isImportingFile)
+        XCTAssertFalse(vm.isBusy)
+
+        release.signal()
+        await task.value
+
+        XCTAssertNil(vm.selectedFile, "キャンセルされた取り込みで selectedFile を更新してはならない")
+        XCTAssertNil(vm.errorMessage, "キャンセル時にエラー表示を出さないこと")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: importsRoot.path), [])
+    }
+
+}
+
+private final class BlockingImportFileManager: FileManager, @unchecked Sendable {
+    private let onCreateTemporaryFile: @Sendable (Bool) -> Void
+    private let lock = NSLock()
+    private var didBlock = false
+
+    init(onCreateTemporaryFile: @escaping @Sendable (Bool) -> Void) {
+        self.onCreateTemporaryFile = onCreateTemporaryFile
+        super.init()
+    }
+
+    override func createFile(
+        atPath path: String,
+        contents data: Data?,
+        attributes attr: [FileAttributeKey: Any]? = nil
+    ) -> Bool {
+        let created = super.createFile(atPath: path, contents: data, attributes: attr)
+        if path.contains(".tmp-") {
+            lock.lock()
+            let shouldNotify = !didBlock
+            didBlock = true
+            lock.unlock()
+            if shouldNotify {
+                onCreateTemporaryFile(Thread.isMainThread)
+            }
+        }
+        return created
+    }
 }
 
 // 完了を待機できる非同期ゲート
