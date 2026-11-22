@@ -228,13 +228,53 @@ final class TranscriptModelTests: XCTestCase {
     }
     // MARK: - AppConfig / AppSettings (#245)
 
-    func testAppConfigDefaultValues() {
+    func testAppConfigDefaultValues() throws {
         let config = AppConfig()
+        XCTAssertTrue(config.validationErrors.isEmpty, "Defaults.plist の設定に不整合がないこと: \(config.validationErrors)")
         XCTAssertFalse(config.supportedExtensions.isEmpty)
         XCTAssertFalse(config.models.isEmpty)
         XCTAssertFalse(config.languages.isEmpty)
         XCTAssertFalse(config.defaultModelID.isEmpty)
         XCTAssertEqual(config.modelsDirectoryName, "Models")
+
+        // Defaults.plist の正本と全主要項目が一致していることを検証する。
+        let appBundle = Bundle(for: AppSettings.self)
+        let plistURL = try XCTUnwrap(appBundle.url(forResource: "Defaults", withExtension: "plist"))
+        let plist = try XCTUnwrap(NSDictionary(contentsOf: plistURL) as? [String: Any])
+        XCTAssertEqual(config.supportedExtensions, plist["SupportedAudioExtensions"] as? [String])
+        XCTAssertEqual(config.defaultModelID, plist["DefaultModelID"] as? String)
+        XCTAssertEqual(config.defaultLanguageID, plist["DefaultLanguage"] as? String)
+        XCTAssertEqual(config.expectedGitHubRepository, plist["ExpectedGitHubRepository"] as? String)
+        XCTAssertEqual(config.githubReleasesAPIURL.absoluteString, plist["GitHubReleasesAPIURL"] as? String)
+        XCTAssertEqual(config.updateDownloadFallbackURL.absoluteString, plist["UpdateDownloadFallbackURL"] as? String)
+        XCTAssertEqual(config.updateDMGAssetName, plist["UpdateDMGAssetName"] as? String)
+        XCTAssertEqual(config.allowedUpdateDownloadHosts, plist["AllowedUpdateDownloadHosts"] as? [String])
+        XCTAssertEqual(config.models.count, (plist["Models"] as? [[String: Any]])?.count)
+        XCTAssertEqual(config.languages.count, (plist["Languages"] as? [[String: Any]])?.count)
+    }
+
+    func testAppConfigEmptyDictionaryDoesNotUseHardcodedDuplicatesAndReportsValidationErrors() {
+        let emptyConfig = AppConfig(dictionary: [:])
+
+        XCTAssertTrue(emptyConfig.models.isEmpty, "ハードコードされた代替モデル一覧を持たないこと")
+        XCTAssertTrue(emptyConfig.languages.isEmpty, "ハードコードされた代替言語一覧を持たないこと")
+        XCTAssertTrue(emptyConfig.supportedExtensions.isEmpty)
+        XCTAssertEqual(emptyConfig.defaultModelID, "")
+        XCTAssertEqual(emptyConfig.defaultLanguageID, "")
+        XCTAssertFalse(emptyConfig.updateCheckEnabled, "設定欠損時は更新確認を安全側に無効化すること")
+        XCTAssertTrue(emptyConfig.allowedUpdateDownloadHosts.isEmpty)
+        XCTAssertFalse(emptyConfig.validationErrors.isEmpty)
+        XCTAssertTrue(emptyConfig.validationErrors.contains("defaultModelID is empty"))
+        XCTAssertTrue(emptyConfig.validationErrors.contains("defaultLanguageID is empty"))
+        XCTAssertTrue(emptyConfig.validationErrors.contains("supportedExtensions is empty"))
+
+        // UpdateCheckEnabled のみ true で URL 等が欠損している場合も検証エラーを返すこと。
+        let partialUpdateConfig = AppConfig(dictionary: ["UpdateCheckEnabled": true])
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("expectedGitHubRepository is empty"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("githubReleasesAPIURL is missing or invalid"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("updateDownloadFallbackURL is missing or invalid"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("updateDMGAssetName is empty"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("allowedUpdateDownloadHosts is empty"))
     }
 
     func testLargeV3ModelNamesMatchConfiguredVariants() throws {
