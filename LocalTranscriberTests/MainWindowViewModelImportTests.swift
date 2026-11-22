@@ -47,13 +47,35 @@ final class MainWindowViewModelImportTests: XCTestCase {
         )
     }
 
-    func testSelectFileImportsPlaceholderDropNameWithPreferredFileName() throws {
+    func testSelectFileRejectsUnresolvablePlaceholderNameAndPreservesPreviousResult() throws {
+        let existingURL = sourceRoot.appendingPathComponent("previous.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: existingURL.path, contents: Data("prev".utf8)))
+        viewModel.selectFile(url: existingURL)
+        let previousSelected = try XCTUnwrap(viewModel.selectedFile)
+
         let sourceURL = sourceRoot.appendingPathComponent("file URL")
-        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("fake audio".utf8))
+        XCTAssertTrue(FileManager.default.createFile(atPath: sourceURL.path, contents: Data("fake audio".utf8)))
 
         viewModel.selectFile(url: sourceURL)
 
-        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.errorMessage, AppError.unsupportedFileExtension("unknown").errorDescription)
+        XCTAssertEqual(viewModel.selectedFile, previousSelected)
+    }
+
+    func testSelectFileRemovesPreviousSandboxCopyInInjectedImportsRoot() throws {
+        let firstSource = sourceRoot.appendingPathComponent("first.wav")
+        let secondSource = sourceRoot.appendingPathComponent("second.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: firstSource.path, contents: Data("first".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: secondSource.path, contents: Data("second".utf8)))
+
+        viewModel.selectFile(url: firstSource)
+        let firstImported = try XCTUnwrap(viewModel.selectedFile?.url)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstImported.path))
+
+        viewModel.selectFile(url: secondSource)
+        let secondImported = try XCTUnwrap(viewModel.selectedFile?.url)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: firstImported.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondImported.path))
     }
 
     func testSelectFileImportsPlaceholderDropNameWithDropPreferredFileName() throws {

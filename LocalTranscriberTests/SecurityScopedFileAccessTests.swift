@@ -195,18 +195,34 @@ final class SecurityScopedFileAccessTests: XCTestCase {
         )
     }
 
-    func testEndAccessIsNoOpForUnknownURL() {
-        // 開始していないURLへの endAccess はクラッシュせず何もしない
-        let url = tempRoot.appendingPathComponent("not-started.wav")
-        FileManager.default.createFile(atPath: url.path, contents: Data("x".utf8))
-        access.endAccess(url: url)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    func testEndAccessIsNoOpForUnknownURL() throws {
+        // 開始していないURLへの endAccess は stopAccessing を呼ばず、有効なアクセスにも影響しない
+        let activeFile = tempRoot.appendingPathComponent("active.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: activeFile.path, contents: Data("x".utf8)))
+        let unknownURL = tempRoot.appendingPathComponent("not-started.wav")
+        var stoppedURLs: [URL] = []
+        access = SecurityScopedFileAccess(
+            startAccessing: { _ in true },
+            stopAccessing: { stoppedURLs.append($0) }
+        )
+
+        try access.beginAccess(url: activeFile)
+        access.endAccess(url: unknownURL)
+        XCTAssertTrue(stoppedURLs.isEmpty)
+
+        access.endAccess(url: activeFile)
+        XCTAssertEqual(stoppedURLs, [activeFile])
     }
 
     func testEndAllAccessIsSafeWhenNothingStarted() {
+        var stoppedURLs: [URL] = []
+        access = SecurityScopedFileAccess(
+            startAccessing: { _ in true },
+            stopAccessing: { stoppedURLs.append($0) }
+        )
+
         access.endAllAccess()
-        // 何も開始していなくても例外を投げない
-        XCTAssertTrue(true)
+        XCTAssertTrue(stoppedURLs.isEmpty)
     }
 
     func testResolveBookmarkThrowsForInvalidData() {

@@ -3,7 +3,7 @@ import Foundation
 struct AudioImportService: Sendable {
     private static let copyBufferSize = 64 * 1024
 
-    private let importsRoot: URL
+    let importsRoot: URL
     private let fileManager: FileManager
     private let maxImportFileSizeBytes: Int64
 

@@ -2,18 +2,38 @@ import Foundation
 import WhisperKit
 
 struct ModelDownloadService: Sendable {
+    typealias ModelDownloader = @Sendable (
+        _ variant: String,
+        _ downloadBase: URL,
+        _ progressCallback: @escaping (Progress) -> Void
+    ) async throws -> URL
+
     private let modelsRoot: URL
     private let modelAvailability: ModelAvailabilityService
     private let fileManager: FileManager
+    private let downloadModel: ModelDownloader
+    private let retryDelayNanoseconds: @Sendable (Int) -> UInt64
 
     init(
         modelsRoot: URL = AppDirectories.modelsDirectory,
         modelAvailability: ModelAvailabilityService? = nil,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        downloadModel: @escaping ModelDownloader = { variant, downloadBase, progressCallback in
+            try await WhisperKit.download(
+                variant: variant,
+                downloadBase: downloadBase,
+                progressCallback: progressCallback
+            )
+        },
+        retryDelayNanoseconds: @escaping @Sendable (Int) -> UInt64 = { attempt in
+            UInt64(pow(2.0, Double(attempt - 1))) * 1_000_000_000
+        }
     ) {
         self.modelsRoot = modelsRoot
         self.modelAvailability = modelAvailability ?? ModelAvailabilityService(modelsRoot: modelsRoot)
         self.fileManager = fileManager
+        self.downloadModel = downloadModel
+        self.retryDelayNanoseconds = retryDelayNanoseconds
     }
 
     /// 指定ディレクトリにモデルが存在すればそのパスを返し、なければダウンロードする。
@@ -111,10 +131,10 @@ struct ModelDownloadService: Sendable {
         while attempt < maxAttempts {
             attempt += 1
             do {
-                downloadedPath = try await WhisperKit.download(
-                    variant: whisperKitModelName,
-                    downloadBase: modelsRoot,
-                    progressCallback: { progress in
+                downloadedPath = try await downloadModel(
+                    whisperKitModelName,
+                    modelsRoot,
+                    { progress in
                         progressHandler?(
                             .make(
                                 phase: .downloadingModel,
@@ -128,6 +148,11 @@ struct ModelDownloadService: Sendable {
                 )
                 break
             } catch {
+                if error is CancellationError || Task.isCancelled {
+                    // ユーザーキャンセル時は再試行・クリーンアップを行わない。
+                    // 途中キャッシュからの再開を可能にし、直後に再開始されたダウンロードの成果物との削除競合も防ぐ。
+                    throw CancellationError()
+                }
                 lastError = error
                 // ネットワーク系エラーのみ再試行する
                 guard isRetryableNetworkError(error), attempt < maxAttempts else {
@@ -137,9 +162,14 @@ struct ModelDownloadService: Sendable {
                     )
                     throw error
                 }
-                let delaySeconds = UInt64(pow(2.0, Double(attempt - 1)))
-                AppLogger.info("Download attempt \(attempt) failed; retrying in \(delaySeconds)s: \(error)", logger: AppLogger.transcription)
-                try await Task.sleep(nanoseconds: delaySeconds * 1_000_000_000)
+                let delayNanoseconds = retryDelayNanoseconds(attempt)
+                AppLogger.info(
+                    "Download attempt \(attempt) failed; retrying in \(delayNanoseconds / 1_000_000_000)s: \(error)",
+                    logger: AppLogger.transcription
+                )
+                if delayNanoseconds > 0 {
+                    try await Task.sleep(nanoseconds: delayNanoseconds)
+                }
             }
         }
 

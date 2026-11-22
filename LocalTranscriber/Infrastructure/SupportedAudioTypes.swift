@@ -38,18 +38,6 @@ enum SupportedAudioTypes {
         return nil
     }
 
-    static func isSupported(
-        url: URL,
-        supportedExtensions: [String],
-        preferredFileName: String? = nil
-    ) -> Bool {
-        let normalized = supportedExtensions.map { $0.lowercased() }
-        guard let ext = resolveExtension(for: url, preferredFileName: preferredFileName) else {
-            return false
-        }
-        return normalized.contains(ext)
-    }
-
     private static func extensionForContentType(_ type: UTType) -> String? {
         for (ext, utType) in extensionToUTType where type.identifier == utType.identifier {
             return ext

@@ -3,6 +3,7 @@ import Foundation
 /// 文字起こし履歴を Application Support/History に JSON で保存・読み込みする。
 struct HistoryStore: Sendable {
     private let historyRoot: URL
+    private let temporaryRoot: URL
     private let fileManager: FileManager
     private let searchDataLoader: @Sendable (URL) throws -> Data
     private let searchCache = SearchCache()
@@ -25,11 +26,13 @@ struct HistoryStore: Sendable {
     /// - Parameter searchDataLoader: 検索キャッシュの再利用と読み込み失敗を検証するための差し替え。
     init(
         historyRoot: URL = AppDirectories.historyDirectory,
+        temporaryRoot: URL = AppDirectories.tempTranscriptsDirectory,
         fileManager: FileManager = .default,
         searchDataLoader: @escaping @Sendable (URL) throws -> Data = { try Data(contentsOf: $0) },
         readTranscriptData: @escaping @Sendable (URL) throws -> Data = { try Data(contentsOf: $0) }
     ) {
         self.historyRoot = historyRoot
+        self.temporaryRoot = temporaryRoot
         self.fileManager = fileManager
         self.searchDataLoader = searchDataLoader
         self.readTranscriptData = readTranscriptData
@@ -75,8 +78,8 @@ struct HistoryStore: Sendable {
     }
 
     private func writeTemporary(_ data: Data) throws {
-        try fileManager.createDirectory(at: AppDirectories.tempTranscriptsDirectory, withIntermediateDirectories: true)
-        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        try fileManager.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+        let url = temporaryRoot.appendingPathComponent("recovery.json")
         try data.write(to: url, options: .atomic)
     }
 
@@ -285,7 +288,7 @@ struct HistoryStore: Sendable {
 
     /// クラッシュ復旧用の一時 Transcript を読み込む。なければ nil。
     func loadTemporary() -> Transcript? {
-        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        let url = temporaryRoot.appendingPathComponent("recovery.json")
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -294,7 +297,7 @@ struct HistoryStore: Sendable {
 
     /// クラッシュ復旧用の一時 Transcript を削除する。
     func clearTemporary() {
-        let url = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        let url = temporaryRoot.appendingPathComponent("recovery.json")
         try? fileManager.removeItem(at: url)
     }
 }

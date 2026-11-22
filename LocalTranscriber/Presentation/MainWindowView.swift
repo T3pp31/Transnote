@@ -138,7 +138,7 @@ struct MainWindowView: View {
             canStart: viewModel.canStartTranscription,
             startTranscription: viewModel.startTranscription,
             canCancel: viewModel.canCancel,
-            cancelTranscription: viewModel.cancelTranscription,
+            cancelTranscription: viewModel.cancelActiveOperation,
             cancelMenuTitle: viewModel.cancelMenuTitle,
             canCopy: viewModel.canCopyTranscript,
             copyTranscript: viewModel.copyTranscript,
@@ -213,7 +213,7 @@ struct MainWindowView: View {
                 canCancel: viewModel.canCancel,
                 cancelAccessibilityLabel: viewModel.cancelActionAccessibilityLabel,
                 cancelHelp: viewModel.cancelActionHelp,
-                onCancel: viewModel.cancelTranscription
+                onCancel: viewModel.cancelActiveOperation
             )
             .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
             .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)

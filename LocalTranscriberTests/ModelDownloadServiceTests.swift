@@ -257,6 +257,180 @@ final class ModelDownloadServiceTests: XCTestCase {
         // Then: 事前存在していた隠しフォルダは残る
         XCTAssertTrue(FileManager.default.fileExists(atPath: existingStaging.path))
     }
+
+    func testDownloadIfNeededCleansUpNewlyCreatedPartialAndHiddenStagingOnRetryExhaustion() async throws {
+        // Given: ダウンロード前から存在する他モデルと既存隠しステージング
+        let unrelatedModel = try makeModelFolder("openai_whisper-tiny")
+        let preExistingHidden = temporaryRoot.appendingPathComponent(
+            ".cache/existing/openai_whisper-base",
+            isDirectory: true
+        )
+        try FileManager.default.createDirectory(at: preExistingHidden, withIntermediateDirectories: true)
+
+        let attempts = AttemptCounter()
+        let createdPartial = temporaryRoot.appendingPathComponent(
+            "models/argmaxinc/whisperkit-coreml/openai_whisper-base",
+            isDirectory: true
+        )
+        let createdHidden = temporaryRoot.appendingPathComponent(
+            ".cache/huggingface/download/openai_whisper-base",
+            isDirectory: true
+        )
+
+        let service = ModelDownloadService(
+            modelsRoot: temporaryRoot,
+            modelAvailability: availability,
+            downloadModel: { _, _, _ in
+                attempts.increment()
+                try FileManager.default.createDirectory(at: createdPartial, withIntermediateDirectories: true)
+                FileManager.default.createFile(
+                    atPath: createdPartial.appendingPathComponent("MelSpectrogram.mlmodelc").path,
+                    contents: Data()
+                )
+                try FileManager.default.createDirectory(at: createdHidden, withIntermediateDirectories: true)
+                throw URLError(.timedOut)
+            },
+            retryDelayNanoseconds: { _ in 0 }
+        )
+
+        do {
+            _ = try await service.downloadIfNeeded(whisperKitModelName: "base", modelDisplayName: "Base")
+            XCTFail("Expected downloadIfNeeded to throw after exhausting retries")
+        } catch let error as URLError {
+            XCTAssertEqual(error.code, .timedOut)
+        }
+
+        XCTAssertEqual(attempts.value, 3)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: createdPartial.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: createdHidden.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: preExistingHidden.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedModel.path))
+    }
+
+    func testDownloadIfNeededCleansUpImmediatelyOnNonRetryableErrorAndInvalidFolder() async throws {
+        let createdPartial = temporaryRoot.appendingPathComponent(
+            "models/openai_whisper-base",
+            isDirectory: true
+        )
+        let attempts = AttemptCounter()
+        let nonRetryableService = ModelDownloadService(
+            modelsRoot: temporaryRoot,
+            modelAvailability: availability,
+            downloadModel: { _, _, _ in
+                attempts.increment()
+                try FileManager.default.createDirectory(at: createdPartial, withIntermediateDirectories: true)
+                throw AppError.fileAccessDenied
+            },
+            retryDelayNanoseconds: { _ in 0 }
+        )
+
+        do {
+            _ = try await nonRetryableService.downloadIfNeeded(whisperKitModelName: "base", modelDisplayName: "Base")
+            XCTFail("Expected non-retryable error")
+        } catch AppError.fileAccessDenied {
+            // expected
+        }
+        XCTAssertEqual(attempts.value, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: createdPartial.path))
+
+        // 取得後にファイル構成が不正な場合も新規フォルダを削除する。
+        let invalidFolder = temporaryRoot.appendingPathComponent(
+            "models/invalid/openai_whisper-base",
+            isDirectory: true
+        )
+        let invalidResultService = ModelDownloadService(
+            modelsRoot: temporaryRoot,
+            modelAvailability: availability,
+            downloadModel: { _, _, _ in
+                try FileManager.default.createDirectory(at: invalidFolder, withIntermediateDirectories: true)
+                return invalidFolder
+            },
+            retryDelayNanoseconds: { _ in 0 }
+        )
+
+        do {
+            _ = try await invalidResultService.downloadIfNeeded(whisperKitModelName: "base", modelDisplayName: "Base")
+            XCTFail("Expected validation failure")
+        } catch AppError.transcriptionFailed {
+            // expected
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: invalidFolder.path))
+    }
+
+    func testDownloadIfNeededPreservesStagingAcrossRetryAndSucceedsOnSecondAttempt() async throws {
+        let stagingFolder = temporaryRoot.appendingPathComponent(
+            ".cache/huggingface/download/openai_whisper-base",
+            isDirectory: true
+        )
+        let finalFolder = temporaryRoot.appendingPathComponent(
+            "models/openai_whisper-base",
+            isDirectory: true
+        )
+        let attempts = AttemptCounter()
+        let stagingExistedOnRetry = LockedFlag()
+
+        let service = ModelDownloadService(
+            modelsRoot: temporaryRoot,
+            modelAvailability: availability,
+            downloadModel: { _, _, _ in
+                let currentAttempt = attempts.increment()
+                if currentAttempt == 1 {
+                    try FileManager.default.createDirectory(at: stagingFolder, withIntermediateDirectories: true)
+                    throw URLError(.networkConnectionLost)
+                }
+                stagingExistedOnRetry.set(FileManager.default.fileExists(atPath: stagingFolder.path))
+                try FileManager.default.createDirectory(at: finalFolder, withIntermediateDirectories: true)
+                for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+                    try Data("model".utf8).write(to: finalFolder.appendingPathComponent("\(name).mlmodelc"))
+                }
+                return finalFolder
+            },
+            retryDelayNanoseconds: { _ in 0 }
+        )
+
+        let result = try await service.downloadIfNeeded(whisperKitModelName: "base", modelDisplayName: "Base")
+
+        XCTAssertEqual(attempts.value, 2)
+        XCTAssertTrue(stagingExistedOnRetry.value, "再試行中に再開用ステージングフォルダを削除してはならない")
+        XCTAssertEqual(result.resolvingSymlinksInPath().path, finalFolder.resolvingSymlinksInPath().path)
+        XCTAssertTrue(availability.isDownloaded(whisperKitModelName: "base"))
+    }
+}
+
+private final class AttemptCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    @discardableResult
+    func increment() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        count += 1
+        return count
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+}
+
+private final class LockedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var flag = false
+
+    func set(_ newValue: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        flag = newValue
+    }
+
+    var value: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return flag
+    }
 }
 
 private final class ModelDeletionFailingFileManager: FileManager, @unchecked Sendable {

@@ -5,12 +5,12 @@ final class UpdateCheckServiceTests: XCTestCase {
     private var session: URLSession!
     private var config: AppConfig!
     private var defaults: UserDefaults!
+    private var defaultsSuiteName: String!
 
     override func setUp() {
         super.setUp()
-        let suiteName = "UpdateCheckServiceTests"
-        UserDefaults.standard.removePersistentDomain(forName: suiteName)
-        defaults = UserDefaults(suiteName: suiteName)
+        defaultsSuiteName = "UpdateCheckServiceTests.\(UUID().uuidString)"
+        defaults = UserDefaults(suiteName: defaultsSuiteName)
         MockURLProtocol.reset()
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
@@ -35,10 +35,15 @@ final class UpdateCheckServiceTests: XCTestCase {
     }
 
     override func tearDown() {
+        session?.invalidateAndCancel()
         MockURLProtocol.reset()
+        if let defaultsSuiteName {
+            defaults?.removePersistentDomain(forName: defaultsSuiteName)
+        }
         session = nil
         config = nil
         defaults = nil
+        defaultsSuiteName = nil
         super.tearDown()
     }
 
@@ -352,9 +357,9 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertNil(offer)
     }
 
-    // Given: html_url に期待リポジトリ文字列が埋め込まれた別リポジトリ
+    // Given: repository.full_name は一致するが、html_url が期待リポジトリ文字列を埋め込んだ別ドメイン
     // When: checkForUpdate を実行
-    // Then: nil を返す
+    // Then: full_name 一致後も html_url 検証で nil を返す
     func testCheckForUpdateReturnsNilWhenRepositoryHTMLURLContainsExpectedPath() async {
         MockURLProtocol.requestHandler = { _ in
             let json = """
@@ -363,7 +368,7 @@ final class UpdateCheckServiceTests: XCTestCase {
               "body": null,
               "html_url": "https://evil.example/redirect?x=github.com/T3pp31/Transnote",
               "repository": {
-                "full_name": "evil/OtherApp"
+                "full_name": "T3pp31/Transnote"
               },
               "assets": [
                 {
@@ -638,10 +643,26 @@ final class UpdateCheckServiceTests: XCTestCase {
         XCTAssertNil(offer)
     }
 
-    // Given: API がエラーを返す
+    // Given: 200 なら受理される有効な JSON 本文を HTTP 500 で返す
     // When: checkForUpdate を実行
-    // Then: nil を返す
+    // Then: JSON decode 失敗ではなく HTTP status 検査で nil を返す
     func testCheckForUpdateReturnsNilOnHTTPError() async {
+        let validReleaseJSON = """
+        {
+          "tag_name": "v0.2.0",
+          "body": "Valid payload",
+          "html_url": "https://github.com/T3pp31/Transnote/releases/tag/v0.2.0",
+          "repository": {
+            "full_name": "T3pp31/Transnote"
+          },
+          "assets": [
+            {
+              "name": "Transnote.dmg",
+              "browser_download_url": "https://objects.githubusercontent.com/github-production-release-asset-2e65be/Transnote.dmg"
+            }
+          ]
+        }
+        """
         MockURLProtocol.requestHandler = { _ in
             let response = HTTPURLResponse(
                 url: self.config.githubReleasesAPIURL,
@@ -649,20 +670,34 @@ final class UpdateCheckServiceTests: XCTestCase {
                 httpVersion: nil,
                 headerFields: nil
             )!
-            return (response, Data())
+            return (response, Data(validReleaseJSON.utf8))
         }
 
         let service = UpdateCheckService(
             config: config,
             session: session,
             currentVersionProvider: { "0.1.0" },
+            checkInterval: 0,
             defaults: defaults
         )
 
-        let offer = await service.checkForUpdate()
-        XCTAssertNil(offer)
+        let errorOffer = await service.checkForUpdate()
+        XCTAssertNil(errorOffer)
         XCTAssertEqual(MockURLProtocol.requestCount, 1)
         XCTAssertNil(defaults.object(forKey: "lastUpdateCheckDate"))
+
+        // 同一の JSON 本文が HTTP 200 であれば受理されることを対照確認する
+        MockURLProtocol.requestHandler = { _ in
+            let response = HTTPURLResponse(
+                url: self.config.githubReleasesAPIURL,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data(validReleaseJSON.utf8))
+        }
+        let okOffer = await service.checkForUpdate()
+        XCTAssertEqual(okOffer?.latestVersion, "0.2.0")
     }
 
     func testCheckForUpdateUpdatesThrottleOnNotModified() async {
