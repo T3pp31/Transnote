@@ -173,6 +173,7 @@ jobs:
           /usr/bin/codesign --force --deep --options runtime \
             --entitlements "${{ github.workspace }}/LocalTranscriber/LocalTranscriber.entitlements" \
             --sign "$CERTIFICATE_IDENTITY" "$APP_PATH"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           /usr/bin/codesign -d --entitlements :- "$APP_PATH" | grep -q 'com.apple.security.app-sandbox'
           echo "SIGNED=1" >> "$GITHUB_ENV"
 
@@ -233,6 +234,52 @@ jobs:
           echo "latest_dmg_path=$latest_dmg" >> "$GITHUB_OUTPUT"
           echo "versioned_dmg_name=${APP_NAME}-$RELEASE_VERSION.dmg" >> "$GITHUB_OUTPUT"
           echo "latest_dmg_name=${APP_NAME}.dmg" >> "$GITHUB_OUTPUT"
+
+      - name: Sign DMG with Developer ID
+        if: ${{ env.HAS_SIGNING_SECRETS == 'true' && env.SIGNED == '1' }}
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
+          VERSIONED_DMG: ${{ steps.dmg.outputs.dmg_path }}
+          LATEST_DMG: ${{ steps.dmg.outputs.latest_dmg_path }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/dmg-signing.keychain-db"
+          cleanup_signing() {
+            security delete-keychain "$KEYCHAIN" || true
+            rm -f "$RUNNER_TEMP/dmg-certificate.p12"
+          }
+          trap cleanup_signing EXIT
+          security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
+          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/dmg-certificate.p12"
+          security import "$RUNNER_TEMP/dmg-certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
+          security list-keychain -d user -s "$KEYCHAIN"
+          /usr/bin/codesign --force --sign "$CERTIFICATE_IDENTITY" "$VERSIONED_DMG"
+          /usr/bin/codesign --verify --verbose=2 "$VERSIONED_DMG"
+          cp "$VERSIONED_DMG" "$LATEST_DMG"
+
+      - name: Notarize DMG
+        if: ${{ env.HAS_NOTARIZATION_SECRETS == 'true' && env.SIGNED == '1' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          VERSIONED_DMG: ${{ steps.dmg.outputs.dmg_path }}
+          LATEST_DMG: ${{ steps.dmg.outputs.latest_dmg_path }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool submit "$VERSIONED_DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$VERSIONED_DMG"
+          xcrun stapler validate "$VERSIONED_DMG"
+          cp "$VERSIONED_DMG" "$LATEST_DMG"
 
       - name: Compute SHA256 checksums
         id: checksum

@@ -22,7 +22,7 @@ security() {
     shift
     [[ $# -eq 6 && "$1" == -S && "$2" == apple-tool:,apple:,codesign: &&
        "$3" == -s && "$4" == -k && "$5" == "$CERTIFICATE_PASSWORD" &&
-       "$6" == "$RUNNER_TEMP/app-signing.keychain-db" ]] || exit 2
+       "$6" == "$RUNNER_TEMP/$EXPECTED_KEYCHAIN_NAME" ]] || exit 2
     grep -qx import "$MOCK_LOG" || exit 3
   fi
   [[ "$command" != "$MOCK_FAIL" ]] || exit 9
@@ -81,6 +81,16 @@ class ReleaseSecretScopeTests(unittest.TestCase):
             "CERTIFICATE_IDENTITY": "MACOS_CERTIFICATE_IDENTITY",
         },
         "name: Notarize app": {
+            "APPLE_ID": "APPLE_ID",
+            "APPLE_ID_PASSWORD": "APPLE_ID_PASSWORD",
+            "APPLE_TEAM_ID": "APPLE_TEAM_ID",
+        },
+        "name: Sign DMG with Developer ID": {
+            "CERTIFICATE_BASE64": "MACOS_CERTIFICATE",
+            "CERTIFICATE_PASSWORD": "MACOS_CERTIFICATE_PWD",
+            "CERTIFICATE_IDENTITY": "MACOS_CERTIFICATE_IDENTITY",
+        },
+        "name: Notarize DMG": {
             "APPLE_ID": "APPLE_ID",
             "APPLE_ID_PASSWORD": "APPLE_ID_PASSWORD",
             "APPLE_TEAM_ID": "APPLE_TEAM_ID",
@@ -146,6 +156,24 @@ class ReleaseSecretScopeTests(unittest.TestCase):
                     self.assertEqual(
                         condition_value(gates[1], env=env), can_notarize and signed == "1"
                     )
+                    self.assertEqual(
+                        condition_value(gates[2], env=env), can_sign and signed == "1"
+                    )
+                    self.assertEqual(
+                        condition_value(gates[3], env=env), can_notarize and signed == "1"
+                    )
+
+    def test_dmg_signing_and_notarization_precede_checksum_and_attestation(self):
+        step_names = list(self.steps.keys())
+        dmg_index = step_names.index("name: Create DMG")
+        sign_dmg_index = step_names.index("name: Sign DMG with Developer ID")
+        notarize_dmg_index = step_names.index("name: Notarize DMG")
+        checksum_index = step_names.index("name: Compute SHA256 checksums")
+        attest_index = step_names.index("name: Attest build provenance")
+        self.assertLess(dmg_index, sign_dmg_index)
+        self.assertLess(sign_dmg_index, notarize_dmg_index)
+        self.assertLess(notarize_dmg_index, checksum_index)
+        self.assertLess(checksum_index, attest_index)
 
 
 class AppEntitlementsTests(unittest.TestCase):
@@ -184,8 +212,8 @@ class ReleaseSigningTests(unittest.TestCase):
         cls.script, count = re.subn(
             r"(?m)^/usr/bin/codesign(?= )", "mock_codesign", cls.script
         )
-        if count != 2:
-            raise AssertionError("Expected signing and entitlement inspection commands")
+        if count != 3:
+            raise AssertionError("Expected signing, verification, and entitlement inspection commands")
 
     def setUp(self):
         self.work = tempfile.TemporaryDirectory(prefix="release signing ")
@@ -200,6 +228,7 @@ class ReleaseSigningTests(unittest.TestCase):
         env = dict(
             os.environ,
             RUNNER_TEMP=str(self.root),
+            EXPECTED_KEYCHAIN_NAME="app-signing.keychain-db",
             CERTIFICATE_BASE64="ZHVtbXk=",  # dummy, not a real certificate
             CERTIFICATE_PASSWORD="dummy password with spaces",
             CERTIFICATE_IDENTITY="Developer ID Application: Test",
@@ -222,7 +251,7 @@ class ReleaseSigningTests(unittest.TestCase):
             [
                 "create-keychain", "set-keychain-settings", "unlock-keychain",
                 "import", "set-key-partition-list", "list-keychain",
-                "codesign", "codesign",
+                "codesign", "codesign", "codesign",
                 "delete-keychain",
             ],
         )
@@ -251,6 +280,72 @@ class ReleaseSigningTests(unittest.TestCase):
                 self.assertEqual(events[-2:], [command, "delete-keychain"])
                 self.assertNotIn("codesign", events)
                 self.assertEqual(self.github_env.read_text(), "")
+
+
+class ReleaseDMGSigningTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Sign DMG with Developer ID\n", 1)[1]
+        step = step.split("\n      - name:", 1)[0]
+        cls.script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        if "${{" in cls.script:
+            raise AssertionError("Unhandled workflow expression in DMG signing step")
+        cls.script, count = re.subn(
+            r"(?m)^/usr/bin/codesign(?= )", "mock_codesign", cls.script
+        )
+        if count != 2:
+            raise AssertionError("Expected DMG signing and verification commands")
+
+    def setUp(self):
+        self.work = tempfile.TemporaryDirectory(prefix="release dmg signing ")
+        self.addCleanup(self.work.cleanup)
+        self.root = Path(self.work.name)
+        self.log = self.root / "events"
+        self.versioned_dmg = self.root / "Transnote-1.0.0.dmg"
+        self.latest_dmg = self.root / "Transnote.dmg"
+        self.versioned_dmg.write_bytes(b"signed dmg bytes")
+
+    def run_step(self, fail_command=""):
+        self.log.write_text("")
+        env = dict(
+            os.environ,
+            RUNNER_TEMP=str(self.root),
+            EXPECTED_KEYCHAIN_NAME="dmg-signing.keychain-db",
+            CERTIFICATE_BASE64="ZHVtbXk=",
+            CERTIFICATE_PASSWORD="dummy password with spaces",
+            CERTIFICATE_IDENTITY="Developer ID Application: Test",
+            VERSIONED_DMG=str(self.versioned_dmg),
+            LATEST_DMG=str(self.latest_dmg),
+            MOCK_LOG=str(self.log),
+            MOCK_FAIL=fail_command,
+        )
+        return subprocess.run(
+            ["bash", "-c", MOCKS + self.script], env=env, capture_output=True, text=True
+        )
+
+    def test_dmg_signing_verifies_copies_latest_and_cleans_up_keychain(self):
+        result = self.run_step()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            self.log.read_text().splitlines(),
+            [
+                "create-keychain", "set-keychain-settings", "unlock-keychain",
+                "import", "set-key-partition-list", "list-keychain",
+                "codesign", "codesign",
+                "delete-keychain",
+            ],
+        )
+        self.assertEqual(self.latest_dmg.read_bytes(), b"signed dmg bytes")
+        self.assertFalse((self.root / "dmg-certificate.p12").exists())
+
+    def test_dmg_signing_cleans_up_keychain_on_failure(self):
+        result = self.run_step(fail_command="import")
+        self.assertEqual(result.returncode, 9, result.stderr)
+        events = self.log.read_text().splitlines()
+        self.assertEqual(events[-2:], ["import", "delete-keychain"])
+        self.assertNotIn("codesign", events)
+        self.assertFalse((self.root / "dmg-certificate.p12").exists())
 
 
 if __name__ == "__main__":

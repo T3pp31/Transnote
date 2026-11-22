@@ -70,4 +70,157 @@ struct Transcript: Codable, Identifiable, Sendable {
         }
         schemaVersion = rawSchemaVersion
     }
+
+    /// Full Text の編集内容を `fullText` と `segments` の両方に同期する。
+    /// タイムスタンプとセグメント ID を保持したまま、TXT と SRT/VTT/Markdown の食い違いを防ぐ。
+    mutating func applyFullTextEdit(_ newText: String) {
+        fullText = newText
+        guard !segments.isEmpty else { return }
+        if segments.count == 1 {
+            segments[0].text = newText
+            return
+        }
+
+        let normalized = newText
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        if normalized.isEmpty {
+            for index in segments.indices {
+                segments[index].text = ""
+            }
+            return
+        }
+
+        let lines = normalized.components(separatedBy: "\n")
+        if lines.count > 1 {
+            syncMultilineText(lines)
+        } else {
+            syncSingleLineText(normalized)
+        }
+    }
+
+    private mutating func syncMultilineText(_ lines: [String]) {
+        let oldTexts = segments.map(\.text)
+        let oldCount = oldTexts.count
+        let newCount = lines.count
+
+        if newCount == oldCount {
+            for index in 0..<oldCount {
+                segments[index].text = lines[index]
+            }
+            return
+        }
+
+        // 変更されていない前後行をアンカーし、編集された中央区間のみを更新する。
+        var prefix = 0
+        while prefix < oldCount && prefix < newCount && oldTexts[prefix] == lines[prefix] {
+            prefix += 1
+        }
+        var suffix = 0
+        while suffix < (oldCount - prefix) && suffix < (newCount - prefix)
+            && oldTexts[oldCount - 1 - suffix] == lines[newCount - 1 - suffix] {
+            suffix += 1
+        }
+
+        let oldMidStart = prefix
+        let oldMidEnd = oldCount - suffix
+        let newMidStart = prefix
+        let newMidEnd = newCount - suffix
+        let oldMidCount = oldMidEnd - oldMidStart
+        let newMidCount = newMidEnd - newMidStart
+
+        if oldMidCount == 0 {
+            let inserted = lines[newMidStart..<newMidEnd].joined(separator: "\n")
+            if prefix > 0 {
+                let existing = segments[prefix - 1].text
+                segments[prefix - 1].text = existing.isEmpty ? inserted : "\(existing)\n\(inserted)"
+            } else {
+                let existing = segments[0].text
+                segments[0].text = existing.isEmpty ? inserted : "\(inserted)\n\(existing)"
+            }
+            return
+        }
+
+        if newMidCount == 0 {
+            for index in oldMidStart..<oldMidEnd {
+                segments[index].text = ""
+            }
+            return
+        }
+
+        if newMidCount >= oldMidCount {
+            for offset in 0..<(oldMidCount - 1) {
+                segments[oldMidStart + offset].text = lines[newMidStart + offset]
+            }
+            let remainingStart = newMidStart + oldMidCount - 1
+            segments[oldMidEnd - 1].text = lines[remainingStart..<newMidEnd].joined(separator: "\n")
+        } else {
+            for offset in 0..<newMidCount {
+                segments[oldMidStart + offset].text = lines[newMidStart + offset]
+            }
+            for index in (oldMidStart + newMidCount)..<oldMidEnd {
+                segments[index].text = ""
+            }
+        }
+    }
+
+    private mutating func syncSingleLineText(_ text: String) {
+        let characters = Array(text)
+        let textWeights = segments.map { Double($0.text.count) }
+        let useTextWeights = textWeights.contains { $0 > 0 }
+        let weights: [Double] = useTextWeights
+            ? textWeights.map { max($0, 1.0) }
+            : segments.map { max($0.endTime - $0.startTime, 0.001) }
+        let totalWeight = weights.reduce(0, +)
+
+        var cursor = 0
+        var cumulativeWeight = 0.0
+        for index in segments.indices {
+            if index == segments.count - 1 {
+                let slice = cursor < characters.count ? String(characters[cursor...]) : ""
+                segments[index].text = slice.trimmingCharacters(in: .whitespaces)
+                break
+            }
+
+            cumulativeWeight += weights[index]
+            let ideal = min(
+                characters.count,
+                max(cursor, Int((Double(characters.count) * cumulativeWeight / totalWeight).rounded()))
+            )
+            let splitIndex = nearestWhitespaceBoundary(
+                in: characters,
+                around: ideal,
+                minIndex: cursor,
+                maxIndex: characters.count
+            ) ?? ideal
+
+            let slice = splitIndex > cursor ? String(characters[cursor..<splitIndex]) : ""
+            segments[index].text = slice.trimmingCharacters(in: .whitespaces)
+            cursor = splitIndex
+            while cursor < characters.count && characters[cursor].isWhitespace {
+                cursor += 1
+            }
+        }
+    }
+
+    private func nearestWhitespaceBoundary(
+        in characters: [Character],
+        around target: Int,
+        minIndex: Int,
+        maxIndex: Int
+    ) -> Int? {
+        guard target > minIndex, target < maxIndex else { return nil }
+        let maxRadius = min(8, max(1, (maxIndex - minIndex) / 4))
+        for distance in 0...maxRadius {
+            let right = target + distance
+            if right < maxIndex && characters[right].isWhitespace {
+                return right
+            }
+            let left = target - distance
+            if distance > 0 && left > minIndex && characters[left].isWhitespace {
+                return left
+            }
+        }
+        return nil
+    }
 }

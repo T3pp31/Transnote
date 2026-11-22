@@ -53,16 +53,30 @@ find_mounted_dmg_path() {
   printf '%s' "$dmg_path"
 }
 
+is_valid_sha256() {
+  [[ "$1" =~ ^[0-9a-f]{64}$ ]]
+}
+
+normalize_sha256() {
+  printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
+}
+
 verify_dmg_checksum() {
   local dmg_path
   if ! dmg_path="$(find_mounted_dmg_path)"; then
     fail "マウント中の DMG パスを取得できませんでした。"
   fi
 
+  local actual
+  actual="$(shasum -a 256 "$dmg_path" | awk 'FNR==1{print tolower($1); exit}')"
+  if ! is_valid_sha256 "$actual"; then
+    fail "DMG の SHA256 チェックサムを計算できませんでした。"
+  fi
+
   if [[ -n "${CHECKSUM:-}" ]]; then
-    local actual
-    actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
-    if [[ "$actual" != "$CHECKSUM" ]]; then
+    local expected
+    expected="$(normalize_sha256 "$CHECKSUM")"
+    if ! is_valid_sha256 "$expected" || [[ "$actual" != "$expected" ]]; then
       fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
     fi
     return 0
@@ -70,27 +84,25 @@ verify_dmg_checksum() {
 
   local sidecar_path="${dmg_path}.sha256"
   if [[ -f "$sidecar_path" ]]; then
-    local expected actual
+    local expected
     expected="$(awk 'FNR==1{print tolower($1); exit}' "$sidecar_path")"
-    actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}' | tr '[:upper:]' '[:lower:]')"
-    if [[ "$actual" != "$expected" ]]; then
+    if ! is_valid_sha256 "$expected" || [[ "$actual" != "$expected" ]]; then
       fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
     fi
     return 0
   fi
 
-  local bundled_path="${SCRIPT_DIR}/Transnote.dmg.sha256"
+  local bundled_path="${SCRIPT_DIR}/${APP_NAME}.dmg.sha256"
   if [[ -f "$bundled_path" ]]; then
-    local expected actual
-    expected="$(awk '{print $1}' "$bundled_path")"
-    actual="$(shasum -a 256 "$dmg_path" | awk '{print $1}')"
-    if [[ "$actual" != "$expected" ]]; then
+    local expected
+    expected="$(awk 'FNR==1{print tolower($1); exit}' "$bundled_path")"
+    if ! is_valid_sha256 "$expected" || [[ "$actual" != "$expected" ]]; then
       fail "DMG の SHA256 チェックサムが一致しません。配布物が改ざんされている可能性があります。"
     fi
     return 0
   fi
 
-  fail "SHA256 チェックサムファイルが見つかりません。Release から Transnote.dmg と同じフォルダに Transnote.dmg.sha256 もダウンロードしてください。"
+  fail "SHA256 チェックサムファイルが見つかりません。Release から ${APP_NAME}.dmg と同じフォルダに ${APP_NAME}.dmg.sha256 もダウンロードしてください。"
 }
 
 if [[ ! -f "$PLIST" ]]; then
@@ -144,6 +156,10 @@ eject_installer_volume() {
 
 remove_quarantine_attribute() {
   local target="$1"
+  # 署名・公証済みアプリは Gatekeeper の評価を通過するため検疫属性の除去を行わない。
+  if command -v spctl >/dev/null 2>&1 && spctl --assess --type execute "$target" >/dev/null 2>&1; then
+    return 0
+  fi
   if command -v xattr >/dev/null 2>&1; then
     xattr -dr com.apple.quarantine "$target" >/dev/null 2>&1 || true
   fi

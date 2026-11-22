@@ -482,24 +482,94 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     func testSegmentEditLocationIsInvalidatedByFullTextEditing() {
         viewModel = MainWindowViewModel()
         for count in [1, 3] {
-            var segments = (0..<count).map { index in
+            let initialSegments = (0..<count).map { index in
                 TranscriptSegment(startTime: Double(index), endTime: Double(index + 1), text: "行\(index)")
             }
-            viewModel.restoreTranscript(Transcript(sourceFileName: "test.wav", fullText: "元の全文", segments: segments))
+            viewModel.restoreTranscript(Transcript(sourceFileName: "test.wav", fullText: "元の全文", segments: initialSegments))
             let index = count - 1
-            viewModel.updateSegmentText(id: segments[index].id, text: "最初の編集")
+            viewModel.updateSegmentText(id: initialSegments[index].id, text: "最初の編集")
             viewModel.updateTranscriptText("全文編集で長さが変わる 👨‍👩‍👧‍👦\n")
             XCTAssertEqual(viewModel.currentTranscript?.fullText, viewModel.transcriptText)
 
-            segments[index].text = "セグメント編集へ戻る"
-            viewModel.updateSegmentText(id: segments[index].id, text: segments[index].text)
-            XCTAssertEqual(viewModel.transcriptText, segments.map(\.text).joined(separator: "\n"))
+            var syncedSegments = viewModel.currentTranscript?.segments ?? []
+            XCTAssertEqual(syncedSegments.count, count)
+            syncedSegments[index].text = "セグメント編集へ戻る"
+            viewModel.updateSegmentText(id: syncedSegments[index].id, text: syncedSegments[index].text)
+            XCTAssertEqual(viewModel.transcriptText, syncedSegments.map(\.text).joined(separator: "\n"))
             XCTAssertEqual(viewModel.currentTranscript?.fullText, viewModel.transcriptText)
             // 再初期化後の差分置換も正しい位置へ適用する。
-            segments[index].text = "もう一文字"
-            viewModel.updateSegmentText(id: segments[index].id, text: segments[index].text)
-            XCTAssertEqual(viewModel.transcriptText, segments.map(\.text).joined(separator: "\n"))
+            syncedSegments[index].text = "もう一文字"
+            viewModel.updateSegmentText(id: syncedSegments[index].id, text: syncedSegments[index].text)
+            XCTAssertEqual(viewModel.transcriptText, syncedSegments.map(\.text).joined(separator: "\n"))
         }
+    }
+
+    // MARK: - Full Text & segment synchronization (#195)
+
+    func testUpdateTranscriptTextSyncsMultiSegmentLinesOneToOne() {
+        viewModel = MainWindowViewModel()
+        let segments = [
+            TranscriptSegment(startTime: 0, endTime: 1, text: "一行目"),
+            TranscriptSegment(startTime: 1, endTime: 2, text: "二行目"),
+            TranscriptSegment(startTime: 2, endTime: 3, text: "三行目")
+        ]
+        viewModel.restoreTranscript(
+            Transcript(sourceFileName: "sync.wav", fullText: "一行目\n二行目\n三行目", segments: segments)
+        )
+
+        viewModel.updateTranscriptText("一行目\n編集後の二行目\n三行目")
+
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "一行目\n編集後の二行目\n三行目")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["一行目", "編集後の二行目", "三行目"])
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.id), segments.map(\.id))
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.startTime), [0, 1, 2])
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.endTime), [1, 2, 3])
+    }
+
+    func testUpdateTranscriptTextSyncsInsertedAndDeletedLinesAnchoringUnchangedSegments() {
+        viewModel = MainWindowViewModel()
+        let segments = [
+            TranscriptSegment(startTime: 0, endTime: 1, text: "先頭"),
+            TranscriptSegment(startTime: 1, endTime: 2, text: "中間"),
+            TranscriptSegment(startTime: 2, endTime: 3, text: "末尾")
+        ]
+        viewModel.restoreTranscript(
+            Transcript(sourceFileName: "sync.wav", fullText: "先頭\n中間\n末尾", segments: segments)
+        )
+
+        // 中間に複数行を挿入しても、先頭と末尾セグメントは元のまま保持される。
+        viewModel.updateTranscriptText("先頭\n中間A\n中間B\n末尾")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["先頭", "中間A\n中間B", "末尾"])
+
+        // 中間行を削除した場合も先頭と末尾は保持され、削除区間が空になる。
+        viewModel.updateTranscriptText("先頭\n末尾")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["先頭", "", "末尾"])
+    }
+
+    func testUpdateTranscriptTextSyncsSingleLineEditAcrossMultipleSegments() {
+        viewModel = MainWindowViewModel()
+        let segments = [
+            TranscriptSegment(startTime: 0, endTime: 1, text: "Hello"),
+            TranscriptSegment(startTime: 1, endTime: 2, text: "world"),
+            TranscriptSegment(startTime: 2, endTime: 3, text: "today")
+        ]
+        viewModel.restoreTranscript(
+            Transcript(sourceFileName: "en.wav", fullText: "Hello world today", segments: segments)
+        )
+
+        viewModel.updateTranscriptText("Hello Swift today")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["Hello", "Swift", "today"])
+
+        // 日本語（空白区切りなし）の単一行編集でも旧テキストを残さず配分する。
+        let jpSegments = [
+            TranscriptSegment(startTime: 0, endTime: 1, text: "こんにちは"),
+            TranscriptSegment(startTime: 1, endTime: 2, text: "世界")
+        ]
+        viewModel.restoreTranscript(
+            Transcript(sourceFileName: "ja.wav", fullText: "こんにちは世界", segments: jpSegments)
+        )
+        viewModel.updateTranscriptText("こんにちは日本")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["こんにちは", "日本"])
     }
 
     func testSegmentEditLocationIsInvalidatedWhenTranscriptIsReplaced() {
@@ -576,6 +646,33 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptText, expected)
         XCTAssertEqual(viewModel.currentTranscript?.fullText, expected)
         XCTAssertEqual(viewModel.currentTranscript?.segments.last?.text, "入力99")
+    }
+
+    func testSegmentEditPublishesChangeAndPreservesTranscriptTextAcrossReplacement() {
+        viewModel = MainWindowViewModel()
+        let first = TranscriptSegment(startTime: 0, endTime: 1, text: "先頭")
+        let second = TranscriptSegment(startTime: 1, endTime: 2, text: "末尾")
+        let transcript = Transcript(sourceFileName: "edit.wav", fullText: "先頭\n末尾", segments: [first, second])
+        viewModel.restoreTranscript(transcript)
+
+        var notifications = 0
+        let cancellable = viewModel.objectWillChange.sink { _ in notifications += 1 }
+        defer { cancellable.cancel() }
+
+        viewModel.updateSegmentText(id: second.id, text: "更新1")
+        viewModel.updateSegmentText(id: second.id, text: "更新12")
+        XCTAssertEqual(notifications, 2, "連続セグメント編集で変更通知が毎回送出されること")
+        XCTAssertEqual(viewModel.transcriptText, "先頭\n更新12")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "先頭\n更新12")
+        XCTAssertTrue(viewModel.canExport)
+
+        // 不明 ID では不要な通知を出さない。
+        viewModel.updateSegmentText(id: UUID(), text: "無視")
+        XCTAssertEqual(notifications, 2)
+
+        // currentTranscript を別インスタンスへ差し替えても transcriptText が空落ちしないこと。
+        viewModel.currentTranscript = Transcript(sourceFileName: "other.wav", fullText: "別本文")
+        XCTAssertEqual(viewModel.transcriptText, "先頭\n更新12")
     }
 
     private func configureForTranscription() {
