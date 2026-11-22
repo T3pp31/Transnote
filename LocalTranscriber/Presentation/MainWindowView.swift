@@ -8,6 +8,7 @@ struct MainWindowView: View {
     @State private var showingSettings = false
     @State private var showingHistory = false
     @State private var recoveryTranscript: Transcript?
+    @State private var externalSelectionGeneration = 0
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
@@ -164,7 +165,8 @@ struct MainWindowView: View {
                 selectedFile: viewModel.selectedFile,
                 onFileSelected: viewModel.selectFile(url:preferredFileName:),
                 audioImportService: AudioImportService(),
-                isBusy: viewModel.isBusy
+                isBusy: viewModel.isBusy,
+                externalSelectionGeneration: externalSelectionGeneration
             )
             if let guidance = viewModel.modelDownloadGuidance {
                 ModelDownloadGuidanceBanner(
@@ -354,6 +356,7 @@ struct MainWindowView: View {
         panel.canChooseFiles = true
         panel.allowedContentTypes = contentTypesForPicker()
         if panel.runModal() == .OK, let url = panel.url {
+            externalSelectionGeneration += 1
             viewModel.selectFile(url: url, preferredFileName: nil)
         }
     }

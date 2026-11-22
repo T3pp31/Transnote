@@ -748,17 +748,11 @@ final class MainWindowViewModel: ObservableObject {
         ).post()
     }
 
-    /// Full Text 編集内容を currentTranscript の fullText と同期する。
-    /// segment の text が空の場合は、編集後の全文を反映する。
+    /// Full Text 編集内容を currentTranscript の fullText と segments の両方に同期する。
     func updateTranscriptText(_ newText: String) {
         transcriptText = newText
         guard var transcript = currentTranscript else { return }
-        transcript.fullText = newText
-        // 全編集中に segment 表示へ戻っても食い違わないよう、
-        // セグメントが1つしかない（全文を1セグメントで保持している）場合は text も同期する。
-        if transcript.segments.count == 1 {
-            transcript.segments[0].text = newText
-        }
+        transcript.applyFullTextEdit(newText)
         currentTranscript = transcript
     }
 
@@ -922,8 +916,10 @@ final class MainWindowViewModel: ObservableObject {
         )
         guard let url else { return }
 
-        // 書き出し用のコピーに最新の編集内容を反映する。
-        transcript.fullText = transcriptText
+        // 書き出し用のコピーに最新の編集内容を反映する（全文とセグメント字幕を同期）。
+        if transcript.fullText != transcriptText {
+            transcript.applyFullTextEdit(transcriptText)
+        }
         transcript.updatedAt = Date()
 
         do {

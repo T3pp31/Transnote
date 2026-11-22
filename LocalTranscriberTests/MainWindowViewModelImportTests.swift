@@ -469,6 +469,100 @@ final class MainWindowViewModelImportTests: XCTestCase {
         try await assertStaleTaskIsIgnored(completion: .success("stale"), completeNewFirst: true)
     }
 
+    // MARK: - drop vs open file panel race (#653)
+
+    func testStaleDropCompletionDoesNotOverwritePanelSelectionAndAllowsFutureDrops() throws {
+        let coordinator = FileDropCoordinator()
+        var selectedURLs: [URL] = []
+        let droppedCopy = importsRoot.appendingPathComponent("dropped-old.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: droppedCopy.path, contents: Data("old".utf8)))
+        let panelURL = sourceRoot.appendingPathComponent("panel-new.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: panelURL.path, contents: Data("new".utf8)))
+
+        // 1) ドロップ取込が進行中に「ファイルを開く」で別ファイルを選択する。
+        let staleGeneration = coordinator.beginDrop()
+        XCTAssertTrue(coordinator.isImportingDrop)
+
+        coordinator.selectFileFromPanel(url: panelURL) { url, _ in
+            selectedURLs.append(url)
+        }
+        XCTAssertEqual(selectedURLs, [panelURL])
+        XCTAssertFalse(coordinator.isImportingDrop, "パネル選択後に isImportingDrop が残ってはならない")
+
+        // 2) 遅れて到着した古いドロップ完了はパネル選択を上書きせず、不要コピーを削除する。
+        coordinator.completeDrop(
+            generation: staleGeneration,
+            isBusy: false,
+            orphanImportedURL: droppedCopy
+        ) {
+            selectedURLs.append(droppedCopy)
+        }
+        XCTAssertEqual(selectedURLs, [panelURL], "古いドロップ完了がパネル選択を上書きしてはならない")
+        XCTAssertFalse(coordinator.isImportingDrop)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: droppedCopy.path),
+            "採用されなかった古いドロップのコピーを削除すること"
+        )
+
+        // 3) その後の新しいドロップも正常に受理・完了できること。
+        let nextURL = importsRoot.appendingPathComponent("next-drop.wav")
+        let nextGeneration = coordinator.beginDrop()
+        XCTAssertTrue(coordinator.isImportingDrop)
+        coordinator.completeDrop(generation: nextGeneration, isBusy: false) {
+            selectedURLs.append(nextURL)
+        }
+        XCTAssertFalse(coordinator.isImportingDrop)
+        XCTAssertEqual(selectedURLs, [panelURL, nextURL])
+    }
+
+    func testStaleDropCompletionDoesNotClearNewerDropInProgressFlag() {
+        let coordinator = FileDropCoordinator()
+        var selectedURLs: [URL] = []
+        let panelURL = sourceRoot.appendingPathComponent("panel.wav")
+        let newerDropURL = importsRoot.appendingPathComponent("newer.wav")
+
+        let firstGeneration = coordinator.beginDrop()
+        coordinator.selectFileFromPanel(url: panelURL) { url, _ in
+            selectedURLs.append(url)
+        }
+        let secondGeneration = coordinator.beginDrop()
+        XCTAssertTrue(coordinator.isImportingDrop)
+
+        // 1回目のドロップが2回目の実行中に遅れて完了しても、2回目の isImportingDrop を解除しない。
+        coordinator.completeDrop(generation: firstGeneration, isBusy: false) {
+            XCTFail("古いドロップの update を実行してはならない")
+        }
+        XCTAssertTrue(coordinator.isImportingDrop)
+
+        coordinator.completeDrop(generation: secondGeneration, isBusy: false) {
+            selectedURLs.append(newerDropURL)
+        }
+        XCTAssertFalse(coordinator.isImportingDrop)
+        XCTAssertEqual(selectedURLs, [panelURL, newerDropURL])
+    }
+
+    func testDropCompletionIsIgnoredWhenBusyAndResetsImportingFlag() throws {
+        let coordinator = FileDropCoordinator()
+        let droppedCopy = importsRoot.appendingPathComponent("busy-drop.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: droppedCopy.path, contents: Data("audio".utf8)))
+
+        let generation = coordinator.beginDrop()
+        XCTAssertTrue(coordinator.isImportingDrop)
+
+        var called = false
+        coordinator.completeDrop(
+            generation: generation,
+            isBusy: true,
+            orphanImportedURL: droppedCopy
+        ) {
+            called = true
+        }
+
+        XCTAssertFalse(called, "busy 中のドロップ完了で onFileSelected を呼んではならない")
+        XCTAssertFalse(coordinator.isImportingDrop, "busy で破棄した場合も isImportingDrop を解除すること")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: droppedCopy.path))
+    }
+
     private func assertStaleTaskIsIgnored(
         completion: SequentialGateTranscriber.Completion,
         completeNewFirst: Bool = false

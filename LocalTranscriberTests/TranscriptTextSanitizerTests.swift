@@ -109,4 +109,25 @@ final class TranscriptTextSanitizerTests: XCTestCase {
             "こんにちは"
         )
     }
+
+    func testSanitizeFastPathPreservesCleanTextAndHandlesEdgeCases() {
+        let cleanSamples = [
+            "",
+            "こんにちは 世界",
+            "Hello world 🌏 e\u{301} 👩🏽‍💻",
+            "a | b < c > d",
+            "line1\nline2\tcolumn",
+        ]
+        for sample in cleanSamples {
+            XCTAssertEqual(TranscriptTextSanitizer.sanitize(sample), sample)
+            XCTAssertEqual(
+                TranscriptTextSanitizer.presentableText(from: sample),
+                sample.isEmpty ? nil : sample
+            )
+        }
+        XCTAssertEqual(TranscriptTextSanitizer.sanitize("   "), "")
+        XCTAssertEqual(TranscriptTextSanitizer.sanitize("a   b"), "a b")
+        XCTAssertEqual(TranscriptTextSanitizer.sanitize(" a b "), "a b")
+        XCTAssertEqual(TranscriptTextSanitizer.sanitize("\n\ta  b\n"), "a b")
+    }
 }

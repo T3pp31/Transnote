@@ -27,19 +27,33 @@ enum TranscriptTextSanitizer {
 
     static func sanitize(_ text: String) -> String {
         var result = text
-        for expression in removalExpressions {
-            result = expression.stringByReplacingMatches(
+        // すべての除去パターンは区切りトークンを含むため、含まない clean テキストでは正規表現を実行しない。
+        if containsSpecialTokenArtifacts(result) {
+            for expression in removalExpressions {
+                result = expression.stringByReplacingMatches(
+                    in: result,
+                    range: NSRange(location: 0, length: result.utf16.count),
+                    withTemplate: ""
+                )
+            }
+        }
+
+        if result.range(of: "  ", options: .literal) != nil {
+            result = repeatedSpacesExpression.stringByReplacingMatches(
                 in: result,
                 range: NSRange(location: 0, length: result.utf16.count),
-                withTemplate: ""
+                withTemplate: " "
             )
         }
 
-        return repeatedSpacesExpression.stringByReplacingMatches(
-            in: result,
-            range: NSRange(location: 0, length: result.utf16.count),
-            withTemplate: " "
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = result.unicodeScalars.first, let last = result.unicodeScalars.last else {
+            return result
+        }
+        if CharacterSet.whitespacesAndNewlines.contains(first)
+            || CharacterSet.whitespacesAndNewlines.contains(last) {
+            return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result
     }
 
     static func presentableText(from rawText: String) -> String? {

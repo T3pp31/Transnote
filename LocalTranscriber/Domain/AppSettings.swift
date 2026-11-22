@@ -177,17 +177,7 @@ struct AppConfig {
     let historySearchDebounceNanoseconds: UInt64
     let maxImportFileSizeBytes: Int64
 
-    private static let fallbackModels = [
-        ModelOption(id: "tiny", displayName: "Tiny", whisperKitModelName: "tiny"),
-        ModelOption(id: "base", displayName: "Base", whisperKitModelName: "base"),
-        ModelOption(id: "small", displayName: "Small", whisperKitModelName: "small")
-    ]
-
-    private static let fallbackLanguages = [
-        LanguageOption(id: "auto", displayName: "Auto"),
-        LanguageOption(id: "ja", displayName: "Japanese"),
-        LanguageOption(id: "en", displayName: "English")
-    ]
+    private static let placeholderURL = URL(string: "about:blank")!
 
     /// 設定不整合を起動時に明示的に検出するための検証結果。
     /// 空でない場合は LocalTranscriberApp の起動時にログへ出力する。
@@ -206,57 +196,77 @@ struct AppConfig {
         if supportedExtensions.isEmpty {
             errors.append("supportedExtensions is empty")
         }
+        if updateCheckEnabled {
+            if expectedGitHubRepository.isEmpty {
+                errors.append("expectedGitHubRepository is empty")
+            }
+            if githubReleasesAPIURL == Self.placeholderURL {
+                errors.append("githubReleasesAPIURL is missing or invalid")
+            }
+            if updateDownloadFallbackURL == Self.placeholderURL {
+                errors.append("updateDownloadFallbackURL is missing or invalid")
+            }
+            if updateDMGAssetName.isEmpty {
+                errors.append("updateDMGAssetName is empty")
+            }
+            if allowedUpdateDownloadHosts.isEmpty {
+                errors.append("allowedUpdateDownloadHosts is empty")
+            }
+        }
         return errors
     }
 
     init(bundle: Bundle = .main) {
-        let data: [String: Any]
-        if let bundledURL = bundle.url(forResource: "Defaults", withExtension: "plist"),
-           let loaded = NSDictionary(contentsOf: bundledURL) as? [String: Any] {
-            data = loaded
-        } else {
-            #if DEBUG
-            // #filePath: .../Transnote/LocalTranscriber/Domain/AppSettings.swift
-            let developmentPlistURL = URL(fileURLWithPath: #filePath)
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .deletingLastPathComponent()
-                .appendingPathComponent("Config/Defaults.plist")
-            if let loaded = NSDictionary(contentsOf: developmentPlistURL) as? [String: Any] {
-                data = loaded
-            } else {
-                data = [:]
-            }
-            #else
-            data = [:]
-            #endif
-        }
+        self.init(dictionary: Self.loadDefaultsDictionary(from: bundle))
+    }
 
-        supportedExtensions = data["SupportedAudioExtensions"] as? [String] ?? ["wav", "mp3", "m4a", "flac"]
-        defaultModelID = data["DefaultModelID"] as? String ?? "base"
-        defaultLanguageID = data["DefaultLanguage"] as? String ?? "auto"
+    /// Defaults.plist の内容を正本として構成する。
+    /// モデル・言語・URL などの二重定義を避けるため、欠損時はハードコード代替を持たず
+    /// 安全側の空値にし、`validationErrors` で設定不備を検出できるようにする。
+    init(dictionary data: [String: Any]) {
+        supportedExtensions = data["SupportedAudioExtensions"] as? [String] ?? []
+        defaultModelID = data["DefaultModelID"] as? String ?? ""
+        defaultLanguageID = data["DefaultLanguage"] as? String ?? ""
         modelsDirectoryName = data["ModelsDirectoryName"] as? String ?? "Models"
 
-        let parsedModels = Self.parseModels(from: data["Models"] as? [[String: Any]] ?? [])
-        let parsedLanguages = Self.parseLanguages(from: data["Languages"] as? [[String: Any]] ?? [])
-        models = parsedModels.isEmpty ? Self.fallbackModels : parsedModels
-        languages = parsedLanguages.isEmpty ? Self.fallbackLanguages : parsedLanguages
+        models = Self.parseModels(from: data["Models"] as? [[String: Any]] ?? [])
+        languages = Self.parseLanguages(from: data["Languages"] as? [[String: Any]] ?? [])
 
-        updateCheckEnabled = data["UpdateCheckEnabled"] as? Bool ?? true
-        expectedGitHubRepository = data["ExpectedGitHubRepository"] as? String ?? "T3pp31/Transnote"
-        githubReleasesAPIURL = Self.url(
-            from: data["GitHubReleasesAPIURL"] as? String,
-            fallback: "https://api.github.com/repos/T3pp31/Transnote/releases/latest"
-        )
-        updateDownloadFallbackURL = Self.url(
-            from: data["UpdateDownloadFallbackURL"] as? String,
-            fallback: "https://github.com/T3pp31/Transnote/releases/latest/download/Transnote.dmg"
-        )
-        updateDMGAssetName = data["UpdateDMGAssetName"] as? String ?? "Transnote.dmg"
-        allowedUpdateDownloadHosts = data["AllowedUpdateDownloadHosts"] as? [String]
-            ?? ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"]
+        updateCheckEnabled = data["UpdateCheckEnabled"] as? Bool ?? false
+        expectedGitHubRepository = data["ExpectedGitHubRepository"] as? String ?? ""
+        githubReleasesAPIURL = Self.url(from: data["GitHubReleasesAPIURL"] as? String)
+        updateDownloadFallbackURL = Self.url(from: data["UpdateDownloadFallbackURL"] as? String)
+        updateDMGAssetName = data["UpdateDMGAssetName"] as? String ?? ""
+        allowedUpdateDownloadHosts = data["AllowedUpdateDownloadHosts"] as? [String] ?? []
         historySearchDebounceNanoseconds = UInt64(max(0, Self.int64(from: data["HistorySearchDebounceNanoseconds"], fallback: 0)))
-        maxImportFileSizeBytes = Self.int64(from: data["MaxImportFileSizeBytes"], fallback: 524_288_000)
+        maxImportFileSizeBytes = Self.int64(from: data["MaxImportFileSizeBytes"], fallback: 0)
+    }
+
+    private static func loadDefaultsDictionary(from bundle: Bundle) -> [String: Any] {
+        if let bundledURL = bundle.url(forResource: "Defaults", withExtension: "plist"),
+           let loaded = NSDictionary(contentsOf: bundledURL) as? [String: Any] {
+            return loaded
+        }
+        // Bundle.main がテストランナー等を指す場合でも、アプリバンドル同梱の Defaults.plist を正本として参照する。
+        if bundle == .main {
+            let appBundle = Bundle(for: AppSettings.self)
+            if let appBundledURL = appBundle.url(forResource: "Defaults", withExtension: "plist"),
+               let loaded = NSDictionary(contentsOf: appBundledURL) as? [String: Any] {
+                return loaded
+            }
+        }
+        #if DEBUG
+        // #filePath: .../Transnote/LocalTranscriber/Domain/AppSettings.swift
+        let developmentPlistURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Config/Defaults.plist")
+        if let loaded = NSDictionary(contentsOf: developmentPlistURL) as? [String: Any] {
+            return loaded
+        }
+        #endif
+        return [:]
     }
 
     init(
@@ -267,12 +277,12 @@ struct AppConfig {
         models: [ModelOption],
         languages: [LanguageOption],
         updateCheckEnabled: Bool,
-        expectedGitHubRepository: String = "T3pp31/Transnote",
+        expectedGitHubRepository: String = AppConfig.shared.expectedGitHubRepository,
         githubReleasesAPIURL: URL,
         updateDownloadFallbackURL: URL,
         updateDMGAssetName: String,
-        allowedUpdateDownloadHosts: [String] = ["github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com"],
-        maxImportFileSizeBytes: Int64 = 524_288_000,
+        allowedUpdateDownloadHosts: [String] = AppConfig.shared.allowedUpdateDownloadHosts,
+        maxImportFileSizeBytes: Int64 = AppConfig.shared.maxImportFileSizeBytes,
         historySearchDebounceNanoseconds: UInt64 = 0
     ) {
         self.supportedExtensions = supportedExtensions
@@ -291,7 +301,6 @@ struct AppConfig {
         self.historySearchDebounceNanoseconds = historySearchDebounceNanoseconds
     }
 
-
     private static func int64(from value: Any?, fallback: Int64) -> Int64 {
         if let number = value as? NSNumber {
             return number.int64Value
@@ -299,11 +308,11 @@ struct AppConfig {
         return fallback
     }
 
-    private static func url(from string: String?, fallback: String) -> URL {
-        if let string, let url = URL(string: string) {
+    private static func url(from string: String?) -> URL {
+        if let string, !string.isEmpty, let url = URL(string: string) {
             return url
         }
-        return URL(string: fallback)!
+        return placeholderURL
     }
 
     private static func parseModels(from raw: [[String: Any]]) -> [ModelOption] {
