@@ -202,7 +202,7 @@ struct ExportService {
             let end = formatTimestamp(segment.endTime, separator: ",")
             blocks.append("\(index + 1)")
             blocks.append("\(start) --> \(end)")
-            blocks.append(segment.text)
+            blocks.append(sanitizeSubtitleText(segment.text, escapeVTTEntities: false))
             blocks.append("")
         }
 
@@ -219,11 +219,44 @@ struct ExportService {
             let start = formatTimestamp(segment.startTime, separator: ".")
             let end = formatTimestamp(segment.endTime, separator: ".")
             lines.append("\(start) --> \(end)")
-            lines.append(segment.text)
+            lines.append(sanitizeSubtitleText(segment.text, escapeVTTEntities: true))
             lines.append("")
         }
 
         return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// SRT/VTT のキュー境界（空行）とタイムスタンプ区切り（`-->`）・制御文字を無害化し、
+    /// 1 セグメント = 1 キューを保証する。VTT では WebVTT のタグ・実体記号もエスケープする。
+    private func sanitizeSubtitleText(_ text: String, escapeVTTEntities: Bool) -> String {
+        let normalizedLineEndings = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        let strippedControl = String(
+            normalizedLineEndings.unicodeScalars.filter { scalar in
+                if scalar == "\n" || scalar == "\t" { return true }
+                let value = scalar.value
+                return value >= 0x20 && value != 0x7F
+            }
+        )
+        let nonBlankLines = strippedControl
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map(String.init)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+
+        let sanitizedLines = nonBlankLines.map { line -> String in
+            if escapeVTTEntities {
+                // WebVTT 仕様に従い & / < / > を実体参照化することで、
+                // タイムスタンプ区切り (-->) とタグ様文字列 (<v>, <00:00:01.000> 等) を同時に無害化する。
+                return line
+                    .replacingOccurrences(of: "&", with: "&amp;")
+                    .replacingOccurrences(of: "<", with: "&lt;")
+                    .replacingOccurrences(of: ">", with: "&gt;")
+            }
+            return line.replacingOccurrences(of: "-->", with: "-- >")
+        }
+
+        return sanitizedLines.joined(separator: "\n")
     }
 
     /// segment が無い場合の字幕用フォールバック。
