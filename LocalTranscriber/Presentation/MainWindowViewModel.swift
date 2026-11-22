@@ -835,6 +835,7 @@ final class MainWindowViewModel: ObservableObject {
         }
 
         playingSegmentID = segment.id
+        isSegmentPaused = false
         let segmentID = segment.id
         playbackPositionText = Self.remainingTimeText(
             current: 0,
@@ -847,6 +848,7 @@ final class MainWindowViewModel: ObservableObject {
             guard let self else { return }
             if self.playingSegmentID == segmentID {
                 self.playingSegmentID = nil
+                self.isSegmentPaused = false
                 self.playbackPositionText = ""
             }
         }
