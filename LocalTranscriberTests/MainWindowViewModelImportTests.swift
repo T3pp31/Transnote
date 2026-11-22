@@ -48,14 +48,39 @@ final class MainWindowViewModelImportTests: XCTestCase {
         )
     }
 
-    func testSelectFileImportsPlaceholderDropNameWithPreferredFileName() async throws {
+    func testSelectFileRejectsUnresolvablePlaceholderNameAndPreservesPreviousResult() async throws {
+        let existingURL = sourceRoot.appendingPathComponent("previous.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: existingURL.path, contents: Data("prev".utf8)))
+        viewModel.selectFile(url: existingURL)
+        await viewModel.importTask?.value
+        let previousSelected = try XCTUnwrap(viewModel.selectedFile)
+
         let sourceURL = sourceRoot.appendingPathComponent("file URL")
-        FileManager.default.createFile(atPath: sourceURL.path, contents: Data("fake audio".utf8))
+        XCTAssertTrue(FileManager.default.createFile(atPath: sourceURL.path, contents: Data("fake audio".utf8)))
 
         viewModel.selectFile(url: sourceURL)
         await viewModel.importTask?.value
 
-        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.errorMessage, AppError.unsupportedFileExtension("unknown").errorDescription)
+        XCTAssertEqual(viewModel.selectedFile, previousSelected)
+    }
+
+    func testSelectFileRemovesPreviousSandboxCopyInInjectedImportsRoot() async throws {
+        let firstSource = sourceRoot.appendingPathComponent("first.wav")
+        let secondSource = sourceRoot.appendingPathComponent("second.wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: firstSource.path, contents: Data("first".utf8)))
+        XCTAssertTrue(FileManager.default.createFile(atPath: secondSource.path, contents: Data("second".utf8)))
+
+        viewModel.selectFile(url: firstSource)
+        await viewModel.importTask?.value
+        let firstImported = try XCTUnwrap(viewModel.selectedFile?.url)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstImported.path))
+
+        viewModel.selectFile(url: secondSource)
+        await viewModel.importTask?.value
+        let secondImported = try XCTUnwrap(viewModel.selectedFile?.url)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: firstImported.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondImported.path))
     }
 
     func testSelectFileImportsPlaceholderDropNameWithDropPreferredFileName() async throws {

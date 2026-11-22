@@ -56,6 +56,19 @@ final class ExportServiceTests: XCTestCase {
         let content = try exportService.content(for: sampleTranscript, format: .srt)
         XCTAssertTrue(content.contains("1\n00:00:00,000 --> 00:00:01,500\nこんにちは"))
         XCTAssertTrue(content.contains("2\n00:00:01,500 --> 00:00:03,000\n世界"))
+
+        // 隣接する境界セグメントもエラーなく出力できる
+        let adjacentTranscript = Transcript(
+            sourceFileName: "valid.wav",
+            fullText: "a b",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 2, text: "a"),
+                TranscriptSegment(startTime: 2, endTime: 4, text: "b")
+            ]
+        )
+        let adjacentSRT = try exportService.content(for: adjacentTranscript, format: .srt)
+        XCTAssertTrue(adjacentSRT.contains("1\n00:00:00,000 --> 00:00:02,000\na"))
+        XCTAssertTrue(adjacentSRT.contains("2\n00:00:02,000 --> 00:00:04,000\nb"))
     }
 
     func testVTTExportFormat() throws {
@@ -101,7 +114,7 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(srt.contains("00:00:01,234 --> 00:00:05,678"))
     }
 
-    func testExportWithEmptySegmentsDoesNotUseZeroDuration() throws {
+    func testExportWithEmptySegmentsUsesMinimalDuration() throws {
         let transcript = Transcript(
             sourceFileName: "empty-segments.wav",
             fullText: "Only full text",
@@ -111,16 +124,6 @@ final class ExportServiceTests: XCTestCase {
         let vtt = try exportService.content(for: transcript, format: .vtt)
         XCTAssertFalse(srt.contains("00:00:00,000 --> 00:00:00,000"))
         XCTAssertFalse(vtt.contains("00:00:00.000 --> 00:00:00.000"))
-    }
-
-    func testExportWithEmptySegmentsUsesMinimalDuration() throws {
-        let transcript = Transcript(
-            sourceFileName: "empty-segments.wav",
-            fullText: "Only full text",
-            segments: []
-        )
-        let srt = try exportService.content(for: transcript, format: .srt)
-        let vtt = try exportService.content(for: transcript, format: .vtt)
         XCTAssertTrue(srt.contains("00:00:00,000 --> 00:00:01,000"))
         XCTAssertTrue(vtt.contains("00:00:00.000 --> 00:00:01.000"))
     }
@@ -164,18 +167,6 @@ final class ExportServiceTests: XCTestCase {
         )
 
         XCTAssertThrowsError(try exportService.content(for: transcript, format: .srt))
-    }
-
-    func testExportAcceptsValidSegments() throws {
-        let transcript = Transcript(
-            sourceFileName: "valid.wav",
-            fullText: "valid",
-            segments: [
-                TranscriptSegment(startTime: 0, endTime: 2, text: "a"),
-                TranscriptSegment(startTime: 2, endTime: 4, text: "b")
-            ]
-        )
-        XCTAssertNoThrow(try exportService.content(for: transcript, format: .srt))
     }
 
     // MARK: - schemaVersion (#199)

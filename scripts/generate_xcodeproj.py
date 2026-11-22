@@ -31,7 +31,6 @@ APP_SOURCES = [
     "LocalTranscriber/Services/AudioImportService.swift",
     "LocalTranscriber/Services/AudioFileService.swift",
     "LocalTranscriber/Services/DropFileNameResolver.swift",
-    "LocalTranscriber/Services/DropURLParser.swift",
     "LocalTranscriber/Services/DropImportService.swift",
     "LocalTranscriber/Services/AudioFileNameResolver.swift",
     "LocalTranscriber/Services/ExportService.swift",
@@ -78,10 +77,14 @@ TEST_SOURCES = [
     "LocalTranscriberTests/UpdateCheckViewModelTests.swift",
     "LocalTranscriberTests/ErrorMapperTests.swift",
     "LocalTranscriberTests/UpdateURLValidatorTests.swift",
+    "LocalTranscriberTests/SecurityScopedFileAccessTests.swift",
     "LocalTranscriberTests/AudioFileNameResolverTests.swift",
     "LocalTranscriberTests/LocalizedStringTestSupport.swift",
     "LocalTranscriberTests/PerformanceBaselineTests.swift",
-    "LocalTranscriberTests/ModelResolveProbeTests.swift",
+]
+
+UI_TEST_SOURCES = [
+    "LocalTranscriberUITests/LocalTranscriberUITests.swift",
 ]
 
 RESOURCES = [
@@ -128,15 +131,21 @@ ids = {
     "config_group": uid("config_group"),
     "app_target": uid("app_target"),
     "test_target": uid("test_target"),
+    "ui_test_target": uid("ui_test_target"),
     "app_product": uid("app_product"),
     "test_product": uid("test_product"),
+    "ui_test_product": uid("ui_test_product"),
     "sources_phase_app": uid("sources_phase_app"),
     "resources_phase_app": uid("resources_phase_app"),
     "frameworks_phase_app": uid("frameworks_phase_app"),
     "sources_phase_test": uid("sources_phase_test"),
     "frameworks_phase_test": uid("frameworks_phase_test"),
+    "sources_phase_ui_test": uid("sources_phase_ui_test"),
+    "frameworks_phase_ui_test": uid("frameworks_phase_ui_test"),
     "test_dep": uid("test_dep"),
+    "ui_test_dep": uid("ui_test_dep"),
     "app_proxy": uid("app_proxy"),
+    "ui_test_app_proxy": uid("ui_test_app_proxy"),
     "whisperkit_ref": uid("whisperkit_ref"),
     "whisperkit_product": uid("whisperkit_product"),
     "pkg_ref": uid("pkg_ref"),
@@ -146,25 +155,29 @@ ids = {
     "app_release": uid("app_release"),
     "test_debug": uid("test_debug"),
     "test_release": uid("test_release"),
+    "ui_test_debug": uid("ui_test_debug"),
+    "ui_test_release": uid("ui_test_release"),
     "project_config_list": uid("project_config_list"),
     "app_config_list": uid("app_config_list"),
     "test_config_list": uid("test_config_list"),
+    "ui_test_config_list": uid("ui_test_config_list"),
     "domain_group": uid("domain_group"),
     "infra_group": uid("infra_group"),
     "services_group": uid("services_group"),
     "presentation_group": uid("presentation_group"),
     "local_group": uid("local_group"),
     "tests_group": uid("tests_group"),
+    "ui_tests_group": uid("ui_tests_group"),
 }
 
 file_refs = {}
 build_files = {}
 
-all_paths = APP_SOURCES + TEST_SOURCES + RESOURCES + EXTRA_FILES
+all_paths = APP_SOURCES + TEST_SOURCES + UI_TEST_SOURCES + RESOURCES + EXTRA_FILES
 for path in all_paths:
     file_refs[path] = uid("fileref-" + path)
 
-for path in APP_SOURCES + TEST_SOURCES:
+for path in APP_SOURCES + TEST_SOURCES + UI_TEST_SOURCES:
     build_files[path] = uid("build-01-" + path)
 
 for path in RESOURCES:
@@ -196,6 +209,9 @@ lines.append(
 lines.append(
     f"		{ids['test_product']} /* LocalTranscriberTests.xctest */ = {{isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LocalTranscriberTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; }};"
 )
+lines.append(
+    f"		{ids['ui_test_product']} /* LocalTranscriberUITests.xctest */ = {{isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LocalTranscriberUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; }};"
+)
 
 for path, fr in file_refs.items():
     basename = os.path.basename(path)
@@ -211,6 +227,13 @@ lines.append("			runOnlyForDeploymentPostprocessing = 0;")
 lines.append("		};")
 
 lines.append(f"		{ids['frameworks_phase_test']} /* Frameworks */ = {{")
+lines.append("			isa = PBXFrameworksBuildPhase;")
+lines.append("			buildActionMask = 2147483647;")
+lines.append("			files = ();")
+lines.append("			runOnlyForDeploymentPostprocessing = 0;")
+lines.append("		};")
+
+lines.append(f"		{ids['frameworks_phase_ui_test']} /* Frameworks */ = {{")
 lines.append("			isa = PBXFrameworksBuildPhase;")
 lines.append("			buildActionMask = 2147483647;")
 lines.append("			files = ();")
@@ -255,18 +278,23 @@ group(ids["local_group"], "LocalTranscriber", local_children, "LocalTranscriber"
 tests_children = [f"{file_refs[p]} /* {os.path.basename(p)} */" for p in TEST_SOURCES]
 group(ids["tests_group"], "LocalTranscriberTests", tests_children, "LocalTranscriberTests")
 
+ui_tests_children = [f"{file_refs[p]} /* {os.path.basename(p)} */" for p in UI_TEST_SOURCES]
+group(ids["ui_tests_group"], "LocalTranscriberUITests", ui_tests_children, "LocalTranscriberUITests")
+
 config_children = [f"{file_refs['Config/Defaults.plist']} /* Defaults.plist */"]
 group(ids["config_group"], "Config", config_children, "Config")
 
 products_children = [
     f"{ids['app_product']} /* Transnote.app */",
     f"{ids['test_product']} /* LocalTranscriberTests.xctest */",
+    f"{ids['ui_test_product']} /* LocalTranscriberUITests.xctest */",
 ]
 group(ids["products_group"], "Products", products_children)
 
 main_children = [
     f"{ids['local_group']} /* LocalTranscriber */",
     f"{ids['tests_group']} /* LocalTranscriberTests */",
+    f"{ids['ui_tests_group']} /* LocalTranscriberUITests */",
     f"{ids['config_group']} /* Config */",
     f"{ids['products_group']} /* Products */",
 ]
@@ -280,10 +308,24 @@ lines.append(f"			remoteGlobalIDString = {ids['app_target']};")
 lines.append("			remoteInfo = LocalTranscriber;")
 lines.append("		};")
 
+lines.append(f"		{ids['ui_test_app_proxy']} /* PBXContainerItemProxy */ = {{")
+lines.append("			isa = PBXContainerItemProxy;")
+lines.append(f"			containerPortal = {ids['project']} /* Project object */;")
+lines.append("			proxyType = 1;")
+lines.append(f"			remoteGlobalIDString = {ids['app_target']};")
+lines.append("			remoteInfo = LocalTranscriber;")
+lines.append("		};")
+
 lines.append(f"		{ids['test_dep']} /* PBXTargetDependency */ = {{")
 lines.append("			isa = PBXTargetDependency;")
 lines.append(f"			target = {ids['app_target']} /* LocalTranscriber */;")
 lines.append(f"			targetProxy = {ids['app_proxy']} /* PBXContainerItemProxy */;")
+lines.append("		};")
+
+lines.append(f"		{ids['ui_test_dep']} /* PBXTargetDependency */ = {{")
+lines.append("			isa = PBXTargetDependency;")
+lines.append(f"			target = {ids['app_target']} /* LocalTranscriber */;")
+lines.append(f"			targetProxy = {ids['ui_test_app_proxy']} /* PBXContainerItemProxy */;")
 lines.append("		};")
 
 lines.append(f"		{ids['app_target']} /* LocalTranscriber */ = {{")
@@ -322,6 +364,23 @@ lines.append(f"			productReference = {ids['test_product']} /* LocalTranscriberTe
 lines.append("			productType = \"com.apple.product-type.bundle.unit-test\";")
 lines.append("		};")
 
+lines.append(f"		{ids['ui_test_target']} /* LocalTranscriberUITests */ = {{")
+lines.append("			isa = PBXNativeTarget;")
+lines.append(f"			buildConfigurationList = {ids['ui_test_config_list']} /* Build configuration list for PBXNativeTarget \"LocalTranscriberUITests\" */;")
+lines.append("			buildPhases = (")
+lines.append(f"				{ids['sources_phase_ui_test']} /* Sources */,")
+lines.append(f"				{ids['frameworks_phase_ui_test']} /* Frameworks */,")
+lines.append("			);")
+lines.append("			buildRules = ();")
+lines.append("			dependencies = (")
+lines.append(f"				{ids['ui_test_dep']} /* PBXTargetDependency */,")
+lines.append("			);")
+lines.append("			name = LocalTranscriberUITests;")
+lines.append("			productName = LocalTranscriberUITests;")
+lines.append(f"			productReference = {ids['ui_test_product']} /* LocalTranscriberUITests.xctest */;")
+lines.append("			productType = \"com.apple.product-type.bundle.ui-testing\";")
+lines.append("		};")
+
 lines.append(f"		{ids['project']} /* Project object */ = {{")
 lines.append("			isa = PBXProject;")
 lines.append("			attributes = {")
@@ -333,6 +392,10 @@ lines.append(f"					{ids['app_target']} = {{")
 lines.append("						CreatedOnToolsVersion = 16.0;")
 lines.append("					};")
 lines.append(f"					{ids['test_target']} = {{")
+lines.append("						CreatedOnToolsVersion = 16.0;")
+lines.append(f"						TestTargetID = {ids['app_target']};")
+lines.append("					};")
+lines.append(f"					{ids['ui_test_target']} = {{")
 lines.append("						CreatedOnToolsVersion = 16.0;")
 lines.append(f"						TestTargetID = {ids['app_target']};")
 lines.append("					};")
@@ -353,6 +416,7 @@ lines.append("			projectRoot = \"\";")
 lines.append("			targets = (")
 lines.append(f"				{ids['app_target']} /* LocalTranscriber */,")
 lines.append(f"				{ids['test_target']} /* LocalTranscriberTests */,")
+lines.append(f"				{ids['ui_test_target']} /* LocalTranscriberUITests */,")
 lines.append("			);")
 lines.append("		};")
 
@@ -380,6 +444,18 @@ lines.append("			);")
 lines.append("			runOnlyForDeploymentPostprocessing = 0;")
 lines.append("		};")
 
+lines.append(f"		{ids['sources_phase_ui_test']} /* Sources */ = {{")
+lines.append("			isa = PBXSourcesBuildPhase;")
+lines.append("			buildActionMask = 2147483647;")
+lines.append("			files = (")
+for p in UI_TEST_SOURCES:
+    bf = build_files[p]
+    basename = os.path.basename(p)
+    lines.append(f"				{bf} /* {basename} in Sources */,")
+lines.append("			);")
+lines.append("			runOnlyForDeploymentPostprocessing = 0;")
+lines.append("		};")
+
 lines.append(f"		{ids['resources_phase_app']} /* Resources */ = {{")
 lines.append("			isa = PBXResourcesBuildPhase;")
 lines.append("			buildActionMask = 2147483647;")
@@ -392,11 +468,11 @@ lines.append("			);")
 lines.append("			runOnlyForDeploymentPostprocessing = 0;")
 lines.append("		};")
 
-def build_settings(name, cfg_id, is_app=True, is_test=False):
+def build_settings(name, cfg_id, is_app=True, is_test=False, is_ui_test=False):
     lines.append(f"		{cfg_id} /* {name} */ = {{")
     lines.append("			isa = XCBuildConfiguration;")
     lines.append("			buildSettings = {")
-    if is_app and not is_test:
+    if is_app and not is_test and not is_ui_test:
         lines.append("				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;")
         lines.append("				CODE_SIGN_ENTITLEMENTS = LocalTranscriber/LocalTranscriber.entitlements;")
         lines.append("				CODE_SIGN_STYLE = Automatic;")
@@ -419,6 +495,18 @@ def build_settings(name, cfg_id, is_app=True, is_test=False):
         lines.append("				PRODUCT_NAME = Transnote;")
         lines.append("				SWIFT_EMIT_LOC_STRINGS = YES;")
         lines.append("				SWIFT_VERSION = 5.0;")
+    elif is_ui_test:
+        lines.append("				CODE_SIGN_STYLE = Automatic;")
+        lines.append("				DEVELOPMENT_TEAM = \"\";")
+        lines.append("				GENERATE_INFOPLIST_FILE = YES;")
+        lines.append("				MACOSX_DEPLOYMENT_TARGET = 14.0;")
+        lines.append(f"				MARKETING_VERSION = {MARKETING_VERSION};")
+        lines.append("				PRODUCT_BUNDLE_IDENTIFIER = com.transnote.LocalTranscriberUITests;")
+        lines.append("				PRODUCT_NAME = \"$(TARGET_NAME)\";")
+        lines.append("				PRODUCT_MODULE_NAME = LocalTranscriberUITests;")
+        lines.append("				SWIFT_EMIT_LOC_STRINGS = NO;")
+        lines.append("				SWIFT_VERSION = 5.0;")
+        lines.append("				TEST_TARGET_NAME = LocalTranscriber;")
     elif is_test:
         lines.append("				BUNDLE_LOADER = \"$(TEST_HOST)\";")
         lines.append("				CODE_SIGN_STYLE = Automatic;")
@@ -473,6 +561,8 @@ build_settings("Debug", ids["app_debug"], is_app=True)
 build_settings("Release", ids["app_release"], is_app=True)
 build_settings("Debug", ids["test_debug"], is_app=True, is_test=True)
 build_settings("Release", ids["test_release"], is_app=True, is_test=True)
+build_settings("Debug", ids["ui_test_debug"], is_app=True, is_ui_test=True)
+build_settings("Release", ids["ui_test_release"], is_app=True, is_ui_test=True)
 
 lines.append(f"		{ids['project_config_list']} /* Build configuration list for PBXProject \"LocalTranscriber\" */ = {{")
 lines.append("			isa = XCConfigurationList;")
@@ -504,12 +594,22 @@ lines.append("			defaultConfigurationIsVisible = 0;")
 lines.append("			defaultConfigurationName = Release;")
 lines.append("		};")
 
+lines.append(f"		{ids['ui_test_config_list']} /* Build configuration list for PBXNativeTarget \"LocalTranscriberUITests\" */ = {{")
+lines.append("			isa = XCConfigurationList;")
+lines.append("			buildConfigurations = (")
+lines.append(f"				{ids['ui_test_debug']} /* Debug */,")
+lines.append(f"				{ids['ui_test_release']} /* Release */,")
+lines.append("			);")
+lines.append("			defaultConfigurationIsVisible = 0;")
+lines.append("			defaultConfigurationName = Release;")
+lines.append("		};")
+
 lines.append(f"		{ids['pkg_ref']} /* XCRemoteSwiftPackageReference argmax-oss-swift */ = {{")
 lines.append("			isa = XCRemoteSwiftPackageReference;")
 lines.append("			repositoryURL = \"https://github.com/argmaxinc/argmax-oss-swift\";")
 lines.append("			requirement = {")
-lines.append("				kind = upToNextMajorVersion;")
-lines.append("				minimumVersion = 0.9.0;")
+lines.append("				kind = upToNextMinorVersion;")
+lines.append("				minimumVersion = 0.18.0;")
 lines.append("			};")
 lines.append("		};")
 
@@ -552,6 +652,9 @@ scheme = f'''<?xml version="1.0" encoding="UTF-8"?>
       <Testables>
          <TestableReference skipped="NO" testExecutionOrdering="random">
             <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{ids['test_target']}" BuildableName="LocalTranscriberTests.xctest" BlueprintName="LocalTranscriberTests" ReferencedContainer="container:LocalTranscriber.xcodeproj"/>
+         </TestableReference>
+         <TestableReference skipped="NO" testExecutionOrdering="random">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="{ids['ui_test_target']}" BuildableName="LocalTranscriberUITests.xctest" BlueprintName="LocalTranscriberUITests" ReferencedContainer="container:LocalTranscriber.xcodeproj"/>
          </TestableReference>
       </Testables>
    </TestAction>

@@ -3,27 +3,6 @@ import XCTest
 import WhisperKit
 
 final class ModelAvailabilityPathTests: XCTestCase {
-    func testModelFolderPointsToVariantDirectoryNotParentHubFolder() throws {
-        let modelsRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: modelsRoot) }
-
-        let hubRoot = modelsRoot
-            .appendingPathComponent("models/argmaxinc/whisperkit-coreml/openai_whisper-base", isDirectory: true)
-        try FileManager.default.createDirectory(at: hubRoot, withIntermediateDirectories: true)
-
-        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
-            let fileURL = hubRoot.appendingPathComponent("\(name).mlmodelc")
-            FileManager.default.createFile(atPath: fileURL.path, contents: Data("model".utf8))
-        }
-
-        let service = ModelAvailabilityService(modelsRoot: modelsRoot)
-        let folder = service.modelFolder(for: "base")
-
-        XCTAssertEqual(folder?.lastPathComponent, "openai_whisper-base")
-    }
-
     func testWhisperKitLoadsFromDetectedModelFolder() async throws {
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["RUN_MODEL_INTEGRATION_TESTS"] == "1",

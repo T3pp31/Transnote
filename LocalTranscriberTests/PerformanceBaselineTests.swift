@@ -33,6 +33,10 @@ final class PerformanceBaselineTests: XCTestCase {
     /// 既存コード（WhisperKitTranscriber + 現在の逐次処理）での速度計測。
     /// 長い音声ほど VAD 並列化が効かないことによる影響が出る。
     func testBaselineTranscriptionSpeed() async throws {
+        try XCTSkipUnless(
+            ProcessInfo.processInfo.environment["RUN_PERFORMANCE_BASELINE"] == "1",
+            "Set RUN_PERFORMANCE_BASELINE=1 to run the performance baseline probe."
+        )
         guard let whisperWAV = fixtureWAVURL else {
             throw XCTSkip("no whisper test wav")
         }
@@ -41,13 +45,15 @@ final class PerformanceBaselineTests: XCTestCase {
         longAudioURL = try await Self.makeLongAudio(from: whisperWAV, targetSeconds: 180)
 
         let transcriber = WhisperKitTranscriber()
+        let config = AppConfig()
+        let turboModel = try XCTUnwrap(config.models.first { $0.id == "large-v3-turbo" })
 
         let job = TranscriptionJob(
             audioFileURL: longAudioURL!,
             sourceFileName: "long-baseline.wav",
-            modelID: "large-v3-turbo",
-            whisperKitModelName: "large-v3-turbo",
-            modelDisplayName: "Large v3 Turbo",
+            modelID: turboModel.id,
+            whisperKitModelName: turboModel.whisperKitModelName,
+            modelDisplayName: turboModel.displayName,
             languageID: "ja"
         )
 

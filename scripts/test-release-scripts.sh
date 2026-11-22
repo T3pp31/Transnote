@@ -146,6 +146,46 @@ for isa in (
 PY
 python3 "$ROOT/scripts/test_verify_xcode_project.py"
 
+# R01: generate_xcodeproj.py を一時コピーで実行し、全ソース・UIターゲット・scheme の整合を検証する。
+python3 - "$ROOT" <<'PY'
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+root = Path(sys.argv[1])
+with tempfile.TemporaryDirectory() as tmp:
+    work = Path(tmp)
+    (work / "scripts").mkdir()
+    shutil.copy(root / "scripts/generate_xcodeproj.py", work / "scripts/generate_xcodeproj.py")
+    shutil.copy(root / "scripts/verify-xcode-project.py", work / "scripts/verify-xcode-project.py")
+    gen = subprocess.run(
+        [sys.executable, str(work / "scripts/generate_xcodeproj.py")],
+        cwd=work, capture_output=True, text=True, check=False,
+    )
+    assert gen.returncode == 0, f"generate_xcodeproj.py failed: {gen.stderr}"
+    verify = subprocess.run(
+        [sys.executable, str(work / "scripts/verify-xcode-project.py")],
+        cwd=work, capture_output=True, text=True, check=False,
+    )
+    assert verify.returncode == 0, f"verify-xcode-project.py failed on generated project: {verify.stderr}"
+    pbx = (work / "LocalTranscriber.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
+    scheme = (work / "LocalTranscriber.xcodeproj/xcshareddata/xcschemes/LocalTranscriber.xcscheme").read_text(encoding="utf-8")
+    for required in (
+        "HistoryStore.swift in Sources",
+        "SecurityScopedFileAccessTests.swift in Sources",
+        "LocalTranscriberUITests.swift in Sources",
+        "com.apple.product-type.bundle.ui-testing",
+    ):
+        assert required in pbx, f"missing from generated pbxproj: {required}"
+    for testable in ("LocalTranscriberTests.xctest", "LocalTranscriberUITests.xctest"):
+        assert testable in scheme, f"missing testable from generated scheme: {testable}"
+    for removed in ("DropURLParser.swift", "ModelResolveProbeTests.swift"):
+        assert removed not in pbx, f"removed file still in generated pbxproj: {removed}"
+print("PASS: generate_xcodeproj.py preserves all targets, sources, and scheme testables")
+PY
+
 NO_MATCH_WORK=$(mktemp -d)
 trap 'rm -rf "$WORK" "$NO_MATCH_WORK"' EXIT
 mkdir -p "$NO_MATCH_WORK/LocalTranscriber.xcodeproj"

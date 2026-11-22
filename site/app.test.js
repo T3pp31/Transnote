@@ -67,21 +67,41 @@ test('formatDate formats ISO date', function () {
   assert.strictEqual(app.formatDate('2026-01-15T00:00:00Z'), '2026年1月15日');
 });
 
-test('findDmgAsset matches versioned dmg', function () {
+test('findDmgAsset matches versioned dmg even when decoys come first', function () {
   const assets = [
-    { name: 'Transnote-0.2.0.dmg' },
-    { name: 'notes.txt' }
+    { name: 'notes.txt', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/notes.txt' },
+    { name: 'Transnote.dmg', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote.dmg' },
+    { name: 'Transnote-0.2.0.dmg.sha256', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg.sha256' },
+    { name: 'Transnote-0.2.0.dmg', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg' },
+    { name: 'Transnote-0.2.0-beta.dmg', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0-beta.dmg' }
   ];
-  assert.strictEqual(app.findDmgAsset(assets).name, 'Transnote-0.2.0.dmg');
+  const matched = app.findDmgAsset(assets);
+  assert.strictEqual(matched.name, 'Transnote-0.2.0.dmg');
+  assert.strictEqual(
+    matched.browser_download_url,
+    'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg'
+  );
+  assert.strictEqual(app.findDmgAsset([{ name: 'notes.txt' }, { name: 'Transnote.dmg' }]), undefined);
+  assert.strictEqual(app.findDmgAsset([]), undefined);
+  assert.strictEqual(app.findDmgAsset(null), undefined);
 });
 
-test('findSha256Asset matches expected name', function () {
+test('findSha256Asset matches expected name even when decoys come first', function () {
   const dmg = { name: 'Transnote-0.2.0.dmg' };
   const assets = [
-    { name: 'Transnote-0.2.0.dmg.sha256' },
-    { name: 'other.txt' }
+    { name: 'other.txt', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/other.txt' },
+    { name: 'Transnote-0.1.0.dmg.sha256', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.1.0.dmg.sha256' },
+    { name: 'Transnote.dmg.sha256', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote.dmg.sha256' },
+    { name: 'Transnote-0.2.0.dmg.sha256', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg.sha256' }
   ];
-  assert.strictEqual(app.findSha256Asset(assets, dmg).name, 'Transnote-0.2.0.dmg.sha256');
+  const matched = app.findSha256Asset(assets, dmg);
+  assert.strictEqual(matched.name, 'Transnote-0.2.0.dmg.sha256');
+  assert.strictEqual(
+    matched.browser_download_url,
+    'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg.sha256'
+  );
+  assert.strictEqual(app.findSha256Asset([{ name: 'Transnote-0.1.0.dmg.sha256' }], dmg), undefined);
+  assert.strictEqual(app.findSha256Asset(assets, null), null);
 });
 
 const fs = require('fs');
@@ -202,4 +222,160 @@ test('changed repository setting rejects releases from the old repository', asyn
   const site = await runSite(customConfig, releaseFor(config), true);
   assert.strictEqual(site.button.href, 'initial');
   assert.strictEqual(site.version.textContent, '');
+});
+
+function createObservableElement(tagName) {
+  return {
+    tagName: tagName || 'div',
+    className: '',
+    textContent: '',
+    href: '',
+    attributes: {},
+    children: [],
+    get firstChild() {
+      return this.children.length > 0 ? this.children[0] : null;
+    },
+    appendChild: function (child) {
+      this.children.push(child);
+      return child;
+    },
+    removeChild: function (child) {
+      const index = this.children.indexOf(child);
+      if (index !== -1) {
+        this.children.splice(index, 1);
+      }
+      return child;
+    },
+    setAttribute: function (name, value) {
+      this.attributes[name] = value;
+    }
+  };
+}
+
+function createDeferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise(function (res, rej) {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise: promise, resolve: resolve, reject: reject };
+}
+
+function collectNodes(root, predicate, out) {
+  const results = out || [];
+  if (predicate(root)) {
+    results.push(root);
+  }
+  for (const child of root.children || []) {
+    collectNodes(child, predicate, results);
+  }
+  return results;
+}
+
+async function runSiteWithFetchOrder(order, latestPayload, listPayload) {
+  const button = createObservableElement('a');
+  const version = createObservableElement('span');
+  const releaseList = createObservableElement('ul');
+  const note = createObservableElement('p');
+  const latestDeferred = createDeferred();
+  const listDeferred = createDeferred();
+
+  vm.runInNewContext(source, {
+    URL: URL,
+    document: {
+      getElementById: function (id) {
+        if (id === 'download-button') { return button; }
+        if (id === 'latest-version') { return version; }
+        if (id === 'release-list') { return releaseList; }
+        return createObservableElement('div');
+      },
+      querySelector: function () { return note; },
+      createElement: function (tag) { return createObservableElement(tag); },
+      createTextNode: function (text) { return { textContent: text, children: [] }; }
+    },
+    fetch: function (url) {
+      if (url.endsWith('/latest')) {
+        return latestDeferred.promise;
+      }
+      return listDeferred.promise;
+    }
+  });
+
+  function resolveLatest() {
+    latestDeferred.resolve({ json: function () { return Promise.resolve(latestPayload); } });
+  }
+  function resolveList() {
+    listDeferred.resolve({ json: function () { return Promise.resolve(listPayload); } });
+  }
+
+  if (order === 'list-first') {
+    resolveList();
+    await new Promise(function (resolve) { setImmediate(resolve); });
+    resolveLatest();
+  } else {
+    resolveLatest();
+    await new Promise(function (resolve) { setImmediate(resolve); });
+    resolveList();
+  }
+  await new Promise(function (resolve) { setImmediate(resolve); });
+  return { button: button, version: version, releaseList: releaseList, note: note };
+}
+
+test('renderReleaseList produces identical DOM regardless of fetch resolution order', async function () {
+  const latestRelease = {
+    tag_name: 'v0.2.0',
+    html_url: 'https://github.com/T3pp31/Transnote/releases/tag/v0.2.0',
+    assets: [
+      {
+        name: 'Transnote.dmg',
+        browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote.dmg'
+      }
+    ]
+  };
+  const releasesList = [
+    {
+      tag_name: 'v0.2.0',
+      prerelease: false,
+      published_at: '2026-02-01T00:00:00Z',
+      html_url: 'https://github.com/T3pp31/Transnote/releases/tag/v0.2.0',
+      assets: [
+        { name: 'notes.txt', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/notes.txt' },
+        { name: 'Transnote-0.2.0.dmg', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg' },
+        { name: 'Transnote-0.2.0.dmg.sha256', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg.sha256' }
+      ]
+    },
+    {
+      tag_name: 'v0.1.9-beta',
+      prerelease: true,
+      published_at: '2026-01-15T00:00:00Z',
+      html_url: 'https://github.com/T3pp31/Transnote/releases/tag/v0.1.9-beta',
+      assets: [
+        { name: 'Transnote-0.1.9.dmg', browser_download_url: 'https://github.com/T3pp31/Transnote/releases/download/v0.1.9-beta/Transnote-0.1.9.dmg' }
+      ]
+    }
+  ];
+
+  for (const order of ['latest-first', 'list-first']) {
+    const result = await runSiteWithFetchOrder(order, latestRelease, releasesList);
+    assert.strictEqual(result.releaseList.children.length, 2, order + ': expected 2 rendered items');
+    assert.strictEqual(result.note.textContent, 'すべてのリリースの DMG をダウンロードできます。');
+
+    const firstItem = result.releaseList.children[0];
+    const firstBadges = collectNodes(firstItem, function (n) { return n.className === 'badge'; }).map(function (n) { return n.textContent; });
+    assert.deepStrictEqual(firstBadges, ['最新'], order + ': latest badge must appear on v0.2.0');
+
+    const firstDmgLink = collectNodes(firstItem, function (n) { return n.className === 'release-download'; })[0];
+    assert.strictEqual(firstDmgLink.textContent, 'Transnote-0.2.0.dmg');
+    assert.strictEqual(firstDmgLink.href, 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg');
+
+    const firstShaLink = collectNodes(firstItem, function (n) { return n.className === 'release-sha'; })[0];
+    assert.strictEqual(firstShaLink.textContent, 'SHA256');
+    assert.strictEqual(firstShaLink.href, 'https://github.com/T3pp31/Transnote/releases/download/v0.2.0/Transnote-0.2.0.dmg.sha256');
+
+    const secondItem = result.releaseList.children[1];
+    const secondBadges = collectNodes(secondItem, function (n) { return n.className === 'badge'; }).map(function (n) { return n.textContent; });
+    assert.deepStrictEqual(secondBadges, ['β'], order + ': beta badge without latest badge');
+    assert.strictEqual(collectNodes(secondItem, function (n) { return n.className === 'release-sha'; }).length, 0);
+  }
 });

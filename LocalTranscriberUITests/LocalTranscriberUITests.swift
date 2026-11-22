@@ -3,6 +3,7 @@ import XCTest
 final class LocalTranscriberUITests: XCTestCase {
     func testMainWindowLaunchesAndShowsEmptyState() {
         let app = XCUIApplication()
+        app.launchArguments = ["-updateCheckEnabled", "NO", "-AppleLanguages", "(ja)"]
         app.launch()
 
         // メインウィンドウが起動し、空状態メッセージが表示される
@@ -11,10 +12,13 @@ final class LocalTranscriberUITests: XCTestCase {
 
     func testExportMenuAvailableAfterEmptyState() {
         let app = XCUIApplication()
+        app.launchArguments = ["-updateCheckEnabled", "NO", "-AppleLanguages", "(ja)"]
         app.launch()
 
-        // エクスポートメニューが存在する（テキスト無しのため無効状態でも存在はする）
-        XCTAssertTrue(app.menuButtons["文字起こし結果をエクスポート"].waitForExistence(timeout: 10))
+        // 空状態ではエクスポートメニューが存在し、テキスト無しのため無効状態である
+        let exportMenu = app.menuButtons["文字起こし結果をエクスポート"]
+        XCTAssertTrue(exportMenu.waitForExistence(timeout: 10))
+        XCTAssertFalse(exportMenu.isEnabled)
     }
 
     func testUpdateCheckMenuRemainsEnabledWithoutMainWindow() {
@@ -65,6 +69,7 @@ final class LocalTranscriberUITests: XCTestCase {
 
     func testSettingsSheetOpensAndCloses() {
         let app = XCUIApplication()
+        app.launchArguments = ["-updateCheckEnabled", "NO", "-AppleLanguages", "(ja)"]
         app.launch()
 
         // Given: メイン画面が起動している（設定ボタンは常に表示される）

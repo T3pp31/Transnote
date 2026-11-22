@@ -45,9 +45,14 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(decoded.segments[1].endTime, 2.4)
     }
 
-    func testTranscriptSegmentIdentifiable() {
-        let segment = TranscriptSegment(startTime: 0, endTime: 1, text: "test")
-        XCTAssertNotNil(segment.id)
+    func testTranscriptSegmentIdentifiable() throws {
+        let first = TranscriptSegment(startTime: 0, endTime: 1, text: "first")
+        let second = TranscriptSegment(startTime: 1, endTime: 2, text: "second")
+        XCTAssertNotEqual(first.id, second.id)
+
+        let data = try JSONEncoder().encode([first, second])
+        let decoded = try JSONDecoder().decode([TranscriptSegment].self, from: data)
+        XCTAssertEqual(decoded.map(\.id), [first.id, second.id])
     }
 
     func testTranscriptSegmentTimestampFormatting() {
@@ -351,12 +356,60 @@ final class TranscriptModelTests: XCTestCase {
     }
 
     @MainActor
-    func testAppSettingsSharedHasValidSelection() {
-        let settings = AppSettings.shared
-        XCTAssertFalse(settings.models.isEmpty)
-        XCTAssertFalse(settings.languages.isEmpty)
-        XCTAssertNotNil(settings.selectedModel)
-        XCTAssertNotNil(settings.selectedLanguage)
+    func testAppSettingsPersistsAndRestoresSelectionInIsolatedSuite() throws {
+        let suiteName = "AppSettingsPersistRoundTripTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let config = AppConfig()
+        XCTAssertFalse(config.models.isEmpty)
+        XCTAssertFalse(config.languages.isEmpty)
+
+        // 無効な保存値がある場合は既定値へフォールバックする
+        defaults.set("nonexistent-model", forKey: "selectedModelID")
+        defaults.set("nonexistent-language", forKey: "selectedLanguageID")
+        let initial = AppSettings(config: config, defaults: defaults)
+        XCTAssertEqual(initial.selectedModelID, config.defaultModelID)
+        XCTAssertEqual(initial.selectedLanguageID, config.defaultLanguageID)
+        XCTAssertNotNil(initial.selectedModel)
+        XCTAssertNotNil(initial.selectedLanguage)
+
+        // 別の有効値を選択して保存し、新インスタンスで復元できることを確認する
+        let targetModel = try XCTUnwrap(config.models.last)
+        let targetLanguage = try XCTUnwrap(config.languages.last)
+        initial.selectedModelID = targetModel.id
+        initial.selectedLanguageID = targetLanguage.id
+        initial.persist()
+
+        let restored = AppSettings(config: config, defaults: defaults)
+        XCTAssertEqual(restored.selectedModelID, targetModel.id)
+        XCTAssertEqual(restored.selectedLanguageID, targetLanguage.id)
+        XCTAssertEqual(restored.selectedModel, targetModel)
+        XCTAssertEqual(restored.selectedLanguage, targetLanguage)
+    }
+
+    func testHistoryStoreIsolatesTemporaryRecoveryRoot() throws {
+        let historyRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: historyRoot)
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+        let store = HistoryStore(historyRoot: historyRoot, temporaryRoot: tempRoot)
+        let transcript = Transcript(sourceFileName: "isolated.wav", fullText: "recovery content")
+
+        try store.saveWithTemporary(transcript)
+
+        let recoveryFile = tempRoot.appendingPathComponent("recovery.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: recoveryFile.path))
+        XCTAssertEqual(store.loadTemporary()?.id, transcript.id)
+        XCTAssertEqual(store.loadTemporary()?.fullText, "recovery content")
+
+        store.clearTemporary()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: recoveryFile.path))
+        XCTAssertNil(store.loadTemporary())
     }
 
     @MainActor

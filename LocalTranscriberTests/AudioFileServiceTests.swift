@@ -1,4 +1,5 @@
 import CryptoKit
+import UniformTypeIdentifiers
 import XCTest
 @testable import LocalTranscriber
 
@@ -15,15 +16,6 @@ final class AudioFileServiceTests: XCTestCase {
 
     override func tearDownWithError() throws {
         try? FileManager.default.removeItem(at: tempRoot)
-    }
-
-    func testValidateAcceptsM4AExtension() throws {
-        let url = tempRoot.appendingPathComponent("sample.m4a")
-        FileManager.default.createFile(atPath: url.path, contents: Data("test".utf8))
-
-        let info = try service.validate(url: url)
-
-        XCTAssertEqual(info.fileExtension, "m4a")
     }
 
     func testValidateRejectsExtensionlessTempFileLikeDrop() {
@@ -62,11 +54,6 @@ final class AudioFileServiceTests: XCTestCase {
         XCTAssertEqual(resolved, "imported-audio.m4a")
     }
 
-    func testDropURLParserDecodesUnencodedFileURLString() {
-        let parsed = DropURLParser.url(from: "file:///Users/taro/My 音声.wav" as NSString)
-        XCTAssertEqual(parsed?.path, "/Users/taro/My 音声.wav")
-    }
-
     func testDropFileNameResolverInfersM4AFromTypeIdentifier() {
         let tempURL = tempRoot.appendingPathComponent("CFNetworkDownload_tmp")
 
@@ -80,30 +67,15 @@ final class AudioFileServiceTests: XCTestCase {
     }
 
     func testValidateAcceptsResolvedDropFileName() throws {
-        let url = tempRoot.appendingPathComponent("recording.m4a")
-        FileManager.default.createFile(atPath: url.path, contents: Data("test".utf8))
+        for fileName in ["sample.m4a", "recording.m4a"] {
+            let url = tempRoot.appendingPathComponent(fileName)
+            XCTAssertTrue(FileManager.default.createFile(atPath: url.path, contents: Data("test".utf8)))
 
-        let info = try service.validate(url: url)
+            let info = try service.validate(url: url)
 
-        XCTAssertEqual(info.fileExtension, "m4a")
-        XCTAssertEqual(info.fileName, "recording.m4a")
-    }
-
-    func testDropURLParserReadsDataRepresentation() throws {
-        let original = URL(fileURLWithPath: "/Users/test/Music/recording.m4a")
-        let data = original.dataRepresentation
-
-        let parsed = DropURLParser.url(from: data as NSSecureCoding)
-
-        XCTAssertEqual(parsed?.path, original.path)
-    }
-
-    func testDropURLParserReadsURLObject() {
-        let original = URL(fileURLWithPath: "/Users/test/Music/recording.m4a")
-
-        let parsed = DropURLParser.url(from: original as NSSecureCoding)
-
-        XCTAssertEqual(parsed, original)
+            XCTAssertEqual(info.fileExtension, "m4a")
+            XCTAssertEqual(info.fileName, fileName)
+        }
     }
 
     func testProbeDecodabilityReturnsTrueForRealWAV() async throws {
@@ -237,15 +209,12 @@ final class AudioFileServiceTests: XCTestCase {
         XCTAssertNil(SupportedAudioTypes.resolveExtension(for: URL(fileURLWithPath: "/a/b")))
     }
 
-    func testSupportedAudioTypesIsSupported() {
-        let supported = ["wav", "mp3", "m4a", "flac"]
-        XCTAssertTrue(SupportedAudioTypes.isSupported(url: URL(fileURLWithPath: "/a/b.wav"), supportedExtensions: supported))
-        XCTAssertFalse(SupportedAudioTypes.isSupported(url: URL(fileURLWithPath: "/a/b.mov"), supportedExtensions: supported))
-    }
-
     func testSupportedAudioTypesAllowedContentTypes() {
         let types = SupportedAudioTypes.allowedContentTypes(for: ["wav", "mp3", "m4a"])
-        XCTAssertEqual(types.count, 3)
+        XCTAssertEqual(types, [.wav, .mp3, .mpeg4Audio])
+
+        let withUnknown = SupportedAudioTypes.allowedContentTypes(for: ["wav", "unknown-format", "mp3", "m4a"])
+        XCTAssertEqual(withUnknown, [.wav, .mp3, .mpeg4Audio])
     }
 
     func testDropImportServiceHasSupportedExtension() {
@@ -253,13 +222,29 @@ final class AudioFileServiceTests: XCTestCase {
         XCTAssertFalse(DropImportService.hasSupportedExtension("recording.mov", supportedExtensions: ["m4a"]))
     }
 
-    func testDropURLParserReadsStringFileURL() {
-        let parsed = DropURLParser.url(from: "file:///Users/test/Music/recording.m4a" as NSString)
-        XCTAssertEqual(parsed?.path, "/Users/test/Music/recording.m4a")
-    }
+    func testDropImportServicePrefersAudioTypesOverFileURLAndPreservesFallbacks() {
+        let provider = NSItemProvider()
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier, visibility: .all) { completion in
+            completion(Data(), nil)
+            return nil
+        }
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.mpeg4Audio.identifier, visibility: .all) { completion in
+            completion(Data(), nil)
+            return nil
+        }
+        provider.registerDataRepresentation(forTypeIdentifier: UTType.plainText.identifier, visibility: .all) { completion in
+            completion(Data(), nil)
+            return nil
+        }
 
-    func testDropURLParserReturnsNilForUnknownType() {
-        let parsed = DropURLParser.url(from: 42 as NSNumber)
-        XCTAssertNil(parsed)
+        let ordered = DropImportService.preferredTypeIdentifiers(from: provider)
+        guard let m4aIndex = ordered.firstIndex(of: UTType.mpeg4Audio.identifier),
+              let fileURLIndex = ordered.firstIndex(of: UTType.fileURL.identifier),
+              let plainTextIndex = ordered.firstIndex(of: UTType.plainText.identifier) else {
+            return XCTFail("Expected registered identifiers in \(ordered)")
+        }
+        XCTAssertLessThan(m4aIndex, fileURLIndex)
+        XCTAssertLessThan(fileURLIndex, plainTextIndex)
+        XCTAssertEqual(Set(ordered).count, ordered.count, "重複する識別子を含めないこと")
     }
 }

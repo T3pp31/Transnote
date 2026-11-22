@@ -4,16 +4,54 @@ import XCTest
 @MainActor
 final class MainWindowViewModelProgressTests: XCTestCase {
     private var audioURL: URL!
+    private var isolatedRoot: URL!
+    private var defaultsSuiteName: String!
+    private var isolatedDefaults: UserDefaults!
+    private var isolatedSettings: AppSettings!
+    private var isolatedHistoryStore: HistoryStore!
     private var viewModel: MainWindowViewModel!
 
     override func setUpWithError() throws {
-        audioURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(UUID().uuidString).wav")
-        FileManager.default.createFile(atPath: audioURL.path, contents: Data(count: 64))
+        isolatedRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedRoot, withIntermediateDirectories: true)
+        audioURL = isolatedRoot.appendingPathComponent("\(UUID().uuidString).wav")
+        XCTAssertTrue(FileManager.default.createFile(atPath: audioURL.path, contents: Data(count: 64)))
+
+        defaultsSuiteName = "MainWindowViewModelProgressTests.\(UUID().uuidString)"
+        isolatedDefaults = UserDefaults(suiteName: defaultsSuiteName)
+        isolatedSettings = AppSettings(defaults: isolatedDefaults)
+        isolatedHistoryStore = HistoryStore(
+            historyRoot: isolatedRoot.appendingPathComponent("History", isDirectory: true),
+            temporaryRoot: isolatedRoot.appendingPathComponent("TempTranscripts", isDirectory: true)
+        )
     }
 
     override func tearDownWithError() throws {
-        try? FileManager.default.removeItem(at: audioURL)
+        viewModel?.cancelActiveOperation()
+        if let defaultsSuiteName {
+            isolatedDefaults?.removePersistentDomain(forName: defaultsSuiteName)
+        }
+        try? FileManager.default.removeItem(at: isolatedRoot)
+    }
+
+    private func makeIsolatedViewModel(
+        transcriber: any Transcriber = WhisperKitTranscriber(),
+        modelsRoot: URL? = nil,
+        modelAvailability: ModelAvailabilityService? = nil,
+        modelDownloadService: ModelDownloadService? = nil
+    ) -> MainWindowViewModel {
+        let root = modelsRoot ?? isolatedRoot.appendingPathComponent("Models", isDirectory: true)
+        let availability = modelAvailability ?? ModelAvailabilityService(modelsRoot: root)
+        let dependencies = AppDependencies(
+            transcriber: transcriber,
+            audioImportService: AudioImportService(importsRoot: isolatedRoot.appendingPathComponent("Imports", isDirectory: true)),
+            settings: isolatedSettings,
+            modelAvailability: availability,
+            modelDownloadService: modelDownloadService ?? ModelDownloadService(modelsRoot: root, modelAvailability: availability),
+            historyStore: isolatedHistoryStore
+        )
+        return MainWindowViewModel(dependencies: dependencies)
     }
 
     func testPartialTextUpdatesDuringTranscription() async throws {
@@ -26,7 +64,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
             delayNanoseconds: 50_000_000,
             progressGates: [firstPartialGate, secondPartialGate]
         )
-        viewModel = MainWindowViewModel(transcriber: mock)
+        viewModel = makeIsolatedViewModel(transcriber: mock)
         configureForTranscription()
 
         // When
@@ -58,7 +96,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
             delayNanoseconds: 50_000_000,
             finalDelayNanoseconds: 500_000_000
         )
-        viewModel = MainWindowViewModel(transcriber: mock)
+        viewModel = makeIsolatedViewModel(transcriber: mock)
         configureForTranscription()
 
         viewModel.startTranscription()
@@ -85,7 +123,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
             delayNanoseconds: 0,
             progressGates: gates
         )
-        viewModel = MainWindowViewModel(transcriber: mock)
+        viewModel = makeIsolatedViewModel(transcriber: mock)
         configureForTranscription()
         defer {
             gates.forEach { $0.open() }
@@ -125,7 +163,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
             finalText: "new result",
             delayNanoseconds: 100_000_000
         )
-        viewModel = MainWindowViewModel(transcriber: mock)
+        viewModel = makeIsolatedViewModel(transcriber: mock)
         configureForTranscription()
         viewModel.transcriptText = "previous result"
         viewModel.currentTranscript = Transcript(
@@ -149,8 +187,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testModelDownloadButtonIsShownForModelThatIsNotDownloaded() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.downloadedModelIDs = []
 
         XCTAssertTrue(viewModel.shouldShowModelDownloadButton)
@@ -158,8 +196,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testModelDownloadButtonIsHiddenForDownloadedModel() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.downloadedModelIDs = ["base"]
 
         XCTAssertFalse(viewModel.shouldShowModelDownloadButton)
@@ -167,8 +205,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testModelDownloadButtonRemainsShownButCannotRunWhileDownloading() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.downloadedModelIDs = []
         viewModel.simulateModelDownloadForTesting()
 
@@ -177,8 +215,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testStartTranscriptionIsRejectedWhileModelDownloadIsSimulated() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.downloadedModelIDs = ["base"]
         viewModel.selectedFile = AudioFileInfo(
             url: audioURL,
@@ -225,7 +263,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
             delayNanoseconds: 0,
             progressGates: [gate]
         )
-        viewModel = MainWindowViewModel(transcriber: mock)
+        viewModel = makeIsolatedViewModel(transcriber: mock)
         configureForTranscription()
         defer {
             gate.open()
@@ -250,7 +288,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testTranscriptionFailureStillResetsUIStateToIdle() async throws {
-        viewModel = MainWindowViewModel(transcriber: FailingProgressTranscriber())
+        viewModel = makeIsolatedViewModel(transcriber: FailingProgressTranscriber())
         configureForTranscription()
 
         viewModel.startTranscription()
@@ -265,8 +303,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testModelDownloadGuidanceIsShownForModelThatIsNotDownloaded() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.downloadedModelIDs = []
 
         XCTAssertNotNil(viewModel.modelDownloadGuidance)
@@ -274,16 +312,16 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testModelDownloadGuidanceIsHiddenForDownloadedModel() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.downloadedModelIDs = ["base"]
 
         XCTAssertNil(viewModel.modelDownloadGuidance)
     }
 
     func testCancelActionLabelsSwitchForModelDownload() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.simulateModelDownloadForTesting()
 
         XCTAssertEqual(
@@ -298,8 +336,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testCancelActionLabelsStayOnTranscriptionDuringTranscription() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.uiState = .transcribing
         
 
@@ -315,7 +353,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testCanCopyTranscriptRequiresNonEmptyResult() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         XCTAssertFalse(viewModel.canCopyTranscript)
 
         viewModel.currentTranscript = Transcript(sourceFileName: "a.wav", fullText: "text")
@@ -324,7 +362,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testCanExportTracksTranscriptTextUpdatesIncludingWhitespaceOnly() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         viewModel.currentTranscript = Transcript(sourceFileName: "a.wav", fullText: "text")
         XCTAssertFalse(viewModel.canExport)
 
@@ -342,8 +380,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testRecoverableModelNotDownloadedErrorUsesInlineBannerOnly() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.selectedFile = AudioFileInfo(
             url: audioURL,
             fileName: audioURL.lastPathComponent,
@@ -365,8 +403,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testStartTranscriptionDisabledReasonTracksBlockingCondition() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.downloadedModelIDs = ["base"]
 
         // No file selected: reason points at the missing file
@@ -388,8 +426,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testModelDownloadSuccessToastMessageWhenFileIsSelected() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
         viewModel.selectedFile = AudioFileInfo(
             url: audioURL,
             fileName: audioURL.lastPathComponent,
@@ -402,8 +440,8 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testModelDownloadSuccessToastMessageWhenNoFileIsSelected() {
-        AppSettings.shared.selectedModelID = "base"
-        viewModel = MainWindowViewModel()
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel()
 
         XCTAssertTrue(viewModel.modelDownloadSuccessToastMessage().contains("音声ファイルを選択"))
     }
@@ -425,7 +463,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testUpdateSegmentTextRebuildsFullText() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         let segmentIDs = [UUID(), UUID()]
         viewModel.currentTranscript = Transcript(
             sourceFileName: "test.wav",
@@ -444,7 +482,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testSegmentEditsMatchJoinedTextAcrossUnicodeAndEmptySegments() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         var segments = ["先頭\r", "", "e\u{301} 👨‍👩‍👧‍👦", "末尾\n行"].enumerated().map { index, text in
             TranscriptSegment(startTime: Double(index), endTime: Double(index + 1), text: text)
         }
@@ -480,7 +518,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testSegmentEditLocationIsInvalidatedByFullTextEditing() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         for count in [1, 3] {
             let initialSegments = (0..<count).map { index in
                 TranscriptSegment(startTime: Double(index), endTime: Double(index + 1), text: "行\(index)")
@@ -573,7 +611,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testSegmentEditLocationIsInvalidatedWhenTranscriptIsReplaced() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         let first = TranscriptSegment(startTime: 0, endTime: 1, text: "先頭")
         var second = TranscriptSegment(startTime: 1, endTime: 2, text: "末尾")
         var transcript = Transcript(sourceFileName: "test.wav", fullText: "先頭\n末尾", segments: [first, second])
@@ -595,7 +633,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     func testUnknownSegmentIDDoesNotChangeTranscriptOrEditLocation() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         viewModel.updateSegmentText(id: UUID(), text: "無視する")
         XCTAssertNil(viewModel.currentTranscript)
         XCTAssertEqual(viewModel.transcriptText, "")
@@ -625,7 +663,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
 
     // 外部音声・モデル不要の計測。固定の時間閾値は設けず、CI で連続入力のコストを記録する。
     func testMeasureRepeatedSegmentTextEditsInLongTranscript() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         let segments = (0..<3_000).map { index in
             TranscriptSegment(startTime: Double(index), endTime: Double(index + 1), text: "行\(index) 日本語と emoji 👩🏽‍💻")
         }
@@ -648,8 +686,87 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscript?.segments.last?.text, "入力99")
     }
 
+    func testCancelActiveOperationCancelsModelDownloadAndAllowsRestart() async throws {
+        let modelsRoot = isolatedRoot.appendingPathComponent("DownloadCancelModels", isDirectory: true)
+        try FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+        let availability = ModelAvailabilityService(modelsRoot: modelsRoot)
+        let downloadStarted = ProgressGate()
+        let downloadCancelled = ProgressGate()
+        let attemptCount = DownloadAttemptBox()
+
+        let downloadService = ModelDownloadService(
+            modelsRoot: modelsRoot,
+            modelAvailability: availability,
+            downloadModel: { variant, downloadBase, _ in
+                let currentAttempt = attemptCount.increment()
+                if currentAttempt == 1 {
+                    downloadStarted.open()
+                    try await withTaskCancellationHandler {
+                        try await Task.sleep(nanoseconds: 10_000_000_000)
+                    } onCancel: {
+                        downloadCancelled.open()
+                    }
+                }
+                let folder = downloadBase.appendingPathComponent("openai_whisper-\(variant)", isDirectory: true)
+                try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+                    try Data("model".utf8).write(to: folder.appendingPathComponent("\(name).mlmodelc"))
+                }
+                return folder
+            },
+            retryDelayNanoseconds: { _ in 0 }
+        )
+
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel(
+            modelsRoot: modelsRoot,
+            modelAvailability: availability,
+            modelDownloadService: downloadService
+        )
+        XCTAssertTrue(viewModel.canDownloadSelectedModel)
+
+        viewModel.downloadSelectedModel()
+        await downloadStarted.wait()
+        XCTAssertTrue(viewModel.isDownloadingModel)
+        XCTAssertTrue(viewModel.canCancel)
+
+        // UI から呼ばれる cancelActiveOperation がモデルダウンロードの Task を実際にキャンセルする
+        viewModel.cancelActiveOperation()
+        await downloadCancelled.wait()
+        XCTAssertEqual(viewModel.uiState, .idle)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertNil(viewModel.errorMessage)
+
+        // キャンセル後に再度ダウンロードを開始して正常完了できること
+        viewModel.downloadSelectedModel()
+        try await waitUntil { self.viewModel.downloadedModelIDs.contains("base") && !self.viewModel.isBusy }
+        XCTAssertEqual(attemptCount.value, 2)
+    }
+
+    func testCancelActiveOperationCancelsRunningTranscription() async throws {
+        let gate = ProgressGate()
+        let mock = MockProgressTranscriber(
+            partialTexts: ["途中"],
+            finalText: "完了",
+            delayNanoseconds: 50_000_000,
+            progressGates: [gate]
+        )
+        viewModel = makeIsolatedViewModel(transcriber: mock)
+        configureForTranscription()
+        defer { gate.open() }
+
+        viewModel.startTranscription()
+        try await waitUntil { self.viewModel.transcriptText == "途中" }
+        XCTAssertTrue(viewModel.canCancel)
+
+        viewModel.cancelActiveOperation()
+        XCTAssertEqual(viewModel.uiState, .idle)
+        XCTAssertFalse(viewModel.isBusy)
+        XCTAssertNil(viewModel.currentTranscript)
+    }
+
     func testSegmentEditPublishesChangeAndPreservesTranscriptTextAcrossReplacement() {
-        viewModel = MainWindowViewModel()
+        viewModel = makeIsolatedViewModel()
         let first = TranscriptSegment(startTime: 0, endTime: 1, text: "先頭")
         let second = TranscriptSegment(startTime: 1, endTime: 2, text: "末尾")
         let transcript = Transcript(sourceFileName: "edit.wav", fullText: "先頭\n末尾", segments: [first, second])
@@ -676,7 +793,7 @@ final class MainWindowViewModelProgressTests: XCTestCase {
     }
 
     private func configureForTranscription() {
-        AppSettings.shared.selectedModelID = "base"
+        isolatedSettings.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
             url: audioURL,
             fileName: audioURL.lastPathComponent,
@@ -853,5 +970,24 @@ private final class ProgressGate: @unchecked Sendable {
         for continuation in waiters {
             continuation.resume()
         }
+    }
+}
+
+private final class DownloadAttemptBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    @discardableResult
+    func increment() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        count += 1
+        return count
+    }
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
     }
 }

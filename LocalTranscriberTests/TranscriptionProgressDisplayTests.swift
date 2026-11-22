@@ -127,25 +127,24 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
     }
 
     func testLoadingModelUsesIndeterminateStyle() {
-        // Given: モデル読み込み中
-        let update = TranscriptionProgressUpdate.make(
-            phase: .loadingModel,
-            fraction: 0,
-            modelDisplayName: "Small"
-        )
+        let guidance = L("初回のモデル読み込みは時間がかかることがあります", comment: "Loading model indeterminate progress guidance")
+        for modelName in ["Small", "Base"] {
+            // Given: モデル読み込み中
+            let update = TranscriptionProgressUpdate.make(
+                phase: .loadingModel,
+                fraction: 0,
+                modelDisplayName: modelName
+            )
 
-        // When
-        let display = TranscriptionProgressDisplay.from(update: update)
+            // When
+            let display = TranscriptionProgressDisplay.from(update: update)
 
-        // Then
-        XCTAssertEqual(display.style, .indeterminate)
-        XCTAssertNil(display.fraction)
-        XCTAssertTrue(display.detailLabel?.contains("Small") == true)
-        XCTAssertTrue(
-            display.detailLabel?.contains(
-                L("初回のモデル読み込みは時間がかかることがあります", comment: "Loading model indeterminate progress guidance")
-            ) == true
-        )
+            // Then
+            XCTAssertEqual(display.style, .indeterminate, modelName)
+            XCTAssertNil(display.fraction, modelName)
+            XCTAssertTrue(display.detailLabel?.contains(modelName) == true, modelName)
+            XCTAssertTrue(display.detailLabel?.contains(guidance) == true, modelName)
+        }
     }
 
     func testTranscribingUsesDeterminateStyle() {
@@ -162,24 +161,6 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
         // Then
         XCTAssertEqual(display.style, .determinate)
         XCTAssertEqual(display.detailLabel, "32%")
-    }
-
-    func testLoadingModelIncludesGuidanceDetail() {
-        let update = TranscriptionProgressUpdate.make(
-            phase: .loadingModel,
-            fraction: 0,
-            modelDisplayName: "Base"
-        )
-
-        let display = TranscriptionProgressDisplay.from(update: update)
-
-        XCTAssertEqual(display.style, .indeterminate)
-        XCTAssertTrue(display.detailLabel?.contains("Base") == true)
-        XCTAssertTrue(
-            display.detailLabel?.contains(
-                L("初回のモデル読み込みは時間がかかることがあります", comment: "Loading model indeterminate progress guidance")
-            ) == true
-        )
     }
 
     func testTranscribingWithPartialTextIncludesPartialGuidance() {

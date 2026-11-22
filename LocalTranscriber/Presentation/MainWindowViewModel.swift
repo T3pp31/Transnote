@@ -484,8 +484,8 @@ final class MainWindowViewModel: ObservableObject {
             if activeModelDownloadID == downloadID {
                 activeModelDownloadID = nil
                 modelDownloadTask = nil
+                operationCoordinator.end(.modelDownload)
             }
-            operationCoordinator.end(.modelDownload)
         }
     }
 
@@ -669,10 +669,10 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     /// ファイル差し替え時に、Imports/ 内に残った旧 sandbox コピーを削除する。
-    /// 削除対象は薄い sandbox コピー（AppDirectories.importsDirectory 配下）のみに限定する。
+    /// 削除対象は薄い sandbox コピー（audioImportService.importsRoot 配下）のみに限定する。
     private func removePreviousSandboxCopyIfNeeded() {
         guard let previousURL = selectedFile?.url else { return }
-        let importsPath = AppDirectories.importsDirectory.standardizedFileURL.path
+        let importsPath = audioImportService.importsRoot.standardizedFileURL.path
         let previousPath = previousURL.standardizedFileURL.path
         guard previousPath.hasPrefix(importsPath + "/"),
               FileManager.default.fileExists(atPath: previousPath) else {
@@ -843,6 +843,11 @@ final class MainWindowViewModel: ObservableObject {
                 isPendingTranscriptionRestart = false
             }
         }
+    }
+
+    /// 現在実行中の操作（ファイル取り込み・モデルダウンロード・文字起こし）をキャンセルする。
+    func cancelActiveOperation() {
+        cancelCurrentOperation()
     }
 
     /// 文字起こしのみをキャンセルする（モデルDLは対象外）。
