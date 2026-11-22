@@ -212,32 +212,69 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertFalse(finished)
     }
 
-    func testStatusChangeIgnoresStalePendingGeneration() throws {
-        let service = AudioPlayerService()
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("status-generation-\(UUID().uuidString).wav")
-        let wavHeader = Data([
-            0x52, 0x49, 0x46, 0x46, // RIFF
-            0x24, 0x00, 0x00, 0x00, // size
-            0x57, 0x41, 0x56, 0x45, // WAVE
-            0x66, 0x6d, 0x74, 0x20, // fmt
-            0x10, 0x00, 0x00, 0x00, // fmt size
-            0x01, 0x00, // PCM
-            0x01, 0x00, // channels
-            0x40, 0x1f, 0x00, 0x00, // sample rate 8000
-            0x80, 0x3e, 0x00, 0x00, // byte rate
-            0x02, 0x00, // block align
-            0x10, 0x00, // bits
-            0x64, 0x61, 0x74, 0x61, // data
-            0x00, 0x00, 0x00, 0x00  // data size 0
-        ])
-        FileManager.default.createFile(atPath: url.path, contents: wavHeader)
+    func testStatusChangeIgnoresStalePendingGeneration() async throws {
+        let wavURL = try Self.makeSilentWAV(duration: 1.0)
+        defer { try? FileManager.default.removeItem(at: wavURL) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: wavURL.path))
 
-        service.load(url: url)
+        // 1) load -> playSegment -> stop を直後に実行し、遅延コールバックの実行機会を与えても
+        //    isPlaying / hasActiveTimeObserver / loadedURL が戻らないこと。
+        service.load(url: wavURL)
+        let stoppedItem = try XCTUnwrap(service.currentItemForTesting)
         service.playSegment(start: 0, end: 0.5)
         service.stop()
 
+        let resumedAfterStop = await waitUntil(timeout: 0.3) {
+            self.service.isPlaying || self.service.hasActiveTimeObserver || self.service.loadedURL != nil
+        }
+        XCTAssertFalse(resumedAfterStop, "stop 後の遅延ステータス通知で再生が開始されてはならない")
         XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+        XCTAssertNil(service.loadedURL)
+
+        // 2) pause() で player/currentItem を維持したまま generation を進めた後、
+        //    実データを持つ WAV が readyToPlay になっても古い generation 通知が無視されること。
+        let pausedService = AudioPlayerService()
+        defer { pausedService.stop() }
+        pausedService.load(url: wavURL)
+        let pausedItem = try XCTUnwrap(pausedService.currentItemForTesting)
+        pausedService.playSegment(start: 0, end: 0.5)
+        pausedService.pause()
+
+        let pausedItemReady = await waitUntil(timeout: 3.0) {
+            pausedItem.status == .readyToPlay
+        }
+        XCTAssertTrue(pausedItemReady, "実データを持つ WAV が readyToPlay になること")
+
+        // load (gen 1) -> playSegment (gen 2) の遅延ステータス通知を明示的に注入する。
+        pausedService.handlePlayerItemStatusChange(pausedItem, generation: 2)
+        // stop 側の旧 item 通知も無視されることを確認する。
+        service.handlePlayerItemStatusChange(stoppedItem, generation: 2)
+
+        let resumedAfterStaleStatus = await waitUntil(timeout: 0.3) {
+            pausedService.isPlaying
+                || pausedService.hasActiveTimeObserver
+                || self.service.isPlaying
+                || self.service.hasActiveTimeObserver
+        }
+        XCTAssertFalse(resumedAfterStaleStatus, "古い generation のステータス通知で再生が開始されてはならない")
+        XCTAssertFalse(pausedService.isPlaying)
+        XCTAssertFalse(pausedService.hasActiveTimeObserver)
+        XCTAssertEqual(pausedService.loadedURL, wavURL)
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertNil(service.loadedURL)
+
+        // 3) 同じ WAV フィクスチャで通常再生が成立することを確認し、空振りテストを防ぐ。
+        service.load(url: wavURL)
+        service.playSegment(start: 0, end: 0.5)
+        let started = await waitUntil(timeout: 3.0) {
+            self.service.isPlaying && self.service.hasActiveTimeObserver
+        }
+        XCTAssertTrue(started, "同一の WAV フィクスチャで再生開始と timeObserver 登録が成立すること")
+        service.stop()
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+        XCTAssertNil(service.loadedURL)
     }
 
     // セグメントを素早く2回連続でタップしても、後者のセグメントの再生が開始されること
