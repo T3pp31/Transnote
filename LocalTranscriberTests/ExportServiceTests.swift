@@ -607,6 +607,43 @@ final class MainWindowViewModelExportTests: XCTestCase {
         XCTAssertNotNil(viewModel.toast)
     }
 
+    func testFullTextEditIsReflectedInBothTXTAndSRTExports() throws {
+        let srtDestination = tempRoot.appendingPathComponent("result.srt")
+        let txtDestination = tempRoot.appendingPathComponent("result.txt")
+        let multiSegmentTranscript = Transcript(
+            sourceFileName: "meeting.wav",
+            fullText: "元の前半\n元の後半",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 1.5, text: "元の前半"),
+                TranscriptSegment(startTime: 1.5, endTime: 3.0, text: "元の後半")
+            ]
+        )
+
+        let srtViewModel = MainWindowViewModel(
+            fileAccess: SecurityScopedFileAccess(),
+            savePanelPresenter: StubSavePanelPresenter(url: srtDestination)
+        )
+        srtViewModel.restoreTranscript(multiSegmentTranscript)
+        srtViewModel.updateTranscriptText("編集後の前半\n編集後の後半")
+        srtViewModel.exportTranscript(format: .srt)
+
+        let srtContent = try String(contentsOf: srtDestination, encoding: .utf8)
+        XCTAssertTrue(srtContent.contains("編集後の前半"))
+        XCTAssertTrue(srtContent.contains("編集後の後半"))
+        XCTAssertFalse(srtContent.contains("元の前半"))
+        XCTAssertFalse(srtContent.contains("元の後半"))
+
+        let txtViewModel = MainWindowViewModel(
+            fileAccess: SecurityScopedFileAccess(),
+            savePanelPresenter: StubSavePanelPresenter(url: txtDestination)
+        )
+        txtViewModel.restoreTranscript(multiSegmentTranscript)
+        txtViewModel.updateTranscriptText("編集後の前半\n編集後の後半")
+        txtViewModel.exportTranscript(format: .txt)
+
+        XCTAssertEqual(try String(contentsOf: txtDestination, encoding: .utf8), "編集後の前半\n編集後の後半")
+    }
+
     private func makeViewModel(exportURL: URL?) -> MainWindowViewModel {
         let viewModel = MainWindowViewModel(
             fileAccess: SecurityScopedFileAccess(),
