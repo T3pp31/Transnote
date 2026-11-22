@@ -157,8 +157,10 @@ final class MainWindowViewModel: ObservableObject {
     private var lastRecoverableAction: RecoverableAction?
     private var activeJobID: UUID?
     private var activeModelDownloadID: UUID?
+    private var activeImportID: UUID?
     private(set) var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
+    private(set) var importTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
     private var hasSegmentTextEdits = false
@@ -246,6 +248,11 @@ final class MainWindowViewModel: ObservableObject {
     /// モデルダウンロード中かどうか。uiState + progressDisplay から導出する単一の状態。
     var isDownloadingModel: Bool {
         uiState == .preparing && progressDisplay.phase == .downloadingModel
+    }
+
+    /// 音声ファイルの非同期取り込み中かどうか。
+    var isImportingFile: Bool {
+        operationCoordinator.activeOperation == .importing
     }
 
     /// テスト専用: モデルダウンロード中の状態をシミュレートする。
@@ -524,9 +531,14 @@ final class MainWindowViewModel: ObservableObject {
         let pending = pendingFileImport
         cancelPendingFileImport()
         if let pending {
-            let imported = applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
-            // インポート失敗時に旧ファイルへ再文字起こしすると、既存結果と編集が失われる。
-            guard imported else { return }
+            // インポート失敗・キャンセル時に旧ファイルへ再文字起こししないよう、
+            // 非同期インポートの成功後にのみ文字起こしを開始する。
+            applyFileImport(
+                url: pending.url,
+                preferredFileName: pending.preferredFileName,
+                startTranscriptionAfterImport: shouldStartTranscription
+            )
+            return
         }
         if shouldStartTranscription {
             startTranscription(replacingExistingResult: true)
@@ -539,32 +551,120 @@ final class MainWindowViewModel: ObservableObject {
         isPendingTranscriptionRestart = false
     }
 
-    @discardableResult
-    private func applyFileImport(url: URL, preferredFileName: String?) -> Bool {
-        do {
-            let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
-            let importedURL = try audioImportService.importFile(
-                from: url,
-                preferredFileName: resolvedPreferredFileName
-            )
-            let info = try audioFileService.validate(
-                url: importedURL,
-                preferredFileName: resolvedPreferredFileName
-            )
-            removePreviousSandboxCopyIfNeeded()
-            stopPlayback()
-            isEditingTranscript = false
-            hasSegmentTextEdits = false
-            currentTranscript = nil
-            baselineTranscriptText = ""
-            transcriptText = ""
-            selectedFile = info
-            uiState = .idle
-            progressDisplay = .idle()
-            return true
-        } catch {
-            handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
-            return false
+    /// 進行中のファイル取り込みをキャンセルし、直前の選択状態・結果を保持する。
+    func cancelFileImport() {
+        let wasImporting = operationCoordinator.activeOperation == .importing
+        importTask?.cancel()
+        importTask = nil
+        activeImportID = nil
+        if wasImporting {
+            operationCoordinator.end(.importing)
+            uiState = currentTranscript != nil ? .done : .idle
+            progressDisplay = currentTranscript != nil ? .done() : .idle()
+        }
+    }
+
+    /// 進行中の操作（ファイル取り込み・モデルダウンロード・文字起こし）に応じてキャンセルする。
+    func cancelCurrentOperation() {
+        if isImportingFile {
+            cancelFileImport()
+        } else if isDownloadingModel {
+            cancelModelDownload()
+        } else {
+            cancelTranscription()
+        }
+    }
+
+    private func applyFileImport(
+        url: URL,
+        preferredFileName: String?,
+        startTranscriptionAfterImport: Bool = false
+    ) {
+        guard operationCoordinator.start(.importing) else {
+            AppLogger.info("File import ignored while another operation is active", logger: AppLogger.fileAccess)
+            return
+        }
+
+        let importID = UUID()
+        activeImportID = importID
+        let previousUIState = uiState
+        let previousProgressDisplay = progressDisplay
+        uiState = .preparing
+        progressDisplay = TranscriptionProgressDisplay.from(
+            update: .make(phase: .convertingAudio, fraction: 0)
+        )
+
+        let importService = audioImportService
+        let fileService = audioFileService
+        let supportedExtensions = settings.supportedExtensions
+
+        importTask = Task {
+            do {
+                let outcome = try await Task.detached(priority: .userInitiated) { () throws -> (info: AudioFileInfo, createdCopy: URL?) in
+                    try Task.checkCancellation()
+                    let resolvedPreferredFileName = preferredFileName
+                        ?? Self.preferredImportFileName(for: url, supportedExtensions: supportedExtensions)
+                    let importedURL = try importService.importFile(
+                        from: url,
+                        preferredFileName: resolvedPreferredFileName
+                    )
+                    let createdCopy = importedURL.standardizedFileURL != url.standardizedFileURL
+                        ? importedURL
+                        : nil
+                    do {
+                        try Task.checkCancellation()
+                        let info = try fileService.validate(
+                            url: importedURL,
+                            preferredFileName: resolvedPreferredFileName
+                        )
+                        return (info, createdCopy)
+                    } catch {
+                        if let createdCopy {
+                            try? FileManager.default.removeItem(at: createdCopy)
+                        }
+                        throw error
+                    }
+                }.value
+
+                guard activeImportID == importID, !Task.isCancelled else {
+                    if let createdCopy = outcome.createdCopy {
+                        try? FileManager.default.removeItem(at: createdCopy)
+                    }
+                    return
+                }
+
+                removePreviousSandboxCopyIfNeeded()
+                stopPlayback()
+                isEditingTranscript = false
+                hasSegmentTextEdits = false
+                currentTranscript = nil
+                baselineTranscriptText = ""
+                transcriptText = ""
+                selectedFile = outcome.info
+                uiState = .idle
+                progressDisplay = .idle()
+                activeImportID = nil
+                importTask = nil
+                operationCoordinator.end(.importing)
+
+                if startTranscriptionAfterImport {
+                    startTranscription(replacingExistingResult: true)
+                }
+            } catch {
+                guard activeImportID == importID else { return }
+                activeImportID = nil
+                importTask = nil
+                operationCoordinator.end(.importing)
+
+                if Task.isCancelled || error is CancellationError {
+                    uiState = previousUIState
+                    progressDisplay = previousProgressDisplay
+                } else {
+                    uiState = previousUIState
+                    progressDisplay = previousProgressDisplay
+                    handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
+                }
+            }
         }
     }
 
@@ -592,14 +692,17 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    private func preferredImportFileName(for url: URL) -> String? {
+    private nonisolated static func preferredImportFileName(
+        for url: URL,
+        supportedExtensions: [String]
+    ) -> String? {
         let resolvedName = AudioFileNameResolver.resolve(sourceURL: url)
         guard resolvedName != url.lastPathComponent else {
             return nil
         }
         guard DropImportService.hasSupportedExtension(
             resolvedName,
-            supportedExtensions: settings.supportedExtensions
+            supportedExtensions: supportedExtensions
         ) else {
             return nil
         }
