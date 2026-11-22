@@ -17,7 +17,14 @@ struct AudioImportService: Sendable {
         self.maxImportFileSizeBytes = maxImportFileSizeBytes
     }
 
-    func importFile(from sourceURL: URL, preferredFileName: String? = nil) throws -> URL {
+    func importFile(
+        from sourceURL: URL,
+        preferredFileName: String? = nil,
+        isCancelled: () -> Bool = { Task.isCancelled }
+    ) throws -> URL {
+        if isCancelled() {
+            throw CancellationError()
+        }
         guard fileManager.fileExists(atPath: sourceURL.path) else {
             throw AppError.fileNotFound
         }
@@ -32,6 +39,9 @@ struct AudioImportService: Sendable {
         // Sandbox では security-scoped access 開始後に属性を読む。
         // Imports/ 内のファイルも、コピーを省略する前に同じ検証を行う。
         try validateImportFile(at: sourceURL)
+        if isCancelled() {
+            throw CancellationError()
+        }
         if isAlreadyImported(sourceURL) {
             return sourceURL
         }
@@ -54,7 +64,11 @@ struct AudioImportService: Sendable {
 
         // copyItem は事前検証後に増加したファイルのコピー量を制限できないため、
         // 常に書き込み前に累積サイズを検査するストリーミングコピーを使う。
-        try copyFileStreaming(from: sourceURL, to: temporaryURL)
+        try copyFileStreaming(from: sourceURL, to: temporaryURL, isCancelled: isCancelled)
+
+        if isCancelled() {
+            throw CancellationError()
+        }
 
         // 一時ファイルを最終 URL へ atomic に rename する（同名競合・部分ファイル防止）
         try fileManager.moveItem(at: temporaryURL, to: destinationURL)
@@ -82,7 +96,11 @@ struct AudioImportService: Sendable {
         }
     }
 
-    private func copyFileStreaming(from sourceURL: URL, to destinationURL: URL) throws {
+    private func copyFileStreaming(
+        from sourceURL: URL,
+        to destinationURL: URL,
+        isCancelled: () -> Bool
+    ) throws {
         guard let inputStream = InputStream(url: sourceURL) else {
             throw AppError.fileAccessDenied
         }
@@ -108,6 +126,9 @@ struct AudioImportService: Sendable {
         // hasBytesAvailable は read の前に必ずしも正確ではないため、
         // read が 0（EOF）を返すまで読み続ける。
         while true {
+            if isCancelled() {
+                throw CancellationError()
+            }
             let bytesRead = inputStream.read(&buffer, maxLength: buffer.count)
             if bytesRead < 0 {
                 throw AppError.fileAccessDenied

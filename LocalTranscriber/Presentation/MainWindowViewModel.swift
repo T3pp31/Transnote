@@ -83,18 +83,44 @@ final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
     @Published var selectedFile: AudioFileInfo?
-    @Published var transcriptText: String = "" {
-        didSet {
-            // 同値の再代入（TextEditor 経由の updateTranscriptText など）では再計算しない。
-            guard transcriptText != oldValue else { return }
-            // 全文の trimmed 文字列を生成せず、最初の非空白文字で早期終了する。
-            hasNonEmptyTranscriptText = transcriptText.unicodeScalars.contains {
-                !CharacterSet.whitespacesAndNewlines.contains($0)
+    private var storedTranscriptText: String = ""
+    /// セグメント編集中は `storedTranscript.fullText` を唯一の本文バッファとして共有し、
+    /// `transcriptText` 側との参照共有による全文 COW コピーと全走査比較を避ける。
+    private var isTranscriptTextSyncedToStoredTranscript = false
+
+    var transcriptText: String {
+        get {
+            if isTranscriptTextSyncedToStoredTranscript {
+                return storedTranscript?.fullText ?? storedTranscriptText
             }
+            return storedTranscriptText
+        }
+        set {
+            if !isTranscriptTextSyncedToStoredTranscript, newValue == storedTranscriptText {
+                return
+            }
+            if isTranscriptTextSyncedToStoredTranscript, let current = storedTranscript?.fullText, newValue == current {
+                return
+            }
+            objectWillChange.send()
+            isTranscriptTextSyncedToStoredTranscript = false
+            storedTranscriptText = newValue
+            // 全文の trimmed 文字列を生成せず、最初の非空白文字で早期終了する。
+            hasNonEmptyTranscriptText = Self.containsNonWhitespaceScalar(newValue)
         }
     }
-    @Published var currentTranscript: Transcript? {
-        didSet {
+
+    private var storedTranscript: Transcript?
+
+    var currentTranscript: Transcript? {
+        get { storedTranscript }
+        set {
+            objectWillChange.send()
+            if isTranscriptTextSyncedToStoredTranscript {
+                storedTranscriptText = storedTranscript?.fullText ?? storedTranscriptText
+                isTranscriptTextSyncedToStoredTranscript = false
+            }
+            storedTranscript = newValue
             // 全文編集・復元・書き出しなど、セグメント編集以外の更新で位置情報を無効化する。
             segmentTextEditLocation = nil
         }
@@ -131,8 +157,10 @@ final class MainWindowViewModel: ObservableObject {
     private var lastRecoverableAction: RecoverableAction?
     private var activeJobID: UUID?
     private var activeModelDownloadID: UUID?
+    private var activeImportID: UUID?
     private(set) var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
+    private(set) var importTask: Task<Void, Never>?
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
     private var hasSegmentTextEdits = false
@@ -220,6 +248,11 @@ final class MainWindowViewModel: ObservableObject {
     /// モデルダウンロード中かどうか。uiState + progressDisplay から導出する単一の状態。
     var isDownloadingModel: Bool {
         uiState == .preparing && progressDisplay.phase == .downloadingModel
+    }
+
+    /// 音声ファイルの非同期取り込み中かどうか。
+    var isImportingFile: Bool {
+        operationCoordinator.activeOperation == .importing
     }
 
     /// テスト専用: モデルダウンロード中の状態をシミュレートする。
@@ -498,9 +531,14 @@ final class MainWindowViewModel: ObservableObject {
         let pending = pendingFileImport
         cancelPendingFileImport()
         if let pending {
-            let imported = applyFileImport(url: pending.url, preferredFileName: pending.preferredFileName)
-            // インポート失敗時に旧ファイルへ再文字起こしすると、既存結果と編集が失われる。
-            guard imported else { return }
+            // インポート失敗・キャンセル時に旧ファイルへ再文字起こししないよう、
+            // 非同期インポートの成功後にのみ文字起こしを開始する。
+            applyFileImport(
+                url: pending.url,
+                preferredFileName: pending.preferredFileName,
+                startTranscriptionAfterImport: shouldStartTranscription
+            )
+            return
         }
         if shouldStartTranscription {
             startTranscription(replacingExistingResult: true)
@@ -513,32 +551,120 @@ final class MainWindowViewModel: ObservableObject {
         isPendingTranscriptionRestart = false
     }
 
-    @discardableResult
-    private func applyFileImport(url: URL, preferredFileName: String?) -> Bool {
-        do {
-            let resolvedPreferredFileName = preferredFileName ?? preferredImportFileName(for: url)
-            let importedURL = try audioImportService.importFile(
-                from: url,
-                preferredFileName: resolvedPreferredFileName
-            )
-            let info = try audioFileService.validate(
-                url: importedURL,
-                preferredFileName: resolvedPreferredFileName
-            )
-            removePreviousSandboxCopyIfNeeded()
-            stopPlayback()
-            isEditingTranscript = false
-            hasSegmentTextEdits = false
-            currentTranscript = nil
-            baselineTranscriptText = ""
-            transcriptText = ""
-            selectedFile = info
-            uiState = .idle
-            progressDisplay = .idle()
-            return true
-        } catch {
-            handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
-            return false
+    /// 進行中のファイル取り込みをキャンセルし、直前の選択状態・結果を保持する。
+    func cancelFileImport() {
+        let wasImporting = operationCoordinator.activeOperation == .importing
+        importTask?.cancel()
+        importTask = nil
+        activeImportID = nil
+        if wasImporting {
+            operationCoordinator.end(.importing)
+            uiState = currentTranscript != nil ? .done : .idle
+            progressDisplay = currentTranscript != nil ? .done() : .idle()
+        }
+    }
+
+    /// 進行中の操作（ファイル取り込み・モデルダウンロード・文字起こし）に応じてキャンセルする。
+    func cancelCurrentOperation() {
+        if isImportingFile {
+            cancelFileImport()
+        } else if isDownloadingModel {
+            cancelModelDownload()
+        } else {
+            cancelTranscription()
+        }
+    }
+
+    private func applyFileImport(
+        url: URL,
+        preferredFileName: String?,
+        startTranscriptionAfterImport: Bool = false
+    ) {
+        guard operationCoordinator.start(.importing) else {
+            AppLogger.info("File import ignored while another operation is active", logger: AppLogger.fileAccess)
+            return
+        }
+
+        let importID = UUID()
+        activeImportID = importID
+        let previousUIState = uiState
+        let previousProgressDisplay = progressDisplay
+        uiState = .preparing
+        progressDisplay = TranscriptionProgressDisplay.from(
+            update: .make(phase: .convertingAudio, fraction: 0)
+        )
+
+        let importService = audioImportService
+        let fileService = audioFileService
+        let supportedExtensions = settings.supportedExtensions
+
+        importTask = Task {
+            do {
+                let outcome = try await Task.detached(priority: .userInitiated) { () throws -> (info: AudioFileInfo, createdCopy: URL?) in
+                    try Task.checkCancellation()
+                    let resolvedPreferredFileName = preferredFileName
+                        ?? Self.preferredImportFileName(for: url, supportedExtensions: supportedExtensions)
+                    let importedURL = try importService.importFile(
+                        from: url,
+                        preferredFileName: resolvedPreferredFileName
+                    )
+                    let createdCopy = importedURL.standardizedFileURL != url.standardizedFileURL
+                        ? importedURL
+                        : nil
+                    do {
+                        try Task.checkCancellation()
+                        let info = try fileService.validate(
+                            url: importedURL,
+                            preferredFileName: resolvedPreferredFileName
+                        )
+                        return (info, createdCopy)
+                    } catch {
+                        if let createdCopy {
+                            try? FileManager.default.removeItem(at: createdCopy)
+                        }
+                        throw error
+                    }
+                }.value
+
+                guard activeImportID == importID, !Task.isCancelled else {
+                    if let createdCopy = outcome.createdCopy {
+                        try? FileManager.default.removeItem(at: createdCopy)
+                    }
+                    return
+                }
+
+                removePreviousSandboxCopyIfNeeded()
+                stopPlayback()
+                isEditingTranscript = false
+                hasSegmentTextEdits = false
+                currentTranscript = nil
+                baselineTranscriptText = ""
+                transcriptText = ""
+                selectedFile = outcome.info
+                uiState = .idle
+                progressDisplay = .idle()
+                activeImportID = nil
+                importTask = nil
+                operationCoordinator.end(.importing)
+
+                if startTranscriptionAfterImport {
+                    startTranscription(replacingExistingResult: true)
+                }
+            } catch {
+                guard activeImportID == importID else { return }
+                activeImportID = nil
+                importTask = nil
+                operationCoordinator.end(.importing)
+
+                if Task.isCancelled || error is CancellationError {
+                    uiState = previousUIState
+                    progressDisplay = previousProgressDisplay
+                } else {
+                    uiState = previousUIState
+                    progressDisplay = previousProgressDisplay
+                    handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
+                }
+            }
         }
     }
 
@@ -566,14 +692,17 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    private func preferredImportFileName(for url: URL) -> String? {
+    private nonisolated static func preferredImportFileName(
+        for url: URL,
+        supportedExtensions: [String]
+    ) -> String? {
         let resolvedName = AudioFileNameResolver.resolve(sourceURL: url)
         guard resolvedName != url.lastPathComponent else {
             return nil
         }
         guard DropImportService.hasSupportedExtension(
             resolvedName,
-            supportedExtensions: settings.supportedExtensions
+            supportedExtensions: supportedExtensions
         ) else {
             return nil
         }
@@ -716,14 +845,9 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    /// 現在実行中の操作（モデルダウンロードまたは文字起こし）をキャンセルする。
+    /// 現在実行中の操作（ファイル取り込み・モデルダウンロード・文字起こし）をキャンセルする。
     func cancelActiveOperation() {
-        switch operationCoordinator.activeOperation {
-        case .modelDownload:
-            cancelModelDownload()
-        default:
-            cancelTranscription()
-        }
+        cancelCurrentOperation()
     }
 
     /// 文字起こしのみをキャンセルする（モデルDLは対象外）。
@@ -758,23 +882,23 @@ final class MainWindowViewModel: ObservableObject {
         ).post()
     }
 
-    /// Full Text 編集内容を currentTranscript の fullText と同期する。
-    /// segment の text が空の場合は、編集後の全文を反映する。
+    /// Full Text 編集内容を currentTranscript の fullText と segments の両方に同期する。
     func updateTranscriptText(_ newText: String) {
         transcriptText = newText
         guard var transcript = currentTranscript else { return }
-        transcript.fullText = newText
-        // 全編集中に segment 表示へ戻っても食い違わないよう、
-        // セグメントが1つしかない（全文を1セグメントで保持している）場合は text も同期する。
-        if transcript.segments.count == 1 {
-            transcript.segments[0].text = newText
-        }
+        transcript.applyFullTextEdit(newText)
         currentTranscript = transcript
     }
 
+    private static func containsNonWhitespaceScalar(_ text: String) -> Bool {
+        text.unicodeScalars.contains { !CharacterSet.whitespacesAndNewlines.contains($0) }
+    }
+
     /// セグメントのテキストを更新し、currentTranscript と全文に同期する。
+    /// 値型 Transcript の複製を避けて in-place 更新することで、連続入力時の
+    /// セグメント配列 COW コピーと全文バッファの再コピー・全走査を抑止する。
     func updateSegmentText(id: UUID, text: String) {
-        guard var transcript = currentTranscript else { return }
+        guard storedTranscript != nil else { return }
         let previousLocation = segmentTextEditLocation
         let index: Int
         let utf8Offset: Int
@@ -782,28 +906,45 @@ final class MainWindowViewModel: ObservableObject {
             index = previousLocation.index
             utf8Offset = previousLocation.utf8Offset
         } else {
-            guard let segmentIndex = transcript.segments.firstIndex(where: { $0.id == id }) else { return }
+            guard let segmentIndex = storedTranscript?.segments.firstIndex(where: { $0.id == id }) else { return }
             index = segmentIndex
             // セグメント間の区切りは 1 バイトの改行。本文中の改行も文字列長に含める。
-            utf8Offset = transcript.segments.prefix(index).reduce(index) { $0 + $1.text.utf8.count }
+            utf8Offset = storedTranscript!.segments.prefix(index).reduce(index) { $0 + $1.text.utf8.count }
         }
 
-        let previousUTF8Count = transcript.segments[index].text.utf8.count
-        transcript.segments[index].text = text
+        objectWillChange.send()
+
+        // transcriptText 側の重複参照を解放し、storedTranscript.fullText を一意参照にする。
+        if !isTranscriptTextSyncedToStoredTranscript {
+            storedTranscriptText = ""
+            isTranscriptTextSyncedToStoredTranscript = true
+        }
+
+        let previousUTF8Count = storedTranscript!.segments[index].text.utf8.count
+        storedTranscript!.segments[index].text = text
         if previousLocation == nil {
             // 復元時や全文編集後は fullText がセグメント結合と異なる場合がある。
-            // 初回だけ従来どおり結合し、以後は変更した範囲のみ置換する。
-            transcript.fullText = transcript.segments.map(\.text).joined(separator: "\n")
+            // 初回だけ結合して contiguous UTF-8 化し、以後は O(1) オフセットで差分置換する。
+            storedTranscript!.fullText = storedTranscript!.segments.map(\.text).joined(separator: "\n")
+            storedTranscript!.fullText.makeContiguousUTF8()
         } else {
-            let start = transcript.fullText.utf8.index(transcript.fullText.utf8.startIndex, offsetBy: utf8Offset)
-            let end = transcript.fullText.utf8.index(start, offsetBy: previousUTF8Count)
+            storedTranscript!.fullText.makeContiguousUTF8()
+            let start = storedTranscript!.fullText.utf8.index(
+                storedTranscript!.fullText.utf8.startIndex,
+                offsetBy: utf8Offset
+            )
+            let end = storedTranscript!.fullText.utf8.index(start, offsetBy: previousUTF8Count)
             // CR + 区切りの LF が一つの Character になる場合も、セグメント境界で置換する。
-            transcript.fullText.unicodeScalars.replaceSubrange(start..<end, with: text.unicodeScalars)
+            storedTranscript!.fullText.unicodeScalars.replaceSubrange(start..<end, with: text.unicodeScalars)
         }
         hasSegmentTextEdits = true
-        currentTranscript = transcript
         segmentTextEditLocation = SegmentTextEditLocation(id: id, index: index, utf8Offset: utf8Offset)
-        transcriptText = transcript.fullText
+        // 編集後セグメントに非空白文字があれば全文走査を省き O(編集長) で判定する。
+        if Self.containsNonWhitespaceScalar(text) {
+            hasNonEmptyTranscriptText = true
+        } else {
+            hasNonEmptyTranscriptText = Self.containsNonWhitespaceScalar(storedTranscript!.fullText)
+        }
     }
 
     func copyTranscript() {
@@ -845,6 +986,7 @@ final class MainWindowViewModel: ObservableObject {
         }
 
         playingSegmentID = segment.id
+        isSegmentPaused = false
         let segmentID = segment.id
         playbackPositionText = Self.remainingTimeText(
             current: 0,
@@ -857,6 +999,7 @@ final class MainWindowViewModel: ObservableObject {
             guard let self else { return }
             if self.playingSegmentID == segmentID {
                 self.playingSegmentID = nil
+                self.isSegmentPaused = false
                 self.playbackPositionText = ""
             }
         }
@@ -930,8 +1073,10 @@ final class MainWindowViewModel: ObservableObject {
         )
         guard let url else { return }
 
-        // 書き出し用のコピーに最新の編集内容を反映する。
-        transcript.fullText = transcriptText
+        // 書き出し用のコピーに最新の編集内容を反映する（全文とセグメント字幕を同期）。
+        if transcript.fullText != transcriptText {
+            transcript.applyFullTextEdit(transcriptText)
+        }
         transcript.updatedAt = Date()
 
         do {

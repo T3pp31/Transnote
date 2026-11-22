@@ -406,4 +406,41 @@ final class TranscriptionProgressDisplayTests: XCTestCase {
 
         XCTAssertEqual(display.accessibilityLabel, expectedLabel)
     }
+
+    func testPreSanitizedPartialTextSkipsReSanitizationAndPreservesGuidance() {
+        let guidance = L("途中結果を表示中", comment: "Partial transcription guidance")
+
+        let nonEmpty = TranscriptionProgressDisplay.from(
+            update: .make(
+                phase: .transcribing,
+                fraction: 0.5,
+                partialText: "こんにちは 世界",
+                isPartialTextSanitized: true
+            )
+        )
+        XCTAssertEqual(nonEmpty.presentablePartialText, "こんにちは 世界")
+        XCTAssertEqual(nonEmpty.detailLabel, "\(guidance) · 50%")
+
+        let empty = TranscriptionProgressDisplay.from(
+            update: .make(
+                phase: .transcribing,
+                fraction: 0.5,
+                partialText: "",
+                isPartialTextSanitized: true
+            )
+        )
+        XCTAssertNil(empty.presentablePartialText)
+        XCTAssertEqual(empty.detailLabel, "50%")
+
+        // 既定値（isPartialTextSanitized == false）では引き続き未サニタイズ文字列を検証・除去する。
+        let unsanitized = TranscriptionProgressDisplay.from(
+            update: .make(
+                phase: .transcribing,
+                fraction: 0.5,
+                partialText: "<|ja|> こんにちは  世界 <|endoftext|>"
+            )
+        )
+        XCTAssertEqual(unsanitized.presentablePartialText, "こんにちは 世界")
+        XCTAssertEqual(unsanitized.detailLabel, "\(guidance) · 50%")
+    }
 }

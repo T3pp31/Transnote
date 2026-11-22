@@ -271,6 +271,131 @@ final class HistorySearchViewModelTests: XCTestCase {
 
         XCTAssertEqual(model.items.map(\.id), [transcript.id])
     }
+
+    func testHistoryStoreSaveInvalidatesSearchCacheWhenFileMetadataMatches() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let recoveryURL = AppDirectories.tempTranscriptsDirectory.appendingPathComponent("recovery.json")
+        let originalRecoveryData = try? Data(contentsOf: recoveryURL)
+        defer {
+            if let originalRecoveryData {
+                try? originalRecoveryData.write(to: recoveryURL, options: .atomic)
+            } else {
+                try? FileManager.default.removeItem(at: recoveryURL)
+            }
+        }
+
+        let reads = HistorySearchReadRecorder()
+        let store = HistoryStore(
+            historyRoot: root,
+            searchDataLoader: { url in try reads.load(url) }
+        )
+
+        var transcript = Transcript(
+            sourceFileName: "notes.wav",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            fullText: "alpha"
+        )
+        let fileURL = root.appendingPathComponent("\(transcript.id.uuidString).json")
+        let fixedModificationDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        try store.save(transcript)
+        try FileManager.default.setAttributes(
+            [.modificationDate: fixedModificationDate],
+            ofItemAtPath: fileURL.path
+        )
+        let initialAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let initialSize = try XCTUnwrap(initialAttributes[.size] as? NSNumber)
+        let initialMtime = try XCTUnwrap(initialAttributes[.modificationDate] as? Date)
+
+        // 初回検索でキャッシュに載せる。
+        XCTAssertEqual(store.search(query: "alpha").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 1)
+
+        // 同一 ID を同バイト数の別本文で上書きし、更新日時もキャッシュ時と同じ値に揃える。
+        transcript.fullText = "bravo"
+        try store.save(transcript)
+        try FileManager.default.setAttributes(
+            [.modificationDate: initialMtime],
+            ofItemAtPath: fileURL.path
+        )
+        let savedAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        XCTAssertEqual(savedAttributes[.size] as? NSNumber, initialSize, "同サイズ上書きの前提を満たすこと")
+        XCTAssertEqual(savedAttributes[.modificationDate] as? Date, initialMtime, "更新日時一致の前提を満たすこと")
+
+        // メタデータが一致しても save() の明示的 invalidate により再読み込みされ、新本文のみヒットすること。
+        XCTAssertTrue(store.search(query: "alpha").isEmpty)
+        XCTAssertEqual(store.search(query: "bravo").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 2, "save 後の再検索で searchDataLoader が再呼び出しされること")
+
+        // saveWithTemporary 経路でも同様にキャッシュが無効化されること。
+        transcript.fullText = "delta"
+        try store.saveWithTemporary(transcript)
+        try FileManager.default.setAttributes(
+            [.modificationDate: initialMtime],
+            ofItemAtPath: fileURL.path
+        )
+        let tempSavedAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        XCTAssertEqual(tempSavedAttributes[.size] as? NSNumber, initialSize)
+        XCTAssertEqual(tempSavedAttributes[.modificationDate] as? Date, initialMtime)
+
+        XCTAssertTrue(store.search(query: "bravo").isEmpty)
+        XCTAssertEqual(store.search(query: "delta").map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 3, "saveWithTemporary 後の再検索でも searchDataLoader が再呼び出しされること")
+    }
+
+    func testViewModelSearchReflectsOverwrittenTranscriptWithUnchangedMetadata() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let reads = HistorySearchReadRecorder()
+        let store = HistoryStore(
+            historyRoot: root,
+            searchDataLoader: { url in try reads.load(url) }
+        )
+        let model = HistorySearchViewModel(historyStore: store, waitForDebounce: {})
+
+        var transcript = Transcript(
+            sourceFileName: "meeting.wav",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            fullText: "alpha"
+        )
+        let fileURL = root.appendingPathComponent("\(transcript.id.uuidString).json")
+        let fixedModificationDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        try store.save(transcript)
+        try FileManager.default.setAttributes(
+            [.modificationDate: fixedModificationDate],
+            ofItemAtPath: fileURL.path
+        )
+        let initialSize = try XCTUnwrap(
+            try FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber
+        )
+
+        await model.search(query: "alpha")
+        XCTAssertEqual(model.items.map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 1)
+
+        transcript.fullText = "bravo"
+        try store.save(transcript)
+        try FileManager.default.setAttributes(
+            [.modificationDate: fixedModificationDate],
+            ofItemAtPath: fileURL.path
+        )
+        XCTAssertEqual(
+            try FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber,
+            initialSize
+        )
+
+        await model.search(query: "alpha")
+        XCTAssertTrue(model.items.isEmpty)
+        await model.search(query: "bravo")
+        XCTAssertEqual(model.items.map(\.id), [transcript.id])
+        XCTAssertEqual(reads.total, 2)
+    }
 }
 
 private actor ManualHistoryDebounce {

@@ -265,6 +265,18 @@ for heading in (
 print("PASS: install.md code fences and subsequent sections")
 PY
 
+# 監査台帳に作成者ローカルの絶対パスや一時ディレクトリのリンクが残っていないことを確認する。
+python3 - "$ROOT/docs/test-audit.md" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding="utf-8")
+assert not re.search(r"/Users/[^\s\)\]`]+", text), "test-audit.md must not contain local /Users/ absolute paths"
+assert not re.search(r"\]\(/tmp/[^\)]+\)", text), "test-audit.md must not contain ephemeral /tmp/ markdown links"
+print("PASS: test-audit.md contains no local absolute paths or ephemeral /tmp/ links")
+PY
+
 python3 "$ROOT/scripts/test-release-signing.py"
 python3 "$ROOT/scripts/test-release-action-security.py"
 python3 "$ROOT/scripts/test-release-ref-ancestry.py"

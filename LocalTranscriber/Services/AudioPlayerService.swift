@@ -7,10 +7,13 @@ final class AudioPlayerService {
 
     private var player: AVPlayer?
     private var timeObserver: Any?
+    private var endOfItemObserver: NSObjectProtocol?
     private var statusObservation: NSKeyValueObservation?
     private var segmentEndTime: TimeInterval = 0
     private var onFinished: (() -> Void)?
     private var pendingStartTime: TimeInterval?
+    /// 開始待ち中に pause() された場合の開始位置。resume() で seek・監視登録を再開するために保持する。
+    private var pausedPendingStartTime: TimeInterval?
     /// 再生の世代番号。playSegment を呼ぶたびに加算し、古い seek 完了コールバックを無視するために使う。
     private var playbackGeneration = 0
     /// pendingStartTime に対応する世代番号。ステータス監視経由で開始する際に使用する。
@@ -86,8 +89,11 @@ final class AudioPlayerService {
         }
     }
 
-    /// 一時停止する（現在位置を保持）。
+    /// 一時停止する（現在位置または開始待ち位置を保持）。
     func pause() {
+        if timeObserver == nil, let pendingStart = pendingStartTime {
+            pausedPendingStartTime = pendingStart
+        }
         if isPlaying {
             player?.pause()
             isPlaying = false
@@ -98,6 +104,29 @@ final class AudioPlayerService {
     /// 一時停止から再開する。
     func resume() {
         guard !isPlaying, let player else { return }
+
+        if let start = pausedPendingStartTime {
+            pausedPendingStartTime = nil
+            pendingStartTime = start
+            playbackGeneration += 1
+            let generation = playbackGeneration
+            if let item = player.currentItem, item.status == .readyToPlay {
+                beginPlayback(at: start, generation: generation)
+            } else if let item = player.currentItem {
+                pendingPlaybackGeneration = generation
+                statusObservation = item.observe(\.status, options: [.new, .initial]) { [weak self] item, _ in
+                    Task { @MainActor in
+                        self?.handlePlayerItemStatusChange(item, generation: generation)
+                    }
+                }
+            } else {
+                finishSegmentPlayback()
+            }
+            return
+        }
+
+        // 監視中のアクティブなセグメントが無い場合（終了済み・未開始）は再生を再開しない。
+        guard timeObserver != nil else { return }
         player.play()
         isPlaying = true
     }
@@ -114,6 +143,7 @@ final class AudioPlayerService {
         isPlaying = false
         segmentEndTime = 0
         pendingStartTime = nil
+        pausedPendingStartTime = nil
         pendingPlaybackGeneration = 0
 
         if resetPlayer {
@@ -170,6 +200,7 @@ final class AudioPlayerService {
 
     private func installTimeObserver() {
         guard let player else { return }
+        removeTimeObserver()
 
         let interval = CMTime(seconds: 0.05, preferredTimescale: 600)
         timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
@@ -179,9 +210,23 @@ final class AudioPlayerService {
             if itemDuration.isFinite && itemDuration > 0 {
                 self.duration = itemDuration
             }
-            self.onPlaybackTimeUpdate?(time.seconds, self.segmentEndTime)
             if time.seconds >= self.segmentEndTime {
                 self.finishSegmentPlayback()
+            } else {
+                self.onPlaybackTimeUpdate?(time.seconds, self.segmentEndTime)
+            }
+        }
+
+        if let item = player.currentItem {
+            endOfItemObserver = NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: item,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, self.timeObserver != nil else { return }
+                    self.finishSegmentPlayback()
+                }
             }
         }
     }
@@ -191,6 +236,7 @@ final class AudioPlayerService {
         clearSegmentPlayback()
         cancelStatusObservation()
         pendingStartTime = nil
+        pausedPendingStartTime = nil
         pendingPlaybackGeneration = 0
         player?.pause()
         isPlaying = false
@@ -203,6 +249,7 @@ final class AudioPlayerService {
         isPlaying = false
         onFinished = nil
         pendingStartTime = nil
+        pausedPendingStartTime = nil
         pendingPlaybackGeneration = 0
     }
 
@@ -215,6 +262,10 @@ final class AudioPlayerService {
             player.removeTimeObserver(timeObserver)
         }
         timeObserver = nil
+        if let endOfItemObserver {
+            NotificationCenter.default.removeObserver(endOfItemObserver)
+        }
+        endOfItemObserver = nil
     }
 
     /// 保留中の開始だけを無効化し、再開後の終了通知用に完了コールバックは保持する。

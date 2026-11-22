@@ -233,13 +233,53 @@ final class TranscriptModelTests: XCTestCase {
     }
     // MARK: - AppConfig / AppSettings (#245)
 
-    func testAppConfigDefaultValues() {
+    func testAppConfigDefaultValues() throws {
         let config = AppConfig()
+        XCTAssertTrue(config.validationErrors.isEmpty, "Defaults.plist の設定に不整合がないこと: \(config.validationErrors)")
         XCTAssertFalse(config.supportedExtensions.isEmpty)
         XCTAssertFalse(config.models.isEmpty)
         XCTAssertFalse(config.languages.isEmpty)
         XCTAssertFalse(config.defaultModelID.isEmpty)
         XCTAssertEqual(config.modelsDirectoryName, "Models")
+
+        // Defaults.plist の正本と全主要項目が一致していることを検証する。
+        let appBundle = Bundle(for: AppSettings.self)
+        let plistURL = try XCTUnwrap(appBundle.url(forResource: "Defaults", withExtension: "plist"))
+        let plist = try XCTUnwrap(NSDictionary(contentsOf: plistURL) as? [String: Any])
+        XCTAssertEqual(config.supportedExtensions, plist["SupportedAudioExtensions"] as? [String])
+        XCTAssertEqual(config.defaultModelID, plist["DefaultModelID"] as? String)
+        XCTAssertEqual(config.defaultLanguageID, plist["DefaultLanguage"] as? String)
+        XCTAssertEqual(config.expectedGitHubRepository, plist["ExpectedGitHubRepository"] as? String)
+        XCTAssertEqual(config.githubReleasesAPIURL.absoluteString, plist["GitHubReleasesAPIURL"] as? String)
+        XCTAssertEqual(config.updateDownloadFallbackURL.absoluteString, plist["UpdateDownloadFallbackURL"] as? String)
+        XCTAssertEqual(config.updateDMGAssetName, plist["UpdateDMGAssetName"] as? String)
+        XCTAssertEqual(config.allowedUpdateDownloadHosts, plist["AllowedUpdateDownloadHosts"] as? [String])
+        XCTAssertEqual(config.models.count, (plist["Models"] as? [[String: Any]])?.count)
+        XCTAssertEqual(config.languages.count, (plist["Languages"] as? [[String: Any]])?.count)
+    }
+
+    func testAppConfigEmptyDictionaryDoesNotUseHardcodedDuplicatesAndReportsValidationErrors() {
+        let emptyConfig = AppConfig(dictionary: [:])
+
+        XCTAssertTrue(emptyConfig.models.isEmpty, "ハードコードされた代替モデル一覧を持たないこと")
+        XCTAssertTrue(emptyConfig.languages.isEmpty, "ハードコードされた代替言語一覧を持たないこと")
+        XCTAssertTrue(emptyConfig.supportedExtensions.isEmpty)
+        XCTAssertEqual(emptyConfig.defaultModelID, "")
+        XCTAssertEqual(emptyConfig.defaultLanguageID, "")
+        XCTAssertFalse(emptyConfig.updateCheckEnabled, "設定欠損時は更新確認を安全側に無効化すること")
+        XCTAssertTrue(emptyConfig.allowedUpdateDownloadHosts.isEmpty)
+        XCTAssertFalse(emptyConfig.validationErrors.isEmpty)
+        XCTAssertTrue(emptyConfig.validationErrors.contains("defaultModelID is empty"))
+        XCTAssertTrue(emptyConfig.validationErrors.contains("defaultLanguageID is empty"))
+        XCTAssertTrue(emptyConfig.validationErrors.contains("supportedExtensions is empty"))
+
+        // UpdateCheckEnabled のみ true で URL 等が欠損している場合も検証エラーを返すこと。
+        let partialUpdateConfig = AppConfig(dictionary: ["UpdateCheckEnabled": true])
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("expectedGitHubRepository is empty"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("githubReleasesAPIURL is missing or invalid"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("updateDownloadFallbackURL is missing or invalid"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("updateDMGAssetName is empty"))
+        XCTAssertTrue(partialUpdateConfig.validationErrors.contains("allowedUpdateDownloadHosts is empty"))
     }
 
     func testLargeV3ModelNamesMatchConfiguredVariants() throws {
@@ -939,6 +979,76 @@ final class TranscriptModelTests: XCTestCase {
         let recovered = try decoder.decode(Transcript.self, from: Data(contentsOf: recoveryURL))
         XCTAssertEqual(recovered.id, transcript.id)
         XCTAssertEqual(recovered.fullText, transcript.fullText)
+    }
+
+    // MARK: - Bounded LRU search cache & lazy full decode (#820)
+
+    func testHistoryStoreSearchCacheEnforcesEntryAndByteLimits() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        for index in 0..<5 {
+            let transcript = Transcript(
+                sourceFileName: "item-\(index).wav",
+                createdAt: baseDate.addingTimeInterval(Double(index)),
+                fullText: "keyword-\(index) " + String(repeating: "a", count: 200)
+            )
+            try writer.save(transcript)
+        }
+
+        // 件数上限 2 のキャッシュでは、5 件走査してもキャッシュ保持件数が 2 以下に収まる。
+        let entryBoundedStore = HistoryStore(
+            historyRoot: root,
+            maxSearchCacheEntries: 2,
+            maxSearchCacheBytes: 1024 * 1024
+        )
+        let matches = entryBoundedStore.search(query: "keyword", limit: 10)
+        XCTAssertEqual(matches.count, 5, "キャッシュ上限より多い履歴でも検索結果は全件返すこと")
+        XCTAssertLessThanOrEqual(entryBoundedStore.searchCacheEntryCountForTesting, 2)
+
+        // バイト上限を超えるエントリはキャッシュに常駐させない（結果自体は返す）。
+        let byteBoundedStore = HistoryStore(
+            historyRoot: root,
+            maxSearchCacheEntries: 50,
+            maxSearchCacheBytes: 100
+        )
+        XCTAssertEqual(byteBoundedStore.search(query: "keyword-0", limit: 10).count, 1)
+        XCTAssertLessThanOrEqual(byteBoundedStore.searchCacheBytesForTesting, 100)
+        XCTAssertEqual(byteBoundedStore.searchCacheEntryCountForTesting, 0)
+    }
+
+    func testHistoryStoreSearchLoadsFullTranscriptOnlyForReturnedMatches() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let transcripts = (0..<10).map { index in
+            Transcript(
+                sourceFileName: "doc-\(index).wav",
+                createdAt: baseDate.addingTimeInterval(Double(index)),
+                fullText: index < 6 ? "shared-needle \(index)" : "unrelated \(index)",
+                segments: [TranscriptSegment(startTime: 0, endTime: 1, text: "seg-\(index)")]
+            )
+        }
+        for item in transcripts {
+            try writer.save(item)
+        }
+
+        let fullReads = HistoryTranscriptReadProbe()
+        let store = HistoryStore(
+            historyRoot: root,
+            readTranscriptData: { try fullReads.read($0) }
+        )
+
+        let results = store.search(query: "shared-needle", limit: 2)
+        XCTAssertEqual(results.map(\.id), [transcripts[5].id, transcripts[4].id])
+        XCTAssertEqual(results.first?.segments.first?.text, "seg-5")
+        XCTAssertEqual(fullReads.urls.count, 2, "不一致や limit 外の履歴は完全デコードしないこと")
     }
 }
 

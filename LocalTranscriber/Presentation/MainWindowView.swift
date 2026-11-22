@@ -8,6 +8,7 @@ struct MainWindowView: View {
     @State private var showingSettings = false
     @State private var showingHistory = false
     @State private var recoveryTranscript: Transcript?
+    @State private var externalSelectionGeneration = 0
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
@@ -138,7 +139,7 @@ struct MainWindowView: View {
             canStart: viewModel.canStartTranscription,
             startTranscription: viewModel.startTranscription,
             canCancel: viewModel.canCancel,
-            cancelTranscription: viewModel.cancelActiveOperation,
+            cancelTranscription: viewModel.cancelCurrentOperation,
             cancelMenuTitle: viewModel.cancelMenuTitle,
             canCopy: viewModel.canCopyTranscript,
             copyTranscript: viewModel.copyTranscript,
@@ -164,7 +165,8 @@ struct MainWindowView: View {
                 selectedFile: viewModel.selectedFile,
                 onFileSelected: viewModel.selectFile(url:preferredFileName:),
                 audioImportService: AudioImportService(),
-                isBusy: viewModel.isBusy
+                isBusy: viewModel.isBusy,
+                externalSelectionGeneration: externalSelectionGeneration
             )
             if let guidance = viewModel.modelDownloadGuidance {
                 ModelDownloadGuidanceBanner(
@@ -213,7 +215,7 @@ struct MainWindowView: View {
                 canCancel: viewModel.canCancel,
                 cancelAccessibilityLabel: viewModel.cancelActionAccessibilityLabel,
                 cancelHelp: viewModel.cancelActionHelp,
-                onCancel: viewModel.cancelActiveOperation
+                onCancel: viewModel.cancelCurrentOperation
             )
             .padding(.horizontal, DesignTokens.Spacing.horizontalPadding)
             .padding(.vertical, DesignTokens.Spacing.footerVerticalPadding)
@@ -354,6 +356,7 @@ struct MainWindowView: View {
         panel.canChooseFiles = true
         panel.allowedContentTypes = contentTypesForPicker()
         if panel.runModal() == .OK, let url = panel.url {
+            externalSelectionGeneration += 1
             viewModel.selectFile(url: url, preferredFileName: nil)
         }
     }

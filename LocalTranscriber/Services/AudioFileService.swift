@@ -10,7 +10,7 @@ struct AudioFileInfo: Sendable, Equatable {
     let formattedFileSize: String
 }
 
-struct AudioFileService {
+struct AudioFileService: Sendable {
     let supportedExtensions: [String]
 
     init(supportedExtensions: [String] = AppConfig.shared.supportedExtensions) {
