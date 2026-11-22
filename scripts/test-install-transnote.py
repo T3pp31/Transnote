@@ -40,6 +40,10 @@ elif command == "hdiutil" and args == ["info"]:
     print(os.environ["MOCK_VOLUME"])
 elif command == "shasum":
     print(hashlib.sha256(Path(args[2]).read_bytes()).hexdigest() + "  " + args[2])
+elif command == "spctl":
+    if os.environ.get("MOCK_SPCTL_PASS") == "1":
+        sys.exit(0)
+    sys.exit(3)
 elif command == "ditto":
     deployment = args[1] == os.environ["MOCK_TARGET"]
     if deployment and os.environ.get("MOCK_PAUSE") == "1":
@@ -77,7 +81,7 @@ class InstallerTests(unittest.TestCase):
             for name, command in (("mock_plistbuddy", "PlistBuddy"), ("hdiutil", "hdiutil"),
                                   ("ditto", "ditto"), ("osascript", "osascript"),
                                   ("open", "open"), ("xattr", "xattr"), ("sleep", "sleep"),
-                                  ("shasum", "shasum"))
+                                  ("shasum", "shasum"), ("spctl", "spctl"))
         ) + "\n")
         self.dmg = self.work / "Transnote.dmg"
         self.dmg.write_bytes(b"local dmg fixture")
@@ -224,6 +228,41 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(self.result(proc)[0], 143)
         self.assertEqual((self.target / "marker").read_text(), "old")
         self.assertNotIn("インストールしました", (run / "events").read_text())
+        self.assert_clean()
+
+    def test_signed_notarized_app_skips_quarantine_removal(self):
+        proc, run = self.start("signed", MOCK_SPCTL_PASS="1")
+        self.assertEqual(self.result(proc)[0], 0)
+        events = (run / "events").read_text()
+        self.assertIn("spctl --assess --type execute ", events)
+        self.assertNotIn("xattr ", events)
+        self.assertEqual((self.target / "marker").read_text(), "new")
+        self.assert_clean()
+
+    def test_unsigned_app_removes_quarantine_after_checksum_verification(self):
+        proc, run = self.start("unsigned", MOCK_SPCTL_PASS="0")
+        self.assertEqual(self.result(proc)[0], 0)
+        events = (run / "events").read_text()
+        self.assertIn("spctl --assess --type execute ", events)
+        self.assertIn("xattr -dr com.apple.quarantine ", events)
+        self.assertEqual((self.target / "marker").read_text(), "new")
+        self.assert_clean()
+
+    def test_uppercase_checksum_env_var_is_accepted(self):
+        Path(str(self.dmg) + ".sha256").unlink()
+        expected = hashlib.sha256(self.dmg.read_bytes()).hexdigest().upper()
+        proc, run = self.start("uppercase-checksum", CHECKSUM=expected)
+        self.assertEqual(self.result(proc)[0], 0)
+        self.assertEqual((self.target / "marker").read_text(), "new")
+        self.assert_clean()
+
+    def test_malformed_checksum_sidecar_is_rejected(self):
+        Path(str(self.dmg) + ".sha256").write_text("not-a-valid-sha256  Transnote.dmg\n")
+        proc, run = self.start("malformed-checksum")
+        self.assertNotEqual(self.result(proc)[0], 0)
+        self.assert_no_install(run)
+        self.assertIn("SHA256 チェックサムが一致しません", (run / "events").read_text())
+        self.assertEqual((self.target / "marker").read_text(), "old")
         self.assert_clean()
 
 

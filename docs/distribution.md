@@ -8,11 +8,14 @@ Transnote の Release ビルド、DMG 作成、GitHub Releases 公開は GitHub 
 vX.Y.Z タグ push または workflow_dispatch
   → テスト
   → 実モデル取得・検出・ロードの必須テスト
-  → Release archive（署名なし）
+  → Release archive
   → Transnote.app を取り出し
-  → DMG 作成（Transnote.app + インストール.command + Applications リンク）
-  → SHA256 チェックサム生成
+  → （Secrets 設定時）Transnote.app の Developer ID 署名・検証・Notarization・Staple
   → SBOM 生成（Transnote-<version>.cdx.json）
+  → DMG 作成（Transnote.app + インストール.command + Applications リンク）
+  → （Secrets 設定時）DMG の Developer ID 署名・検証・Notarization・Staple
+  → SHA256 チェックサム生成
+  → Build Provenance Attestation 生成（actions/attest-build-provenance）
   → GitHub Release へアップロード（DMG + .sha256 + SBOM、本文にハッシュ記載）
 ```
 
@@ -32,7 +35,18 @@ python3 scripts/read-xcode-version.py
 
 未署名配布では **GitHub Secrets は不要** です。Release workflow はそのまま実行できます。
 
-将来、Developer ID 署名と Notarization を導入する場合は、[Apple Developer Program](https://developer.apple.com/programs/) への加入と CI 用証明書（`APPLE_CERTIFICATE_BASE64` 等）の GitHub Secrets 設定が必要です。現時点では SHA256 チェックサム配布で整合性確認を提供しています。
+Developer ID 署名と Notarization を有効にする場合は、[Apple Developer Program](https://developer.apple.com/programs/) への加入後、以下の GitHub Secrets を設定してください。設定されている場合、Release workflow は `Transnote.app` および配布用 DMG（`Transnote-<version>.dmg` / `Transnote.dmg`）の署名・検証・公証・Staple を自動実行します。
+
+| Secret 名 | 用途 |
+| --- | --- |
+| `MACOS_CERTIFICATE` | Base64 エンコードした Developer ID Application 証明書（`.p12`） |
+| `MACOS_CERTIFICATE_PWD` | `.p12` 証明書のパスワード |
+| `MACOS_CERTIFICATE_IDENTITY` | `codesign --sign` に渡す署名 ID（例: `Developer ID Application: ...`） |
+| `APPLE_ID` | 公証（`notarytool`）に使用する Apple ID |
+| `APPLE_ID_PASSWORD` | Apple ID の App 用パスワード |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+
+Secrets 未設定時は未署名ビルドとして配布され、SHA256 チェックサムおよび GitHub Build Provenance Attestation で整合性・出所確認を提供します。
 
 ## リリース手順
 
@@ -132,15 +146,21 @@ CI では `Package.resolved`（宣言依存のロックファイル）を Ubuntu
 
 未署名アプリは初回起動時に macOS の Gatekeeper 警告が出ることがあります。**インストール.command** も同様に、ダブルクリックでは「開いていません」とブロックされる場合があります。右クリック → 開く でも通らないことがあるため、DMG 内の `初めにお読みください.txt` または [docs/install.md](install.md) の **ターミナル実行手順**（`bash` での実行）を案内してください。
 
-インストールスクリプトは配置後に Applications 内アプリから検疫属性のみを除去するため、インストール直後の起動がスムーズになります。
+インストールスクリプトは DMG の SHA256 検証を通過した後にアプリを配置します。配置後のアプリが Gatekeeper（`spctl --assess --type execute`）を通過する署名・公証済みビルドの場合は検疫属性を触らず、未署名ビルドの場合のみ Applications 内アプリから `com.apple.quarantine` 属性のみを除去します。
 
 同じインストール先への多重起動は、インストール先の `.transnote-install.lock` ディレクトリで拒否します。ロックは処理の終了時（失敗時は旧版の復元後）に解放されます。強制終了（SIGKILL）や電源断でロックが残った場合は、すべてのインストール処理が終了していることを確認してから、このロックディレクトリを手動で削除して再実行してください。
 
 ## 検証コマンド
 
 ```bash
-# ダウンロード後の整合性確認（ユーザー向け）
+# ダウンロード後の整合性・来歴確認（ユーザー向け）
 shasum -a 256 -c Transnote-0.1.0.dmg.sha256
+gh attestation verify Transnote-0.1.0.dmg --repo T3pp31/Transnote
+
+# 署名・公証済みビルドの検証
+codesign --verify --deep --strict --verbose=2 build/release/Transnote.app
+spctl --assess --type execute --verbose build/release/Transnote.app
+xcrun stapler validate build/dist/Transnote-0.1.0.dmg
 
 # SBOM の妥当性確認（開発者向け）
 # generate-sbom.sh 実行時にも library components の件数チェックが行われる

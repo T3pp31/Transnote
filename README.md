@@ -22,20 +22,27 @@ macOS 向けのオンデバイス文字起こしアプリ。ローカルの音�
 
 ### インストール（要約）
 
-未署名配布のため、**インストール.command** はダブルクリックや右クリック → 開く では実行できないことがあります。**ターミナルからの実行が確実です。**
+未署名配布のため、**インストール.command** はダブルクリックや右クリック → 開く では実行できないことがあります。**ターミナルからの実行が確実です。**（Developer ID で署名・公証されたリリースでは、通常のドラッグ&ドロップおよび起動フローが利用できます。）
 
-1. DMG を開き、**初めにお読みください.txt** を読む
-2. ターミナルで次を1行ずつ実行する:
+1. [GitHub Releases](https://github.com/T3pp31/Transnote/releases/latest) から `Transnote.dmg` と `Transnote.dmg.sha256` を同じフォルダにダウンロードし、必要に応じて整合性を確認する:
+
+```bash
+cd ~/Downloads
+shasum -a 256 -c Transnote.dmg.sha256
+```
+
+2. DMG を開き、**初めにお読みください.txt** を読む
+3. ターミナルで次を実行する（実行時に DMG の SHA256 も自動検証されます）:
 
 ```bash
 bash "/Volumes/Transnote/インストール.command"
 ```
 
-3. DMG を取り出す
-4. 初回起動時に Gatekeeper 警告が出た場合は:
+4. DMG を取り出す
+5. 初回起動時に Gatekeeper 警告が出た場合は:
    - macOS 14 以前: Finderで Transnote を右クリック → **開く**
    - macOS 15 以降: **システム設定 → プライバシーとセキュリティ** で Transnote を **このまま開く**
-5. 初回利用時に Whisper モデルをダウンロードする
+6. 初回利用時に Whisper モデルをダウンロードする
 
 詳細は [docs/install.md](docs/install.md) を参照。
 

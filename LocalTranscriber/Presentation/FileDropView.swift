@@ -1,4 +1,58 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// ドロップ取込と「ファイルを開く」パネル選択の競合を世代トークンで調停する。
+@MainActor
+final class FileDropCoordinator: ObservableObject {
+    @Published var dropErrorMessage: String?
+    @Published private(set) var isImportingDrop = false
+    private(set) var dropGeneration = 0
+
+    func beginDrop() -> Int {
+        dropErrorMessage = nil
+        dropGeneration += 1
+        isImportingDrop = true
+        return dropGeneration
+    }
+
+    /// 進行中のドロップ取込を無効化し、以後のドロップをブロックしないよう状態を解除する。
+    func invalidateInFlightDrop() {
+        dropGeneration += 1
+        isImportingDrop = false
+        dropErrorMessage = nil
+    }
+
+    func selectFileFromPanel(url: URL, onFileSelected: (URL, String?) -> Void) {
+        invalidateInFlightDrop()
+        onFileSelected(url, nil)
+    }
+
+    func completeDrop(
+        generation: Int,
+        isBusy: Bool,
+        orphanImportedURL: URL? = nil,
+        cleanupOrphan: (URL) -> Void = { try? FileManager.default.removeItem(at: $0) },
+        update: () -> Void
+    ) {
+        guard generation == dropGeneration else {
+            // 新しい選択や後続ドロップにより無効化された古い完了は反映せず、不要コピーだけ片付ける。
+            if let orphanImportedURL {
+                cleanupOrphan(orphanImportedURL)
+            }
+            return
+        }
+
+        isImportingDrop = false
+        guard !isBusy else {
+            if let orphanImportedURL {
+                cleanupOrphan(orphanImportedURL)
+            }
+            return
+        }
+
+        update()
+    }
+}
 
 struct FileDropView: View {
     let supportedExtensions: [String]
@@ -6,12 +60,11 @@ struct FileDropView: View {
     let onFileSelected: (URL, String?) -> Void
     let audioImportService: AudioImportService
     var isBusy: Bool = false
+    var externalSelectionGeneration: Int = 0
 
     @State private var isTargeted = false
     @State private var isHovered = false
-    @State private var dropErrorMessage: String?
-    @State private var dropGeneration = 0
-    @State private var isImportingDrop = false
+    @StateObject private var coordinator = FileDropCoordinator()
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -46,7 +99,7 @@ struct FileDropView: View {
             .accessibilityLabel("音声ファイルを開く")
             .accessibilityHint("ファイルを開くダイアログを開きます")
 
-            if let dropErrorMessage {
+            if let dropErrorMessage = coordinator.dropErrorMessage {
                 HStack(spacing: DesignTokens.Spacing.compactSpacing) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(DesignTokens.Colors.warning)
@@ -56,7 +109,7 @@ struct FileDropView: View {
                         .multilineTextAlignment(.leading)
                     Spacer()
                     Button {
-                        self.dropErrorMessage = nil
+                        coordinator.dropErrorMessage = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(DesignTokens.Colors.warning.opacity(0.6))
@@ -76,8 +129,16 @@ struct FileDropView: View {
         .onHover { hovering in
             isHovered = hovering
         }
+        .onChange(of: externalSelectionGeneration) { _ in
+            coordinator.invalidateInFlightDrop()
+        }
+        .onChange(of: isBusy) { busy in
+            if busy {
+                coordinator.invalidateInFlightDrop()
+            }
+        }
         .onDrop(of: acceptedDropTypes, isTargeted: $isTargeted) { providers in
-            guard !isBusy, !isImportingDrop else { return false }
+            guard !isBusy, !coordinator.isImportingDrop else { return false }
             return handleDrop(providers: providers)
         }
         .accessibilityElement(children: .contain)
@@ -146,6 +207,7 @@ struct FileDropView: View {
     }
 
     private func openFilePanel() {
+        guard !isBusy else { return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -153,8 +215,7 @@ struct FileDropView: View {
         panel.allowedContentTypes = contentTypesForPicker()
 
         if panel.runModal() == .OK, let url = panel.url {
-            dropErrorMessage = nil
-            onFileSelected(url, nil)
+            coordinator.selectFileFromPanel(url: url, onFileSelected: onFileSelected)
         }
     }
 
@@ -169,12 +230,12 @@ struct FileDropView: View {
     }
 
     private func handleDrop(providers: [NSItemProvider]) -> Bool {
-        dropErrorMessage = nil
+        coordinator.dropErrorMessage = nil
 
         // 複数ファイルのドロップは正式対応しない（現状は1ファイルのみ）。
         // 明示的に拒否して、ユーザーが期待する挙動を明確にする。
         if providers.count > 1 {
-            dropErrorMessage = NSLocalizedString(
+            coordinator.dropErrorMessage = NSLocalizedString(
                 "複数ファイルのドロップには対応していません。1つの音声ファイルをドロップしてください。",
                 comment: "Multiple file drop unsupported"
             )
@@ -182,9 +243,7 @@ struct FileDropView: View {
         }
 
         guard let provider = providers.first else { return false }
-        dropGeneration += 1
-        let generation = dropGeneration
-        isImportingDrop = true
+        let generation = coordinator.beginDrop()
 
         let suggestedName = provider.suggestedName
         let typeIdentifiers = DropImportService.preferredTypeIdentifiers(from: provider)
@@ -209,7 +268,7 @@ struct FileDropView: View {
         guard index < typeIdentifiers.count else {
             AppLogger.error("Drop import failed: unsupported dropped item", logger: AppLogger.fileAccess)
             finishDrop(generation: generation) {
-                self.dropErrorMessage = NSLocalizedString(
+                coordinator.dropErrorMessage = NSLocalizedString(
                     "対応している音声ファイルを読み込めませんでした。",
                     comment: "Drop import failed for unsupported item"
                 )
@@ -240,11 +299,18 @@ struct FileDropView: View {
         }
     }
 
-    private func finishDrop(generation: Int, update: @escaping () -> Void) {
+    private func finishDrop(
+        generation: Int,
+        orphanImportedURL: URL? = nil,
+        update: @escaping () -> Void
+    ) {
         DispatchQueue.main.async {
-            guard generation == self.dropGeneration else { return }
-            self.isImportingDrop = false
-            update()
+            coordinator.completeDrop(
+                generation: generation,
+                isBusy: isBusy,
+                orphanImportedURL: orphanImportedURL,
+                update: update
+            )
         }
     }
 
@@ -263,7 +329,7 @@ struct FileDropView: View {
         guard DropImportService.hasSupportedExtension(fileName, supportedExtensions: supportedExtensions) else {
             AppLogger.error("Drop import failed: unsupported extension for \(fileName)", logger: AppLogger.fileAccess)
             finishDrop(generation: generation) {
-                self.dropErrorMessage = ErrorMapper.userMessage(for: AppError.unsupportedFileExtension(fileName))
+                coordinator.dropErrorMessage = ErrorMapper.userMessage(for: AppError.unsupportedFileExtension(fileName))
             }
             return
         }
@@ -273,17 +339,18 @@ struct FileDropView: View {
                 from: tempURL,
                 preferredFileName: fileName
             )
-            finishDrop(generation: generation) {
-                self.dropErrorMessage = nil
-                self.onFileSelected(importedURL, nil)
+            let createdCopy = importedURL.standardizedFileURL != tempURL.standardizedFileURL
+                ? importedURL
+                : nil
+            finishDrop(generation: generation, orphanImportedURL: createdCopy) {
+                coordinator.dropErrorMessage = nil
+                onFileSelected(importedURL, nil)
             }
         } catch {
             AppLogger.error("Drop import failed: \(error.localizedDescription)", logger: AppLogger.fileAccess)
             finishDrop(generation: generation) {
-                self.dropErrorMessage = ErrorMapper.userMessage(for: error)
+                coordinator.dropErrorMessage = ErrorMapper.userMessage(for: error)
             }
         }
     }
 }
-
-import UniformTypeIdentifiers

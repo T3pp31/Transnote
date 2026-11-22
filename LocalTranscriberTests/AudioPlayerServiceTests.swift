@@ -212,32 +212,172 @@ final class AudioPlayerServiceTests: XCTestCase {
         XCTAssertFalse(finished)
     }
 
-    func testStatusChangeIgnoresStalePendingGeneration() throws {
-        let service = AudioPlayerService()
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("status-generation-\(UUID().uuidString).wav")
-        let wavHeader = Data([
-            0x52, 0x49, 0x46, 0x46, // RIFF
-            0x24, 0x00, 0x00, 0x00, // size
-            0x57, 0x41, 0x56, 0x45, // WAVE
-            0x66, 0x6d, 0x74, 0x20, // fmt
-            0x10, 0x00, 0x00, 0x00, // fmt size
-            0x01, 0x00, // PCM
-            0x01, 0x00, // channels
-            0x40, 0x1f, 0x00, 0x00, // sample rate 8000
-            0x80, 0x3e, 0x00, 0x00, // byte rate
-            0x02, 0x00, // block align
-            0x10, 0x00, // bits
-            0x64, 0x61, 0x74, 0x61, // data
-            0x00, 0x00, 0x00, 0x00  // data size 0
-        ])
-        FileManager.default.createFile(atPath: url.path, contents: wavHeader)
+    func testPauseBeforePlaybackStartsThenResumeFiresSegmentFinishedCallback() async throws {
+        var finishCount = 0
+        service.load(url: tempAudioURL)
+        service.playSegment(start: 0.0, end: 0.25) {
+            finishCount += 1
+        }
+        // 開始完了前に一時停止する。
+        service.pause()
 
-        service.load(url: url)
+        let startedWhilePaused = await waitUntil(timeout: 0.3) {
+            self.service.isPlaying || self.service.hasActiveTimeObserver || finishCount > 0
+        }
+        XCTAssertFalse(startedWhilePaused, "一時停止中は開始も完了もしないこと")
+
+        // 再開すると seek と timeObserver 登録が行われ、終端で完了コールバックが発火すること。
+        service.resume()
+
+        let completed = await waitUntil(timeout: 3.0) {
+            finishCount > 0
+        }
+        XCTAssertTrue(completed, "開始前の一時停止から再開した場合も完了コールバックが呼ばれること")
+        XCTAssertEqual(finishCount, 1)
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+    }
+
+    func testResumeAfterSegmentFinishedDoesNotRestartPlayback() async throws {
+        var finishCount = 0
+        service.load(url: tempAudioURL)
+        service.playSegment(start: 0.0, end: 0.05) {
+            finishCount += 1
+        }
+
+        let completed = await waitUntil(timeout: 3.0) {
+            finishCount == 1
+        }
+        XCTAssertTrue(completed)
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+
+        service.resume()
+        XCTAssertFalse(service.isPlaying, "セグメント終了後の resume() で再生を再開してはならない")
+        XCTAssertFalse(service.hasActiveTimeObserver)
+    }
+
+    func testPauseResumeAtEndOfAudioFiresFinishedCallback() async throws {
+        let shortURL = try Self.makeSilentWAV(duration: 0.3)
+        defer { try? FileManager.default.removeItem(at: shortURL) }
+
+        var finishCount = 0
+        service.load(url: shortURL)
+        // セグメント終端が音声末尾以上の場合でも、EOF 通知で完了コールバックが発火すること。
+        service.playSegment(start: 0.0, end: 0.5) {
+            finishCount += 1
+        }
+
+        let started = await waitUntil(timeout: 2.0) {
+            self.service.isPlaying && self.service.hasActiveTimeObserver
+        }
+        XCTAssertTrue(started)
+
+        service.pause()
+        XCTAssertFalse(service.isPlaying)
+        service.resume()
+
+        let completed = await waitUntil(timeout: 3.0) {
+            finishCount == 1
+        }
+        XCTAssertTrue(completed, "音声末尾に到達した場合も完了コールバックが呼ばれること")
+        XCTAssertEqual(finishCount, 1)
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+    }
+
+    func testViewModelPauseResumeClearsPlayingAndPausedStateOnFinish() async throws {
+        let viewModel = MainWindowViewModel(audioPlayer: service)
+        viewModel.selectedFile = AudioFileInfo(
+            url: tempAudioURL,
+            fileName: tempAudioURL.lastPathComponent,
+            fileExtension: "wav",
+            fileSizeBytes: 128,
+            formattedFileSize: "128 bytes"
+        )
+        let segment = TranscriptSegment(startTime: 0.0, endTime: 0.3, text: "hello")
+
+        viewModel.playSegment(segment)
+        XCTAssertEqual(viewModel.playingSegmentID, segment.id)
+        XCTAssertFalse(viewModel.isSegmentPaused)
+
+        viewModel.pausePlayback()
+        XCTAssertTrue(viewModel.isSegmentPaused)
+
+        viewModel.resumePlayback()
+        XCTAssertFalse(viewModel.isSegmentPaused)
+
+        let cleared = await waitUntil(timeout: 3.0) {
+            viewModel.playingSegmentID == nil
+        }
+        XCTAssertTrue(cleared, "一時停止・再開後の終了で playingSegmentID が解除されること")
+        XCTAssertFalse(viewModel.isSegmentPaused)
+        XCTAssertEqual(viewModel.playbackPositionText, "")
+    }
+
+    func testStatusChangeIgnoresStalePendingGeneration() async throws {
+        let wavURL = try Self.makeSilentWAV(duration: 1.0)
+        defer { try? FileManager.default.removeItem(at: wavURL) }
+        XCTAssertTrue(FileManager.default.fileExists(atPath: wavURL.path))
+
+        // 1) load -> playSegment -> stop を直後に実行し、遅延コールバックの実行機会を与えても
+        //    isPlaying / hasActiveTimeObserver / loadedURL が戻らないこと。
+        service.load(url: wavURL)
+        let stoppedItem = try XCTUnwrap(service.currentItemForTesting)
         service.playSegment(start: 0, end: 0.5)
         service.stop()
 
+        let resumedAfterStop = await waitUntil(timeout: 0.3) {
+            self.service.isPlaying || self.service.hasActiveTimeObserver || self.service.loadedURL != nil
+        }
+        XCTAssertFalse(resumedAfterStop, "stop 後の遅延ステータス通知で再生が開始されてはならない")
         XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+        XCTAssertNil(service.loadedURL)
+
+        // 2) pause() で player/currentItem を維持したまま generation を進めた後、
+        //    実データを持つ WAV が readyToPlay になっても古い generation 通知が無視されること。
+        let pausedService = AudioPlayerService()
+        defer { pausedService.stop() }
+        pausedService.load(url: wavURL)
+        let pausedItem = try XCTUnwrap(pausedService.currentItemForTesting)
+        pausedService.playSegment(start: 0, end: 0.5)
+        pausedService.pause()
+
+        let pausedItemReady = await waitUntil(timeout: 3.0) {
+            pausedItem.status == .readyToPlay
+        }
+        XCTAssertTrue(pausedItemReady, "実データを持つ WAV が readyToPlay になること")
+
+        // load (gen 1) -> playSegment (gen 2) の遅延ステータス通知を明示的に注入する。
+        pausedService.handlePlayerItemStatusChange(pausedItem, generation: 2)
+        // stop 側の旧 item 通知も無視されることを確認する。
+        service.handlePlayerItemStatusChange(stoppedItem, generation: 2)
+
+        let resumedAfterStaleStatus = await waitUntil(timeout: 0.3) {
+            pausedService.isPlaying
+                || pausedService.hasActiveTimeObserver
+                || self.service.isPlaying
+                || self.service.hasActiveTimeObserver
+        }
+        XCTAssertFalse(resumedAfterStaleStatus, "古い generation のステータス通知で再生が開始されてはならない")
+        XCTAssertFalse(pausedService.isPlaying)
+        XCTAssertFalse(pausedService.hasActiveTimeObserver)
+        XCTAssertEqual(pausedService.loadedURL, wavURL)
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertNil(service.loadedURL)
+
+        // 3) 同じ WAV フィクスチャで通常再生が成立することを確認し、空振りテストを防ぐ。
+        service.load(url: wavURL)
+        service.playSegment(start: 0, end: 0.5)
+        let started = await waitUntil(timeout: 3.0) {
+            self.service.isPlaying && self.service.hasActiveTimeObserver
+        }
+        XCTAssertTrue(started, "同一の WAV フィクスチャで再生開始と timeObserver 登録が成立すること")
+        service.stop()
+        XCTAssertFalse(service.isPlaying)
+        XCTAssertFalse(service.hasActiveTimeObserver)
+        XCTAssertNil(service.loadedURL)
     }
 
     // セグメントを素早く2回連続でタップしても、後者のセグメントの再生が開始されること

@@ -124,7 +124,8 @@ actor WhisperKitTranscriber: Transcriber {
                             phase: .transcribing,
                             fraction: fraction > 0 ? fraction : 0,
                             modelDisplayName: job.modelDisplayName,
-                            partialText: partialText
+                            partialText: partialText,
+                            isPartialTextSanitized: true
                         )
                     )
                     // 最終結果と同じオーバーラップ除外を適用してチェックポイント保存する。
