@@ -578,6 +578,33 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscript?.segments.last?.text, "入力99")
     }
 
+    func testSegmentEditPublishesChangeAndPreservesTranscriptTextAcrossReplacement() {
+        viewModel = MainWindowViewModel()
+        let first = TranscriptSegment(startTime: 0, endTime: 1, text: "先頭")
+        let second = TranscriptSegment(startTime: 1, endTime: 2, text: "末尾")
+        let transcript = Transcript(sourceFileName: "edit.wav", fullText: "先頭\n末尾", segments: [first, second])
+        viewModel.restoreTranscript(transcript)
+
+        var notifications = 0
+        let cancellable = viewModel.objectWillChange.sink { _ in notifications += 1 }
+        defer { cancellable.cancel() }
+
+        viewModel.updateSegmentText(id: second.id, text: "更新1")
+        viewModel.updateSegmentText(id: second.id, text: "更新12")
+        XCTAssertEqual(notifications, 2, "連続セグメント編集で変更通知が毎回送出されること")
+        XCTAssertEqual(viewModel.transcriptText, "先頭\n更新12")
+        XCTAssertEqual(viewModel.currentTranscript?.fullText, "先頭\n更新12")
+        XCTAssertTrue(viewModel.canExport)
+
+        // 不明 ID では不要な通知を出さない。
+        viewModel.updateSegmentText(id: UUID(), text: "無視")
+        XCTAssertEqual(notifications, 2)
+
+        // currentTranscript を別インスタンスへ差し替えても transcriptText が空落ちしないこと。
+        viewModel.currentTranscript = Transcript(sourceFileName: "other.wav", fullText: "別本文")
+        XCTAssertEqual(viewModel.transcriptText, "先頭\n更新12")
+    }
+
     private func configureForTranscription() {
         AppSettings.shared.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(

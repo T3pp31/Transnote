@@ -83,18 +83,44 @@ final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
     @Published var selectedFile: AudioFileInfo?
-    @Published var transcriptText: String = "" {
-        didSet {
-            // 同値の再代入（TextEditor 経由の updateTranscriptText など）では再計算しない。
-            guard transcriptText != oldValue else { return }
-            // 全文の trimmed 文字列を生成せず、最初の非空白文字で早期終了する。
-            hasNonEmptyTranscriptText = transcriptText.unicodeScalars.contains {
-                !CharacterSet.whitespacesAndNewlines.contains($0)
+    private var storedTranscriptText: String = ""
+    /// セグメント編集中は `storedTranscript.fullText` を唯一の本文バッファとして共有し、
+    /// `transcriptText` 側との参照共有による全文 COW コピーと全走査比較を避ける。
+    private var isTranscriptTextSyncedToStoredTranscript = false
+
+    var transcriptText: String {
+        get {
+            if isTranscriptTextSyncedToStoredTranscript {
+                return storedTranscript?.fullText ?? storedTranscriptText
             }
+            return storedTranscriptText
+        }
+        set {
+            if !isTranscriptTextSyncedToStoredTranscript, newValue == storedTranscriptText {
+                return
+            }
+            if isTranscriptTextSyncedToStoredTranscript, let current = storedTranscript?.fullText, newValue == current {
+                return
+            }
+            objectWillChange.send()
+            isTranscriptTextSyncedToStoredTranscript = false
+            storedTranscriptText = newValue
+            // 全文の trimmed 文字列を生成せず、最初の非空白文字で早期終了する。
+            hasNonEmptyTranscriptText = Self.containsNonWhitespaceScalar(newValue)
         }
     }
-    @Published var currentTranscript: Transcript? {
-        didSet {
+
+    private var storedTranscript: Transcript?
+
+    var currentTranscript: Transcript? {
+        get { storedTranscript }
+        set {
+            objectWillChange.send()
+            if isTranscriptTextSyncedToStoredTranscript {
+                storedTranscriptText = storedTranscript?.fullText ?? storedTranscriptText
+                isTranscriptTextSyncedToStoredTranscript = false
+            }
+            storedTranscript = newValue
             // 全文編集・復元・書き出しなど、セグメント編集以外の更新で位置情報を無効化する。
             segmentTextEditLocation = nil
         }
@@ -762,9 +788,15 @@ final class MainWindowViewModel: ObservableObject {
         currentTranscript = transcript
     }
 
+    private static func containsNonWhitespaceScalar(_ text: String) -> Bool {
+        text.unicodeScalars.contains { !CharacterSet.whitespacesAndNewlines.contains($0) }
+    }
+
     /// セグメントのテキストを更新し、currentTranscript と全文に同期する。
+    /// 値型 Transcript の複製を避けて in-place 更新することで、連続入力時の
+    /// セグメント配列 COW コピーと全文バッファの再コピー・全走査を抑止する。
     func updateSegmentText(id: UUID, text: String) {
-        guard var transcript = currentTranscript else { return }
+        guard storedTranscript != nil else { return }
         let previousLocation = segmentTextEditLocation
         let index: Int
         let utf8Offset: Int
@@ -772,28 +804,45 @@ final class MainWindowViewModel: ObservableObject {
             index = previousLocation.index
             utf8Offset = previousLocation.utf8Offset
         } else {
-            guard let segmentIndex = transcript.segments.firstIndex(where: { $0.id == id }) else { return }
+            guard let segmentIndex = storedTranscript?.segments.firstIndex(where: { $0.id == id }) else { return }
             index = segmentIndex
             // セグメント間の区切りは 1 バイトの改行。本文中の改行も文字列長に含める。
-            utf8Offset = transcript.segments.prefix(index).reduce(index) { $0 + $1.text.utf8.count }
+            utf8Offset = storedTranscript!.segments.prefix(index).reduce(index) { $0 + $1.text.utf8.count }
         }
 
-        let previousUTF8Count = transcript.segments[index].text.utf8.count
-        transcript.segments[index].text = text
+        objectWillChange.send()
+
+        // transcriptText 側の重複参照を解放し、storedTranscript.fullText を一意参照にする。
+        if !isTranscriptTextSyncedToStoredTranscript {
+            storedTranscriptText = ""
+            isTranscriptTextSyncedToStoredTranscript = true
+        }
+
+        let previousUTF8Count = storedTranscript!.segments[index].text.utf8.count
+        storedTranscript!.segments[index].text = text
         if previousLocation == nil {
             // 復元時や全文編集後は fullText がセグメント結合と異なる場合がある。
-            // 初回だけ従来どおり結合し、以後は変更した範囲のみ置換する。
-            transcript.fullText = transcript.segments.map(\.text).joined(separator: "\n")
+            // 初回だけ結合して contiguous UTF-8 化し、以後は O(1) オフセットで差分置換する。
+            storedTranscript!.fullText = storedTranscript!.segments.map(\.text).joined(separator: "\n")
+            storedTranscript!.fullText.makeContiguousUTF8()
         } else {
-            let start = transcript.fullText.utf8.index(transcript.fullText.utf8.startIndex, offsetBy: utf8Offset)
-            let end = transcript.fullText.utf8.index(start, offsetBy: previousUTF8Count)
+            storedTranscript!.fullText.makeContiguousUTF8()
+            let start = storedTranscript!.fullText.utf8.index(
+                storedTranscript!.fullText.utf8.startIndex,
+                offsetBy: utf8Offset
+            )
+            let end = storedTranscript!.fullText.utf8.index(start, offsetBy: previousUTF8Count)
             // CR + 区切りの LF が一つの Character になる場合も、セグメント境界で置換する。
-            transcript.fullText.unicodeScalars.replaceSubrange(start..<end, with: text.unicodeScalars)
+            storedTranscript!.fullText.unicodeScalars.replaceSubrange(start..<end, with: text.unicodeScalars)
         }
         hasSegmentTextEdits = true
-        currentTranscript = transcript
         segmentTextEditLocation = SegmentTextEditLocation(id: id, index: index, utf8Offset: utf8Offset)
-        transcriptText = transcript.fullText
+        // 編集後セグメントに非空白文字があれば全文走査を省き O(編集長) で判定する。
+        if Self.containsNonWhitespaceScalar(text) {
+            hasNonEmptyTranscriptText = true
+        } else {
+            hasNonEmptyTranscriptText = Self.containsNonWhitespaceScalar(storedTranscript!.fullText)
+        }
     }
 
     func copyTranscript() {
