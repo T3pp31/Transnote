@@ -887,6 +887,76 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(recovered.id, transcript.id)
         XCTAssertEqual(recovered.fullText, transcript.fullText)
     }
+
+    // MARK: - Bounded LRU search cache & lazy full decode (#820)
+
+    func testHistoryStoreSearchCacheEnforcesEntryAndByteLimits() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        for index in 0..<5 {
+            let transcript = Transcript(
+                sourceFileName: "item-\(index).wav",
+                createdAt: baseDate.addingTimeInterval(Double(index)),
+                fullText: "keyword-\(index) " + String(repeating: "a", count: 200)
+            )
+            try writer.save(transcript)
+        }
+
+        // 件数上限 2 のキャッシュでは、5 件走査してもキャッシュ保持件数が 2 以下に収まる。
+        let entryBoundedStore = HistoryStore(
+            historyRoot: root,
+            maxSearchCacheEntries: 2,
+            maxSearchCacheBytes: 1024 * 1024
+        )
+        let matches = entryBoundedStore.search(query: "keyword", limit: 10)
+        XCTAssertEqual(matches.count, 5, "キャッシュ上限より多い履歴でも検索結果は全件返すこと")
+        XCTAssertLessThanOrEqual(entryBoundedStore.searchCacheEntryCountForTesting, 2)
+
+        // バイト上限を超えるエントリはキャッシュに常駐させない（結果自体は返す）。
+        let byteBoundedStore = HistoryStore(
+            historyRoot: root,
+            maxSearchCacheEntries: 50,
+            maxSearchCacheBytes: 100
+        )
+        XCTAssertEqual(byteBoundedStore.search(query: "keyword-0", limit: 10).count, 1)
+        XCTAssertLessThanOrEqual(byteBoundedStore.searchCacheBytesForTesting, 100)
+        XCTAssertEqual(byteBoundedStore.searchCacheEntryCountForTesting, 0)
+    }
+
+    func testHistoryStoreSearchLoadsFullTranscriptOnlyForReturnedMatches() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let writer = HistoryStore(historyRoot: root)
+        let baseDate = Date(timeIntervalSince1970: 1_700_000_000)
+
+        let transcripts = (0..<10).map { index in
+            Transcript(
+                sourceFileName: "doc-\(index).wav",
+                createdAt: baseDate.addingTimeInterval(Double(index)),
+                fullText: index < 6 ? "shared-needle \(index)" : "unrelated \(index)",
+                segments: [TranscriptSegment(startTime: 0, endTime: 1, text: "seg-\(index)")]
+            )
+        }
+        for item in transcripts {
+            try writer.save(item)
+        }
+
+        let fullReads = HistoryTranscriptReadProbe()
+        let store = HistoryStore(
+            historyRoot: root,
+            readTranscriptData: { try fullReads.read($0) }
+        )
+
+        let results = store.search(query: "shared-needle", limit: 2)
+        XCTAssertEqual(results.map(\.id), [transcripts[5].id, transcripts[4].id])
+        XCTAssertEqual(results.first?.segments.first?.text, "seg-5")
+        XCTAssertEqual(fullReads.urls.count, 2, "不一致や limit 外の履歴は完全デコードしないこと")
+    }
 }
 
 /// ストアと検索 ViewModel の回帰テストで、実ファイルの読み込み回数を検証する。
