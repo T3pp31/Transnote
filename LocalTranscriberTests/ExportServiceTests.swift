@@ -309,11 +309,11 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(try exportService.content(for: transcript, format: .txt), text)
         XCTAssertEqual(
             try exportService.content(for: transcript, format: .srt),
-            "1\n00:00:00,000 --> 00:00:01,000\n\(text)"
+            "1\n00:00:00,000 --> 00:00:01,000\n先頭\n- item\n`code`\n<tag>"
         )
         XCTAssertEqual(
             try exportService.content(for: transcript, format: .vtt),
-            "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n\(text)"
+            "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n先頭\n- item\n`code`\n&lt;tag&gt;"
         )
         let json = try exportService.content(for: transcript, format: .json)
         let decoder = JSONDecoder()
@@ -430,10 +430,12 @@ final class ExportServiceTests: XCTestCase {
             segments: [TranscriptSegment(startTime: 0, endTime: 1, text: text)]
         )
         XCTAssertEqual(try exportService.content(for: transcript, format: .txt), text)
-        for format in [ExportFormat.srt, .vtt] {
-            let content = try exportService.content(for: transcript, format: format)
-            XCTAssertTrue(content.hasSuffix(text), format.rawValue)
-        }
+        XCTAssertTrue(try exportService.content(for: transcript, format: .srt).hasSuffix(text))
+        // VTT は WebVTT のタグ・実体記号 (&, <, >) のみエスケープし、引用符は Markdown HTML のように変換しない。
+        XCTAssertTrue(
+            try exportService.content(for: transcript, format: .vtt)
+                .hasSuffix(#"日本語 &lt;script&gt;alert("x" &amp; 'y')&lt;/script&gt;"#)
+        )
         let json = try exportService.content(for: transcript, format: .json)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -442,6 +444,67 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(decoded.language, text)
         XCTAssertEqual(decoded.fullText, text)
         XCTAssertEqual(decoded.segments.first?.text, text)
+    }
+
+    // MARK: - SRT/VTT cue injection hardening (#842)
+
+    func testSRTAndVTTPreventBlankLineAndTimestampCueInjection() throws {
+        let payloads = [
+            "正規テキスト\n\n2\n00:00:05,000 --> 00:00:09,000\n偽装キュー",
+            "正規テキスト\r\n\r\n00:00:05.000 --> 00:00:09.000\r\n偽装キュー",
+            "正規テキスト\r\r   \r00:00:05.000 --> 00:00:09.000\r偽装キュー",
+            "正規テキスト\n   \t  \nNOTE injected comment\n\n00:00:05.000 --> 00:00:09.000",
+        ]
+
+        for payload in payloads {
+            let transcript = Transcript(
+                sourceFileName: "cue.wav",
+                fullText: payload,
+                segments: [TranscriptSegment(startTime: 0, endTime: 2, text: payload)]
+            )
+
+            let srt = try exportService.content(for: transcript, format: .srt)
+            let srtBlocks = srt.components(separatedBy: "\n\n")
+            XCTAssertEqual(srtBlocks.count, 1, "SRT は 1 セグメント 1 キューを保証すること: \(payload.debugDescription)")
+            let srtTextLines = srtBlocks[0].components(separatedBy: "\n").dropFirst(2)
+            for line in srtTextLines {
+                XCTAssertFalse(line.contains("-->"), "SRT 本文行に --> を含めてはならない: \(line)")
+                XCTAssertFalse(line.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+
+            let vtt = try exportService.content(for: transcript, format: .vtt)
+            let vttBlocks = vtt.components(separatedBy: "\n\n")
+            XCTAssertEqual(vttBlocks.count, 2, "VTT は WEBVTT ヘッダ + 1 キューのみであること: \(payload.debugDescription)")
+            XCTAssertEqual(vttBlocks[0], "WEBVTT")
+            let vttTextLines = vttBlocks[1].components(separatedBy: "\n").dropFirst(1)
+            for line in vttTextLines {
+                XCTAssertFalse(line.contains("-->"), "VTT 本文行に --> を含めてはならない: \(line)")
+                XCTAssertFalse(line.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+    }
+
+    func testSRTAndVTTStripControlCharactersAndSanitizeFallbackSegment() throws {
+        let crafted = "hello\u{0000}\u{0007}\u{001B}\u{007F}\n\n00:01:00.000 --> 00:02:00.000\n<v Speaker><00:00:01.000>spoof"
+        let transcript = Transcript(
+            sourceFileName: "fallback.wav",
+            fullText: crafted,
+            segments: []
+        )
+
+        let srt = try exportService.content(for: transcript, format: .srt)
+        XCTAssertEqual(srt.components(separatedBy: "\n\n").count, 1)
+        XCTAssertFalse(srt.contains("\u{0000}"))
+        XCTAssertFalse(srt.contains("\u{0007}"))
+        XCTAssertFalse(srt.contains("\u{001B}"))
+        XCTAssertFalse(srt.contains("\u{007F}"))
+        XCTAssertTrue(srt.contains("00:01:00.000 -- > 00:02:00.000"))
+
+        let vtt = try exportService.content(for: transcript, format: .vtt)
+        XCTAssertEqual(vtt.components(separatedBy: "\n\n").count, 2)
+        XCTAssertFalse(vtt.contains("\u{0000}"))
+        XCTAssertTrue(vtt.contains("00:01:00.000 --&gt; 00:02:00.000"))
+        XCTAssertTrue(vtt.contains("&lt;v Speaker&gt;&lt;00:00:01.000&gt;spoof"))
     }
 
 }
