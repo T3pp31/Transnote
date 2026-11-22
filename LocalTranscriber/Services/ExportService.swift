@@ -60,10 +60,10 @@ struct ExportService {
 
     private func exportMarkdown(_ transcript: Transcript) -> String {
         var lines: [String] = []
-        lines.append("# Transcript: \(escapeMarkdown(transcript.sourceFileName))")
+        lines.append("# Transcript: \(escapeMarkdown(singleLine(transcript.sourceFileName)))")
         lines.append("")
         if let language = transcript.language {
-            lines.append("Language: \(escapeMarkdown(language))")
+            lines.append("Language: \(escapeMarkdown(singleLine(language)))")
             lines.append("")
         }
         lines.append("## Full Text")
@@ -78,17 +78,20 @@ struct ExportService {
             let start = formatTimestamp(segment.startTime, separator: ".")
             let end = formatTimestamp(segment.endTime, separator: ".")
             // 続き行が別のリスト・引用・コードブロックを開始しないよう、本文を 1 行に収める。
-            let text = segment.text
-                .replacingOccurrences(of: "\r\n", with: " ")
-                .replacingOccurrences(of: "\r", with: " ")
-                .replacingOccurrences(of: "\n", with: " ")
-            lines.append("- [\(start) --> \(end)] \(escapeMarkdown(text))")
+            lines.append("- [\(start) --> \(end)] \(escapeMarkdown(singleLine(segment.text)))")
         }
 
         return lines.joined(separator: "\n")
     }
 
-    /// Markdown の見出し・リスト・リンクを壊さないよう、
+    private func singleLine(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\r\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\n", with: " ")
+    }
+
+    /// Markdown の見出し・リスト・リンク・打ち消し線・表を壊さないよう、
     /// ファイル名・言語・セグメントテキストに含まれる特殊文字と生 HTML をエスケープする。
     private func escapeMarkdown(_ text: String) -> String {
         let escaped = text
@@ -99,6 +102,8 @@ struct ExportService {
             .replacingOccurrences(of: "]", with: "\\]")
             .replacingOccurrences(of: "#", with: "\\#")
             .replacingOccurrences(of: "`", with: "\\`")
+            .replacingOccurrences(of: "~", with: "\\~")
+            .replacingOccurrences(of: "|", with: "\\|")
         // 生成する文字参照の # を Markdown エスケープしないよう、HTML は最後に処理する。
         return escapeHTML(escaped)
     }

@@ -251,8 +251,30 @@ final class ExportServiceTests: XCTestCase {
 
             XCTAssertEqual(content, [
                 "# Transcript: test.wav", "", "## Full Text", "", "full text", "", "## Segments", "",
-                #"- [00:00:00.000 --> 00:00:01.000] 先頭 - bullet + bullet 1. ordered &gt; quote \`\`\`swift code \`\`\` ~~~ ---  末尾"#,
+                #"- [00:00:00.000 --> 00:00:01.000] 先頭 - bullet + bullet 1. ordered &gt; quote \`\`\`swift code \`\`\` \~\~\~ ---  末尾"#,
                 "- [00:00:01.000 --> 00:00:02.000] 次のセグメント"
+            ].joined(separator: "\n"), "改行: \(newline.debugDescription)")
+        }
+    }
+
+    func testMarkdownEscapesNewlinesTildeAndPipeInFileNameLanguageAndSegments() throws {
+        for newline in ["\n", "\r\n", "\r"] {
+            let transcript = Transcript(
+                sourceFileName: "meeting~~draft~~|1\(newline)## Injected.wav",
+                language: "ja~~v1~~|alt\(newline)- item",
+                fullText: "body",
+                segments: [
+                    TranscriptSegment(startTime: 0, endTime: 1, text: "~~strike~~ | col")
+                ]
+            )
+
+            let content = try exportService.content(for: transcript, format: .markdown)
+
+            XCTAssertEqual(content, [
+                ##"# Transcript: meeting\~\~draft\~\~\|1 \#\# Injected.wav"##, "",
+                #"Language: ja\~\~v1\~\~\|alt - item"#, "",
+                "## Full Text", "", "body", "", "## Segments", "",
+                #"- [00:00:00.000 --> 00:00:01.000] \~\~strike\~\~ \| col"#
             ].joined(separator: "\n"), "改行: \(newline.debugDescription)")
         }
     }
