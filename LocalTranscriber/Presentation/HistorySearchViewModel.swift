@@ -8,8 +8,9 @@ final class HistorySearchViewModel: ObservableObject {
     private let searchHistory: @Sendable (String) -> [Transcript]
     private let waitForDebounce: @Sendable () async throws -> Void
     private var generation = 0
-    /// 検索語の変更時に古い走査を打ち切るため、進行中の detached タスクを保持する。
+    /// 検索語の変更時に古い走査を打ち切るため、進行中の detached タスクと所有世代を保持する。
     private var searchTask: Task<[Transcript]?, Never>?
+    private var searchTaskGeneration: Int?
 
     init(
         historyStore: HistoryStore = HistoryStore(),
@@ -49,10 +50,12 @@ final class HistorySearchViewModel: ObservableObject {
             return searchHistory(query)
         }
         searchTask = task
+        searchTaskGeneration = requestGeneration
         let results = await task.value
-        // 後続の検索が保持したタスクハンドルを上書きしないよう、自分のタスクの場合のみ解放する。
-        if searchTask == task {
+        // 後続の検索が保持したタスクハンドルを上書きしないよう、所有世代が一致する場合のみ解放する。
+        if searchTaskGeneration == requestGeneration {
             searchTask = nil
+            searchTaskGeneration = nil
         }
 
         // 同期 I/O の完了順が逆転しても、古い検索・キャンセル済みの走査・閉じたシートには反映しない。

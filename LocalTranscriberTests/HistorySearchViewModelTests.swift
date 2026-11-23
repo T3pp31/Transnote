@@ -232,6 +232,59 @@ final class HistorySearchViewModelTests: XCTestCase {
         XCTAssertEqual(oldCancellation.value, true, "新しい検索語で古い走査タスクがキャンセルされること")
     }
 
+    func testCompletedOlderSearchDoesNotClearNewerSearchTaskOwnership() async {
+        let firstStarted = expectation(description: "first search started")
+        let secondStarted = expectation(description: "second search started")
+        let thirdStarted = expectation(description: "third search started")
+        let firstRelease = DispatchSemaphore(value: 0)
+        let secondRelease = DispatchSemaphore(value: 0)
+        defer {
+            firstRelease.signal()
+            secondRelease.signal()
+        }
+        let secondCancellation = CancellationRecorder()
+        let thirdTranscript = Transcript(sourceFileName: "third.wav")
+        let model = HistorySearchViewModel(
+            searchHistory: { query in
+                switch query {
+                case "first":
+                    firstStarted.fulfill()
+                    XCTAssertEqual(firstRelease.wait(timeout: .now() + 5), .success)
+                    return [Transcript(sourceFileName: "first.wav")]
+                case "second":
+                    secondStarted.fulfill()
+                    XCTAssertEqual(secondRelease.wait(timeout: .now() + 5), .success)
+                    secondCancellation.record(Task.isCancelled)
+                    return [Transcript(sourceFileName: "second.wav")]
+                default:
+                    thirdStarted.fulfill()
+                    return [thirdTranscript]
+                }
+            },
+            waitForDebounce: {}
+        )
+
+        let first = Task { await model.search(query: "first") }
+        await fulfillment(of: [firstStarted], timeout: 2)
+
+        let second = Task { await model.search(query: "second") }
+        await fulfillment(of: [secondStarted], timeout: 2)
+
+        // first が second 実行中に完了しても、second のタスク所有権を消してはならない。
+        firstRelease.signal()
+        await first.value
+
+        let third = Task { await model.search(query: "third") }
+        await fulfillment(of: [thirdStarted], timeout: 2)
+        await third.value
+
+        secondRelease.signal()
+        await second.value
+
+        XCTAssertEqual(secondCancellation.value, true, "古い検索の完了後も後続タスクをキャンセルできること")
+        XCTAssertEqual(model.items.map(\.id), [thirdTranscript.id])
+    }
+
     func testCanceledQueryDuringDebounceDoesNotStartSearch() async {
         let started = expectation(description: "debounce started")
         let release = DispatchSemaphore(value: 0)
