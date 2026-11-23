@@ -102,7 +102,26 @@ jobs:
             echo "AppName must contain only alphanumerics, '.', '_' or '-'." >&2
             exit 1
           fi
-          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
+          install_script_name="$(/usr/libexec/PlistBuddy -c 'Print :InstallScriptName' Config/distribution.plist)"
+          if [[ -z "$install_script_name" || "$install_script_name" == *$'\n'* || "$install_script_name" == *$'\r'* ]]; then
+            echo "InstallScriptName must be a non-empty single-line value." >&2
+            exit 1
+          fi
+          if [[ "$install_script_name" == */* || "$install_script_name" == *['$`"'\''\\']* ]]; then
+            echo "InstallScriptName contains unsafe characters." >&2
+            exit 1
+          fi
+          expected_repo="$(python3 -c '
+          import json, re, sys
+          with open("Config/github-config.json", encoding="utf-8") as f:
+              data = json.load(f)
+          repo = data.get("expected_repository", "")
+          if not isinstance(repo, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+              sys.exit("expected_repository must be a valid owner/repo string")
+          print(repo)
+          ')"
+          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\nINSTALL_SCRIPT_NAME=%s\nEXPECTED_REPOSITORY=%s\n' \
+            "$app_name" "$app_name" "$install_script_name" "$expected_repo" >> "$GITHUB_ENV"
 
       - name: Sync MARKETING_VERSION
         env:
@@ -318,7 +337,7 @@ jobs:
 
           ※ この案内は **${APP_NAME} について**のものです。他のアプリで同様の警告が出たときは、そのアプリの配布元が信頼できるか必ず確認してください。
 
-          DMG と **${APP_NAME}.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **インストール.command** を実行してください（旧バージョンは自動的に置き換えられます）。
+          DMG と **${APP_NAME}.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **${INSTALL_SCRIPT_NAME}** を実行してください（旧バージョンは自動的に置き換えられます）。
 
           ## SHA256 チェックサム
 
@@ -335,7 +354,7 @@ jobs:
           shasum -a 256 -c ${VERSIONED_DMG_NAME}.sha256
           \`\`\`
 
-          詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
+          詳細は [インストール手順](https://github.com/${EXPECTED_REPOSITORY}/blob/main/docs/install.md) を参照してください。
 
           > **コード署名について**: $signature_note
           EOF
