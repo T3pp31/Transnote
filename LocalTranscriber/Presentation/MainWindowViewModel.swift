@@ -469,15 +469,21 @@ final class MainWindowViewModel: ObservableObject {
 
                 refreshModelAvailability()
                 if activeModelDownloadID == downloadID {
-                    uiState = .idle
-                    progressDisplay = .idle()
+                    let hasResult = currentTranscript != nil
+                    uiState = hasResult ? .done : .idle
+                    progressDisplay = hasResult ? .done() : .idle()
                     announcePhaseIfNeeded(.finished)
                     showToast(modelDownloadSuccessToastMessage())
                     AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
                 }
             } catch {
                 if activeModelDownloadID == downloadID, !Task.isCancelled {
+                    let hasResult = currentTranscript != nil
                     handleError(error, context: .modelDownload)
+                    if hasResult {
+                        uiState = .done
+                        progressDisplay = .done()
+                    }
                 }
             }
 
@@ -874,8 +880,9 @@ final class MainWindowViewModel: ObservableObject {
         if wasDownloading {
             operationCoordinator.end(.modelDownload)
         }
-        uiState = .idle
-        progressDisplay = .idle()
+        let hasResult = currentTranscript != nil
+        uiState = hasResult ? .done : .idle
+        progressDisplay = hasResult ? .done() : .idle()
         lastAnnouncedPhase = nil
         AccessibilityNotification.Announcement(
             NSLocalizedString("処理をキャンセルしました。", comment: "Accessibility announcement for cancellation")

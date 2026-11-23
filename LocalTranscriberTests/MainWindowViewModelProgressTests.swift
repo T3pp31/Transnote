@@ -743,6 +743,78 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(attemptCount.value, 2)
     }
 
+    func testModelDownloadCancelFailureAndCompletionPreserveDoneStateWithExistingTranscript() async throws {
+        let modelsRoot = isolatedRoot.appendingPathComponent("DownloadDoneStateModels", isDirectory: true)
+        try FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+        let availability = ModelAvailabilityService(modelsRoot: modelsRoot)
+        let cancelStarted = ProgressGate()
+        let cancelObserved = ProgressGate()
+        let attemptCount = DownloadAttemptBox()
+
+        let downloadService = ModelDownloadService(
+            modelsRoot: modelsRoot,
+            modelAvailability: availability,
+            downloadModel: { variant, downloadBase, _ in
+                let currentAttempt = attemptCount.increment()
+                switch currentAttempt {
+                case 1:
+                    cancelStarted.open()
+                    try await withTaskCancellationHandler {
+                        try await Task.sleep(nanoseconds: 10_000_000_000)
+                    } onCancel: {
+                        cancelObserved.open()
+                    }
+                    throw CancellationError()
+                case 2:
+                    throw AppError.fileAccessDenied
+                default:
+                    let folder = downloadBase.appendingPathComponent("openai_whisper-\(variant)", isDirectory: true)
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+                        try Data("model".utf8).write(to: folder.appendingPathComponent("\(name).mlmodelc"))
+                    }
+                    return folder
+                }
+            },
+            retryDelayNanoseconds: { _ in 0 }
+        )
+
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel(
+            modelsRoot: modelsRoot,
+            modelAvailability: availability,
+            modelDownloadService: downloadService
+        )
+        let existing = Transcript(sourceFileName: "done.wav", fullText: "完了済みテキスト")
+        viewModel.restoreTranscript(existing)
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+
+        // 1) ダウンロードキャンセル時に .done / .done() が復元されること
+        viewModel.downloadSelectedModel()
+        await cancelStarted.wait()
+        XCTAssertTrue(viewModel.isDownloadingModel)
+        viewModel.cancelModelDownload()
+        await cancelObserved.wait()
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existing.id)
+
+        // 2) ダウンロード失敗時にも .done / .done() が維持されること
+        viewModel.downloadSelectedModel()
+        try await waitUntil { !self.viewModel.isBusy && self.viewModel.inlineErrorMessage != nil }
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existing.id)
+
+        // 3) ダウンロード完了時にも .done / .done() が維持されること
+        viewModel.downloadSelectedModel()
+        try await waitUntil { self.viewModel.downloadedModelIDs.contains("base") && !self.viewModel.isBusy }
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existing.id)
+    }
+
     func testCancelActiveOperationCancelsRunningTranscription() async throws {
         let gate = ProgressGate()
         let mock = MockProgressTranscriber(
