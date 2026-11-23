@@ -36,8 +36,15 @@ if command == "PlistBuddy":
     except (KeyError, IndexError):
         sys.exit(1)
 elif command == "hdiutil" and args == ["info"]:
-    print("image-path : " + os.environ["MOCK_DMG"])
-    print(os.environ["MOCK_VOLUME"])
+    custom_info = os.environ.get("MOCK_HDIUTIL_INFO")
+    if custom_info is not None:
+        sys.stdout.write(custom_info)
+    else:
+        print("image-path : " + os.environ["MOCK_DMG"])
+        print(os.environ["MOCK_VOLUME"])
+elif command == "hdiutil" and args and args[0] == "detach":
+    if os.environ.get("MOCK_DETACH_FAIL") == "1":
+        sys.exit(16)
 elif command == "shasum":
     print(hashlib.sha256(Path(args[2]).read_bytes()).hexdigest() + "  " + args[2])
 elif command == "spctl":
@@ -263,6 +270,76 @@ class InstallerTests(unittest.TestCase):
         self.assert_no_install(run)
         self.assertIn("SHA256 チェックサムが一致しません", (run / "events").read_text())
         self.assertEqual((self.target / "marker").read_text(), "old")
+        self.assert_clean()
+
+    def test_exact_mount_point_ignores_prefix_collision_and_metadata(self):
+        other_dmg = self.work / "Other.dmg"
+        other_dmg.write_bytes(b"other unrelated dmg")
+        # Other DMG has a matching sidecar, so selecting it would bypass Transnote.dmg verification.
+        Path(str(other_dmg) + ".sha256").write_text(
+            hashlib.sha256(other_dmg.read_bytes()).hexdigest()
+        )
+        # Verify exact mount point selects Transnote.dmg over an earlier prefix-matching DMG.
+        hdiutil_info = "\n".join([
+            "================================================",
+            f"image-path      : {other_dmg}",
+            f"image-alias     : {self.volume}/alias.dmg",
+            f"/dev/disk4s1\tApple_HFS\t{self.volume} 1",
+            "================================================",
+            f"image-path      : {self.dmg}",
+            f"/dev/disk5s1\tApple_HFS\t{self.volume}",
+            "",
+        ])
+        proc, run = self.start("exact-mount-ok", MOCK_HDIUTIL_INFO=hdiutil_info)
+        code, output = self.result(proc)
+        self.assertEqual(code, 0, output)
+        events = (run / "events").read_text()
+        self.assertIn(f"shasum -a 256 {self.dmg}", events)
+        self.assertNotIn(str(other_dmg), events)
+        self.assertIn(f"hdiutil detach {self.volume} -quiet", events)
+        self.assertEqual((self.target / "marker").read_text(), "new")
+        self.assert_clean()
+
+        # Verify a prefix-only mount point without an exact match fails instead of selecting Other.dmg.
+        hdiutil_prefix_only = "\n".join([
+            "================================================",
+            f"image-path      : {other_dmg}",
+            f"image-alias     : {self.volume}/alias.dmg",
+            f"/dev/disk4s1\tApple_HFS\t{self.volume} 1",
+            "",
+        ])
+        proc_fail, run_fail = self.start("exact-mount-miss", MOCK_HDIUTIL_INFO=hdiutil_prefix_only)
+        code_fail, _ = self.result(proc_fail)
+        self.assertNotEqual(code_fail, 0)
+        self.assert_no_install(run_fail)
+        self.assertIn("マウント中の DMG パスを取得できませんでした", (run_fail / "events").read_text())
+        self.assertNotIn(str(other_dmg), (run_fail / "events").read_text())
+        self.assert_clean()
+
+        # Verify mount-point key format rejects prefix match and selects exact volume.
+        hdiutil_mount_point_info = "\n".join([
+            f"image-path : {other_dmg}",
+            f"mount-point : {self.volume} 1",
+            f"image-path : {self.dmg}",
+            f"mount-point : {self.volume}",
+            "",
+        ])
+        proc2, run2 = self.start("exact-mount-key", MOCK_HDIUTIL_INFO=hdiutil_mount_point_info)
+        code2, output2 = self.result(proc2)
+        self.assertEqual(code2, 0, output2)
+        events2 = (run2 / "events").read_text()
+        self.assertIn(f"shasum -a 256 {self.dmg}", events2)
+        self.assertNotIn(str(other_dmg), events2)
+        self.assert_clean()
+
+    def test_detach_failure_emits_warning_to_stderr(self):
+        proc, run = self.start("detach-fail", MOCK_DETACH_FAIL="1")
+        code, output = self.result(proc)
+        self.assertEqual(code, 0, output)
+        self.assertIn("Warning:", output)
+        self.assertIn(str(self.volume), output)
+        self.assertIn(f"hdiutil detach {self.volume} -quiet", (run / "events").read_text())
+        self.assertEqual((self.target / "marker").read_text(), "new")
         self.assert_clean()
 
 
