@@ -1,20 +1,23 @@
 import Foundation
 
 struct AudioImportService: Sendable {
-    private static let copyBufferSize = 64 * 1024
+    static let defaultCopyBufferSize = 64 * 1024
 
     let importsRoot: URL
     private let fileManager: FileManager
     private let maxImportFileSizeBytes: Int64
+    private let copyBufferSize: Int
 
     init(
         importsRoot: URL = AppDirectories.importsDirectory,
         fileManager: FileManager = .default,
-        maxImportFileSizeBytes: Int64 = AppConfig.shared.maxImportFileSizeBytes
+        maxImportFileSizeBytes: Int64 = AppConfig.shared.maxImportFileSizeBytes,
+        copyBufferSize: Int = AudioImportService.defaultCopyBufferSize
     ) {
         self.importsRoot = importsRoot
         self.fileManager = fileManager
         self.maxImportFileSizeBytes = maxImportFileSizeBytes
+        self.copyBufferSize = max(1, copyBufferSize)
     }
 
     func importFile(
@@ -120,7 +123,7 @@ struct AudioImportService: Sendable {
             outputStream.close()
         }
 
-        var buffer = [UInt8](repeating: 0, count: Self.copyBufferSize)
+        var buffer = [UInt8](repeating: 0, count: copyBufferSize)
         var copiedBytes: Int64 = 0
 
         // hasBytesAvailable は read の前に必ずしも正確ではないため、
