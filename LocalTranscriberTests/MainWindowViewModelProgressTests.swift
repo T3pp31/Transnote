@@ -792,6 +792,29 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(viewModel.transcriptText, "先頭\n更新12")
     }
 
+    func testSegmentEditDraftFlushesAcrossSegmentSwitchesAndPreservesHeldSnapshots() {
+        viewModel = makeIsolatedViewModel()
+        let first = TranscriptSegment(startTime: 0, endTime: 1, text: "先頭")
+        let middle = TranscriptSegment(startTime: 1, endTime: 2, text: "中間")
+        let last = TranscriptSegment(startTime: 2, endTime: 3, text: "末尾")
+        let initial = Transcript(sourceFileName: "draft.wav", fullText: "先頭\n中間\n末尾", segments: [first, middle, last])
+        viewModel.restoreTranscript(initial)
+
+        // スナップショットを保持したまま同一セグメントを連続編集しても整合性を保つ。
+        let heldSnapshot = viewModel.currentTranscript
+        viewModel.updateSegmentText(id: last.id, text: "末尾1")
+        viewModel.updateSegmentText(id: last.id, text: "末尾12")
+        viewModel.updateSegmentText(id: last.id, text: "末尾123")
+        XCTAssertEqual(heldSnapshot?.segments.map(\.text), ["先頭", "中間", "末尾"])
+        XCTAssertEqual(viewModel.transcriptText, "先頭\n中間\n末尾123")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["先頭", "中間", "末尾123"])
+
+        // 別セグメントへ移ると直前ドラフトが確定し、両方の編集が保持される。
+        viewModel.updateSegmentText(id: first.id, text: "新しい先頭")
+        XCTAssertEqual(viewModel.transcriptText, "新しい先頭\n中間\n末尾123")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["新しい先頭", "中間", "末尾123"])
+    }
+
     private func configureForTranscription() {
         isolatedSettings.selectedModelID = "base"
         viewModel.selectedFile = AudioFileInfo(
