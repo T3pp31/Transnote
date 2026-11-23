@@ -21,17 +21,27 @@ final class TranscriptionSmokeTests: XCTestCase {
     }
 
     func testSmokeTranscriptionWithFixtureIfAvailable() async throws {
-        guard let audioURL = fixtureURL else {
-            throw XCTSkip("No local audio fixture available. Add LocalTranscriberTests/Fixtures/sample.wav to run this test.")
-        }
-
         try XCTSkipUnless(
             ProcessInfo.processInfo.environment["RUN_WHISPER_SMOKE_TEST"] == "1",
             "Set RUN_WHISPER_SMOKE_TEST=1 to run the real-model smoke test."
         )
 
-        let transcriber = WhisperKitTranscriber()
-        let downloadService = ModelDownloadService()
+        guard let audioURL = fixtureURL else {
+            XCTFail("RUN_WHISPER_SMOKE_TEST=1 was set, but audio fixture LocalTranscriberTests/Fixtures/sample.wav is missing.")
+            return
+        }
+
+        let isolatedModelsRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("SmokeModels-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: isolatedModelsRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: isolatedModelsRoot) }
+
+        let availability = ModelAvailabilityService(modelsRoot: isolatedModelsRoot)
+        let transcriber = WhisperKitTranscriber(modelAvailability: availability)
+        let downloadService = ModelDownloadService(
+            modelsRoot: isolatedModelsRoot,
+            modelAvailability: availability
+        )
         _ = try await downloadModelForSmokeTest {
             try await downloadService.downloadIfNeeded(
                 whisperKitModelName: "tiny",

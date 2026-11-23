@@ -4,6 +4,7 @@ final class ModelAvailabilityService: @unchecked Sendable {
     private let modelsRoot: URL
     private let fileManager: FileManager
     private let directoryScanner: (@Sendable (Bool) -> [URL])?
+    private let now: @Sendable () -> Date
 
     // 毎回の再帰走査を避けるためのインメモリインデックス。
     // モデルフォルダが変わった場合に備え、TTL（30秒）で再構築する。
@@ -22,11 +23,13 @@ final class ModelAvailabilityService: @unchecked Sendable {
     init(
         modelsRoot: URL = AppDirectories.modelsDirectory,
         fileManager: FileManager = .default,
-        directoryScanner: (@Sendable (Bool) -> [URL])? = nil
+        directoryScanner: (@Sendable (Bool) -> [URL])? = nil,
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.modelsRoot = modelsRoot
         self.fileManager = fileManager
         self.directoryScanner = directoryScanner
+        self.now = now
     }
 
     func isDownloaded(whisperKitModelName: String) -> Bool {
@@ -82,14 +85,15 @@ final class ModelAvailabilityService: @unchecked Sendable {
             let cached = cachedIndex
             let generation = cacheGeneration
             cacheLock.unlock()
-            if let cached, Date().timeIntervalSince(cached.timestamp) < 30 {
+            let currentTime = now()
+            if let cached, currentTime.timeIntervalSince(cached.timestamp) < 30 {
                 allDirectories = cached.directories
             } else {
                 allDirectories = scanVariantDirectories(includingHidden: false)
                 cacheLock.lock()
                 // 走査中に無効化された場合、古い結果でキャッシュを復活・上書きしない。
                 if generation == cacheGeneration {
-                    cachedIndex = IndexEntry(timestamp: Date(), directories: allDirectories)
+                    cachedIndex = IndexEntry(timestamp: now(), directories: allDirectories)
                 }
                 cacheLock.unlock()
             }

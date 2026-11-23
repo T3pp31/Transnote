@@ -35,31 +35,58 @@ def workflow_test_command(mode):
 
 
 class RunTestsScriptTests(unittest.TestCase):
-    def run_script(self, args, overrides=None, exit_code=0, command=None):
+    def run_script(
+        self,
+        args,
+        overrides=None,
+        exit_code=0,
+        command=None,
+        summary_data=None,
+    ):
         with tempfile.TemporaryDirectory(prefix="run tests ") as directory:
             work = Path(directory)
             log = work / "invocations.jsonl"
-            stub = work / "xcodebuild-stub.py"
+            stub = work / "tool-stub.py"
             stub.write_text(
-                "import json, os, sys\n"
-                "with open(os.environ['XCODEBUILD_LOG'], 'a', encoding='utf-8') as log:\n"
-                "    log.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-                "sys.exit(int(os.environ['XCODEBUILD_EXIT_CODE']))\n",
+                "import json, os, pathlib, sys\n"
+                "tool = sys.argv[1]\n"
+                "args = sys.argv[2:]\n"
+                "if tool == 'xcodebuild':\n"
+                "    with open(os.environ['XCODEBUILD_LOG'], 'a', encoding='utf-8') as log:\n"
+                "        log.write(json.dumps(args) + '\\n')\n"
+                "    if '-resultBundlePath' in args:\n"
+                "        bundle = pathlib.Path(args[args.index('-resultBundlePath') + 1])\n"
+                "        bundle.mkdir(parents=True, exist_ok=True)\n"
+                "    sys.exit(int(os.environ['XCODEBUILD_EXIT_CODE']))\n"
+                "elif tool == 'xcrun':\n"
+                "    assert args[:4] == ['xcresulttool', 'get', 'test-results', 'summary'], args\n"
+                "    print(os.environ['XCRESULT_SUMMARY'])\n"
+                "    sys.exit(0)\n"
+                "sys.exit(2)\n",
                 encoding="utf-8",
             )
+            default_summary = {
+                "totalTestCount": 10,
+                "devicesAndConfigurations": [
+                    {"passedTests": 9, "failedTests": 0, "expectedFailures": 0, "skippedTests": 1}
+                ],
+            }
             env = dict(os.environ)
-            for key in DEFAULTS:
+            for key in (*DEFAULTS, "RESULT_ROOT"):
                 env.pop(key, None)
-            env.update(overrides or {})
             env.update({
+                "RESULT_ROOT": str(work / "results"),
                 "TOOL_STUB": str(stub),
                 "XCODEBUILD_LOG": str(log),
                 "XCODEBUILD_EXIT_CODE": str(exit_code),
+                "XCRESULT_SUMMARY": json.dumps(summary_data if summary_data is not None else default_summary),
             })
+            env.update(overrides or {})
             # Nightly の回帰テストと同様、実行権限不要の shell 関数で差し替える。
             wrappers = '''
-xcodebuild() { python3 "$TOOL_STUB" "$@"; }
-export -f xcodebuild
+xcodebuild() { python3 "$TOOL_STUB" xcodebuild "$@"; }
+xcrun() { python3 "$TOOL_STUB" xcrun "$@"; }
+export -f xcodebuild xcrun
 '''
             argv = ["bash", "-e", "-o", "pipefail", "-c", wrappers + (command or 'bash "$@"'),
                     "test-run-tests", str(ROOT / "scripts/run-tests.sh"), *args]
@@ -78,8 +105,10 @@ export -f xcodebuild
             "-scheme", settings["SCHEME"], "-destination", "platform=macOS",
             "CODE_SIGNING_ALLOWED=NO", "-derivedDataPath", settings["DERIVED_DATA_PATH"],
         ])
+        self.assertEqual(args[10], "-resultBundlePath")
+        self.assertTrue(args[11].endswith(f"/{mode}Tests.xcresult"), args[11])
         # 完全一致で余分な除外や only-testing の混入も検出する。
-        self.assertCountEqual(args[10:], [DOWNLOAD, LOAD, UI] if mode == "ci" else [DOWNLOAD, LOAD])
+        self.assertCountEqual(args[12:], [DOWNLOAD, LOAD, UI] if mode == "ci" else [DOWNLOAD, LOAD])
 
     def test_modes_preserve_existing_test_selection(self):
         for mode in ("ci", "release"):
@@ -123,6 +152,25 @@ export -f xcodebuild
                 result, invocations = self.run_script([], command=command)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assert_invocation(invocations, mode)
+
+    def test_zero_total_or_all_skipped_results_fail(self):
+        cases = [
+            ("zero_total", {"totalTestCount": 0, "devicesAndConfigurations": []}),
+            (
+                "all_skipped",
+                {
+                    "totalTestCount": 5,
+                    "devicesAndConfigurations": [
+                        {"passedTests": 0, "failedTests": 0, "expectedFailures": 0, "skippedTests": 5}
+                    ],
+                },
+            ),
+        ]
+        for label, summary in cases:
+            with self.subTest(case=label):
+                result, _ = self.run_script(["ci"], summary_data=summary)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIn("executed 0 tests", result.stderr)
 
 
 if __name__ == "__main__":
