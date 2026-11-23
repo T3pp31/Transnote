@@ -662,7 +662,11 @@ final class MainWindowViewModel: ObservableObject {
                 } else {
                     uiState = previousUIState
                     progressDisplay = previousProgressDisplay
-                    handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
+                    handleError(
+                        error,
+                        context: .fileImport(url: url, preferredFileName: preferredFileName),
+                        preserveUIState: true
+                    )
                 }
             }
         }
@@ -1212,7 +1216,7 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    private func presentCriticalError(title: String, message: String) {
+    private func presentCriticalError(title: String, message: String, preserveUIState: Bool = false) {
         errorMessage = message
         criticalErrorTitle = title
         criticalErrorMessage = message
@@ -1220,12 +1224,12 @@ final class MainWindowViewModel: ObservableObject {
         inlineErrorMessage = nil
         canRetryError = false
         lastRecoverableAction = nil
-        if uiState != .preparing && uiState != .transcribing {
+        if !preserveUIState, uiState != .preparing && uiState != .transcribing {
             uiState = .idle
         }
     }
 
-    private func handleError(_ error: Error, context: ErrorContext) {
+    private func handleError(_ error: Error, context: ErrorContext, preserveUIState: Bool = false) {
         let message = ErrorMapper.userMessage(for: error)
 
         // ログには元エラー（技術詳細）を記録し、ユーザー向けメッセージとは分離する。
@@ -1245,14 +1249,19 @@ final class MainWindowViewModel: ObservableObject {
         AppLogger.error("\(logError)", logger: AppLogger.general)
 
         if isCriticalError(error) {
-            presentCriticalError(title: criticalTitle(for: error), message: message)
+            presentCriticalError(
+                title: criticalTitle(for: error),
+                message: message,
+                preserveUIState: preserveUIState
+            )
         } else {
             let info = inlineErrorInfo(for: error, context: context)
             presentInlineError(
                 title: info.title,
                 message: message,
                 canRetry: info.canRetry,
-                action: info.action
+                action: info.action,
+                preserveUIState: preserveUIState
             )
         }
         // キャンセル・失敗も VoiceOver で通知する

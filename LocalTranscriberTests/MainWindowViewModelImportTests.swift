@@ -290,6 +290,33 @@ final class MainWindowViewModelImportTests: XCTestCase {
             "インポート失敗時に旧ファイルの sandbox コピーを削除しないこと"
         )
         XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+    }
+
+    func testFailedFileImportPreservesCompletedUIStateAndProgressDisplay() async throws {
+        let existingTranscript = Transcript(
+            sourceFileName: "completed.wav",
+            fullText: "完了済みテキスト"
+        )
+        viewModel.restoreTranscript(existingTranscript)
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+
+        let missingURL = sourceRoot.appendingPathComponent("missing.wav")
+        viewModel.selectFile(url: missingURL)
+        XCTAssertTrue(viewModel.confirmFileImport)
+
+        viewModel.applyPendingFileImport()
+        await viewModel.importTask?.value
+
+        XCTAssertEqual(viewModel.uiState, .done, "ファイル取り込み失敗時に既存の完了状態を待機中へ戻さないこと")
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existingTranscript.id)
+        XCTAssertEqual(viewModel.transcriptText, "完了済みテキスト")
+        XCTAssertNotNil(viewModel.inlineErrorMessage)
+        XCTAssertTrue(viewModel.canRetryError)
+        XCTAssertFalse(viewModel.isBusy)
     }
 
     func testCancelledTranscriptionRestartKeepsResultAndRequiresConfirmationAgain() async throws {
