@@ -165,7 +165,7 @@ struct Transcript: Codable, Identifiable, Sendable {
     }
 
     private mutating func syncSingleLineText(_ text: String) {
-        let characters = Array(text)
+        let totalCount = text.count
         let textWeights = segments.map { Double($0.text.count) }
         let useTextWeights = textWeights.contains { $0 > 0 }
         let weights: [Double] = useTextWeights
@@ -173,52 +173,70 @@ struct Transcript: Codable, Identifiable, Sendable {
             : segments.map { max($0.endTime - $0.startTime, 0.001) }
         let totalWeight = weights.reduce(0, +)
 
-        var cursor = 0
+        var cursorIndex = text.startIndex
+        var cursorOffset = 0
         var cumulativeWeight = 0.0
         for index in segments.indices {
             if index == segments.count - 1 {
-                let slice = cursor < characters.count ? String(characters[cursor...]) : ""
+                let slice = cursorIndex < text.endIndex ? text[cursorIndex...] : Substring()
                 segments[index].text = slice.trimmingCharacters(in: .whitespaces)
                 break
             }
 
             cumulativeWeight += weights[index]
-            let ideal = min(
-                characters.count,
-                max(cursor, Int((Double(characters.count) * cumulativeWeight / totalWeight).rounded()))
+            let idealOffset = min(
+                totalCount,
+                max(cursorOffset, Int((Double(totalCount) * cumulativeWeight / totalWeight).rounded()))
             )
-            let splitIndex = nearestWhitespaceBoundary(
-                in: characters,
-                around: ideal,
-                minIndex: cursor,
-                maxIndex: characters.count
-            ) ?? ideal
+            let idealIndex = text.index(cursorIndex, offsetBy: idealOffset - cursorOffset)
+            let boundary = nearestWhitespaceBoundary(
+                in: text,
+                around: idealIndex,
+                targetOffset: idealOffset,
+                minOffset: cursorOffset,
+                maxOffset: totalCount
+            )
+            let splitIndex = boundary?.index ?? idealIndex
+            let splitOffset = boundary?.offset ?? idealOffset
 
-            let slice = splitIndex > cursor ? String(characters[cursor..<splitIndex]) : ""
+            let slice = splitIndex > cursorIndex ? text[cursorIndex..<splitIndex] : Substring()
             segments[index].text = slice.trimmingCharacters(in: .whitespaces)
-            cursor = splitIndex
-            while cursor < characters.count && characters[cursor].isWhitespace {
-                cursor += 1
+            cursorIndex = splitIndex
+            cursorOffset = splitOffset
+            while cursorIndex < text.endIndex && text[cursorIndex].isWhitespace {
+                text.formIndex(after: &cursorIndex)
+                cursorOffset += 1
             }
         }
     }
 
     private func nearestWhitespaceBoundary(
-        in characters: [Character],
-        around target: Int,
-        minIndex: Int,
-        maxIndex: Int
-    ) -> Int? {
-        guard target > minIndex, target < maxIndex else { return nil }
-        let maxRadius = min(8, max(1, (maxIndex - minIndex) / 4))
+        in text: String,
+        around targetIndex: String.Index,
+        targetOffset: Int,
+        minOffset: Int,
+        maxOffset: Int
+    ) -> (index: String.Index, offset: Int)? {
+        guard targetOffset > minOffset, targetOffset < maxOffset else { return nil }
+        let maxRadius = min(8, max(1, (maxOffset - minOffset) / 4))
+        var rightIndex = targetIndex
+        var leftIndex = targetIndex
         for distance in 0...maxRadius {
-            let right = target + distance
-            if right < maxIndex && characters[right].isWhitespace {
-                return right
+            let rightOffset = targetOffset + distance
+            if rightOffset < maxOffset {
+                if distance > 0 {
+                    rightIndex = text.index(after: rightIndex)
+                }
+                if text[rightIndex].isWhitespace {
+                    return (rightIndex, rightOffset)
+                }
             }
-            let left = target - distance
-            if distance > 0 && left > minIndex && characters[left].isWhitespace {
-                return left
+            let leftOffset = targetOffset - distance
+            if distance > 0 && leftOffset > minOffset {
+                leftIndex = text.index(before: leftIndex)
+                if text[leftIndex].isWhitespace {
+                    return (leftIndex, leftOffset)
+                }
             }
         }
         return nil
