@@ -10,6 +10,7 @@ struct SettingsView: View {
     let onDownloadSelectedModel: () -> Void
     let onDeleteSelectedModel: () -> Void
     let onDiskUsage: (ModelOption) -> String?
+    let onRefreshDiskUsage: (ModelOption) -> Void
     let modelsRevision: Int
     let onModelsCleared: () -> Void
     let onImportsCleared: () -> Void
@@ -86,6 +87,16 @@ struct SettingsView: View {
                 )
             )
         }
+        .onAppear {
+            if let selected = settings.selectedModel {
+                onRefreshDiskUsage(selected)
+            }
+        }
+        .onChange(of: modelsRevision) { _ in
+            if let selected = settings.selectedModel {
+                onRefreshDiskUsage(selected)
+            }
+        }
     }
 
     private var settingsContent: some View {
@@ -110,6 +121,9 @@ struct SettingsView: View {
                     .disabled(isBusy)
                     .onChange(of: settings.selectedModelID) { _ in
                         settings.persist()
+                        if let selected = settings.selectedModel {
+                            onRefreshDiskUsage(selected)
+                        }
                     }
                     Text("使用するWhisperモデルを選択します。モデルは別途ダウンロードが必要です。")
                         .font(.caption)

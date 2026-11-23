@@ -137,6 +137,8 @@ final class MainWindowViewModel: ObservableObject {
     @Published var criticalErrorTitle: String?
     @Published var criticalErrorMessage: String?
     @Published var downloadedModelIDs: Set<String> = []
+    /// モデルごとの表示用ディスク使用量キャッシュ。SwiftUI body 評価中に同期走査しないために保持する。
+    @Published private(set) var modelDiskUsageByID: [String: String] = [:]
     @Published var toast: ToastMessage?
 
     private enum RecoverableAction: Equatable {
@@ -161,6 +163,8 @@ final class MainWindowViewModel: ObservableObject {
     private(set) var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private(set) var importTask: Task<Void, Never>?
+    private(set) var modelDiskUsageTask: Task<Void, Never>?
+    private var modelDiskUsageGeneration = 0
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
     private var hasSegmentTextEdits = false
@@ -395,6 +399,10 @@ final class MainWindowViewModel: ObservableObject {
                 .filter { modelAvailability.isDownloaded(whisperKitModelName: $0.whisperKitModelName) }
                 .map(\.id)
         )
+        modelDiskUsageGeneration += 1
+        modelDiskUsageTask?.cancel()
+        modelDiskUsageTask = nil
+        modelDiskUsageByID.removeAll()
     }
 
     func isModelDownloaded(_ model: ModelOption) -> Bool {
@@ -419,11 +427,37 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    /// モデルの使用ディスク容量を表示用テキストで返す。未ダウンロードの場合は nil。
+    /// モデルの使用ディスク容量のキャッシュ済み表示テキストを返す。未ダウンロードまたは未算出の場合は nil。
     func modelDiskUsageText(_ model: ModelOption) -> String? {
         guard isModelDownloaded(model) else { return nil }
-        let bytes = modelAvailability.diskUsage(whisperKitModelName: model.whisperKitModelName)
-        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        return modelDiskUsageByID[model.id]
+    }
+
+    /// 指定モデルのディスク使用量をバックグラウンドで再計算し、表示用キャッシュを更新する。
+    func refreshModelDiskUsage(for model: ModelOption) {
+        guard isModelDownloaded(model) else {
+            modelDiskUsageByID.removeValue(forKey: model.id)
+            return
+        }
+        modelDiskUsageGeneration += 1
+        let generation = modelDiskUsageGeneration
+        let modelID = model.id
+        let modelName = model.whisperKitModelName
+        let availability = modelAvailability
+        modelDiskUsageTask?.cancel()
+        modelDiskUsageTask = Task { [weak self] in
+            let bytes = await Task.detached(priority: .utility) {
+                availability.diskUsage(whisperKitModelName: modelName)
+            }.value
+            guard let self,
+                  !Task.isCancelled,
+                  self.modelDiskUsageGeneration == generation,
+                  self.downloadedModelIDs.contains(modelID) else {
+                return
+            }
+            self.modelDiskUsageByID[modelID] = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            self.modelDiskUsageTask = nil
+        }
     }
 
     func modelDownloadSuccessToastMessage() -> String {
