@@ -127,8 +127,11 @@ struct HistoryStore: Sendable {
         try data.write(to: url, options: .atomic)
     }
 
-    func recent(limit: Int = 50) -> [Transcript] {
-        guard limit > 0 else { return [] }
+    func recent(
+        limit: Int = 50,
+        isCancelled: @Sendable () -> Bool = { Task.isCancelled }
+    ) -> [Transcript] {
+        guard limit > 0, !isCancelled() else { return [] }
         guard let enumerator = fileManager.enumerator(
             at: historyRoot,
             includingPropertiesForKeys: [.isRegularFileKey],
@@ -137,6 +140,7 @@ struct HistoryStore: Sendable {
 
         var candidates: [(url: URL, createdAt: Date)] = []
         for case let url as URL in enumerator {
+            guard !isCancelled() else { return [] }
             guard let createdAt = recentCreationDate(at: url) else { continue }
             candidates.append((url, createdAt))
         }
@@ -144,6 +148,7 @@ struct HistoryStore: Sendable {
 
         var items: [Transcript] = []
         for candidate in candidates {
+            guard !isCancelled() else { return [] }
             guard let transcript = loadTranscript(at: candidate.url) else { continue }
             items.append(transcript)
             if items.count == limit { break }
@@ -208,15 +213,21 @@ struct HistoryStore: Sendable {
     /// 全文・ファイル名を対象に履歴を検索する。
     /// 検索スキャンでは segments を含まない軽量メタデータのみをデコードし、
     /// 上限付き LRU キャッシュで常駐メモリを抑えつつ、上位 limit 件のみ完全な Transcript を読み込む。
-    func search(query: String, limit: Int = 50) -> [Transcript] {
-        guard limit > 0 else { return [] }
+    func search(
+        query: String,
+        limit: Int = 50,
+        isCancelled: @Sendable () -> Bool = { Task.isCancelled }
+    ) -> [Transcript] {
+        guard limit > 0, !isCancelled() else { return [] }
         let normalized = query.lowercased()
-        guard !normalized.isEmpty else { return recent(limit: limit) }
+        guard !normalized.isEmpty else { return recent(limit: limit, isCancelled: isCancelled) }
 
         let matchedCandidates: [(url: URL, createdAt: Date)] = {
             // detached の検索同士や保存・削除後の無効化が競合しても、キャッシュを壊さない。
             searchCache.lock.lock()
             defer { searchCache.lock.unlock() }
+            // ロック待機中に新しい検索へ切り替わった場合は、走査を行わず即座に打ち切る。
+            guard !isCancelled() else { return [] }
             let resourceKeys: Set<URLResourceKey> = [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]
             guard let enumerator = fileManager.enumerator(
                 at: historyRoot,
@@ -234,6 +245,7 @@ struct HistoryStore: Sendable {
             }
             var candidates: [Candidate] = []
             for case let url as URL in enumerator {
+                guard !isCancelled() else { return [] }
                 guard let values = try? url.resourceValues(forKeys: resourceKeys),
                       values.isRegularFile == true,
                       let modificationDate = values.contentModificationDate,
@@ -248,6 +260,8 @@ struct HistoryStore: Sendable {
             // 更新日時と createdAt は一致しないため、全候補を軽量検索してから作成日時順で件数を絞る。
             var matches: [(url: URL, createdAt: Date)] = []
             for candidate in candidates {
+                // 途中キャンセル時は未訪問エントリを誤って prune しないよう、そのまま終了する。
+                guard !isCancelled() else { return [] }
                 let url = candidate.url
                 let key = SearchCache.key(for: url)
                 visited.insert(key)
@@ -291,6 +305,7 @@ struct HistoryStore: Sendable {
         var results: [Transcript] = []
         results.reserveCapacity(min(limit, matchedCandidates.count))
         for match in matchedCandidates {
+            guard !isCancelled() else { return [] }
             guard let transcript = loadTranscript(at: match.url) else { continue }
             results.append(transcript)
             if results.count == limit { break }
