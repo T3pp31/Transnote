@@ -48,9 +48,11 @@ jobs:
         run: |
           set -euo pipefail
           sbom_path="$(./scripts/generate-sbom.sh --mode ci)"
+          sbom_dir="$(dirname "$sbom_path")"
           artifact_name="$(./scripts/generate-sbom.sh --print CIArtifactName)"
           retention_days="$(./scripts/generate-sbom.sh --print CIArtifactRetentionDays)"
           echo "sbom_path=${sbom_path}" >> "$GITHUB_OUTPUT"
+          echo "sbom_dir=${sbom_dir}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
           echo "retention_days=${retention_days}" >> "$GITHUB_OUTPUT"
 
@@ -58,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.sbom.outputs.artifact_name }}
-          path: build/sbom/
+          path: ${{ steps.sbom.outputs.sbom_dir }}/
           retention-days: ${{ steps.sbom.outputs.retention_days }}
 
   lint:
