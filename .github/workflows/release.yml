@@ -188,8 +188,14 @@ jobs:
           APP_PATH="${RELEASE_APP_DIR}/${APP_NAME}.app"
           ZIP_PATH="$RUNNER_TEMP/${APP_NAME}-signed.zip"
           ditto -c -k --keepParent "$APP_PATH" "$ZIP_PATH"
-          xcrun notarytool submit "$ZIP_PATH"             --apple-id "$APPLE_ID"             --password "$APPLE_ID_PASSWORD"             --team-id "$APPLE_TEAM_ID"             --wait
+          xcrun notarytool submit "$ZIP_PATH" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_ID_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
           xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+          spctl --assess --type execute --verbose=4 "$APP_PATH"
           echo "NOTARIZED=1" >> "$GITHUB_ENV"
 
       - name: Read Syft version

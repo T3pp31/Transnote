@@ -175,6 +175,16 @@ class ReleaseSecretScopeTests(unittest.TestCase):
         self.assertLess(notarize_dmg_index, checksum_index)
         self.assertLess(checksum_index, attest_index)
 
+    def test_notarize_app_validates_stapler_and_gatekeeper_before_marking_notarized(self):
+        step = self.steps["name: Notarize app"]
+        staple_pos = step.index('xcrun stapler staple "$APP_PATH"')
+        validate_pos = step.index('xcrun stapler validate "$APP_PATH"')
+        spctl_pos = step.index('spctl --assess --type execute --verbose=4 "$APP_PATH"')
+        env_pos = step.index('echo "NOTARIZED=1" >> "$GITHUB_ENV"')
+        self.assertLess(staple_pos, validate_pos)
+        self.assertLess(validate_pos, spctl_pos)
+        self.assertLess(spctl_pos, env_pos)
+
 
 class AppEntitlementsTests(unittest.TestCase):
     def test_sandboxed_app_has_app_scoped_bookmark_entitlement(self):
