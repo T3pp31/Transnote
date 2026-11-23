@@ -355,6 +355,112 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(settings.recommendedModel?.id, "custom-default")
     }
 
+    func testRecommendedModelIDThresholdsAtMemoryAndProcessorBoundaries() {
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 7, processorCount: 8), "tiny")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 7.99, processorCount: 11), "tiny")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 8, processorCount: 8), "base")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 15, processorCount: 11), "base")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 15.99, processorCount: 11), "base")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 16, processorCount: 4), "small")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 7, processorCount: 12), "small")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 8, processorCount: 12), "small")
+        XCTAssertEqual(AppSettings.recommendedModelID(memoryGB: 15, processorCount: 12), "small")
+    }
+
+    @MainActor
+    func testRecommendedModelResolvesDeterministicallyAndFallsBackInOrder() throws {
+        let suiteName = "RecommendedModelDeterministicTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let allModels = [
+            ModelOption(id: "tiny", displayName: "Tiny", whisperKitModelName: "tiny"),
+            ModelOption(id: "base", displayName: "Base", whisperKitModelName: "base"),
+            ModelOption(id: "small", displayName: "Small", whisperKitModelName: "small")
+        ]
+        func makeConfig(models: [ModelOption], defaultModelID: String) -> AppConfig {
+            AppConfig(
+                supportedExtensions: ["wav"],
+                defaultModelID: defaultModelID,
+                defaultLanguageID: "en",
+                modelsDirectoryName: "Models",
+                models: models,
+                languages: [LanguageOption(id: "en", displayName: "English")],
+                updateCheckEnabled: false,
+                githubReleasesAPIURL: URL(string: "https://api.github.com/repos/T3pp31/Transnote/releases/latest")!,
+                updateDownloadFallbackURL: URL(string: "https://github.com/T3pp31/Transnote")!,
+                updateDMGAssetName: "Transnote.dmg"
+            )
+        }
+
+        let lowSpec = AppSettings(
+            config: makeConfig(models: allModels, defaultModelID: "base"),
+            defaults: defaults,
+            physicalMemoryGBProvider: { 7 },
+            processorCountProvider: { 11 }
+        )
+        XCTAssertEqual(lowSpec.recommendedModelID, "tiny")
+        XCTAssertEqual(lowSpec.recommendedModel?.id, "tiny")
+
+        let midSpec = AppSettings(
+            config: makeConfig(models: allModels, defaultModelID: "tiny"),
+            defaults: defaults,
+            physicalMemoryGBProvider: { 8 },
+            processorCountProvider: { 11 }
+        )
+        XCTAssertEqual(midSpec.recommendedModelID, "base")
+        XCTAssertEqual(midSpec.recommendedModel?.id, "base")
+
+        let highCoreSpec = AppSettings(
+            config: makeConfig(models: allModels, defaultModelID: "tiny"),
+            defaults: defaults,
+            physicalMemoryGBProvider: { 7 },
+            processorCountProvider: { 12 }
+        )
+        XCTAssertEqual(highCoreSpec.recommendedModelID, "small")
+        XCTAssertEqual(highCoreSpec.recommendedModel?.id, "small")
+
+        // 推奨 ID が欠落している場合はインスタンスの defaultModelID へフォールバック。
+        let fallbackToDefault = AppSettings(
+            config: makeConfig(
+                models: [
+                    ModelOption(id: "tiny", displayName: "Tiny", whisperKitModelName: "tiny"),
+                    ModelOption(id: "base", displayName: "Base", whisperKitModelName: "base")
+                ],
+                defaultModelID: "base"
+            ),
+            defaults: defaults,
+            physicalMemoryGBProvider: { 16 },
+            processorCountProvider: { 12 }
+        )
+        XCTAssertEqual(fallbackToDefault.recommendedModelID, "small")
+        XCTAssertEqual(fallbackToDefault.recommendedModel?.id, "base")
+
+        // 推奨 ID・defaultModelID の双方が欠落している場合は先頭モデルへフォールバック。
+        let fallbackToFirst = AppSettings(
+            config: makeConfig(
+                models: [
+                    ModelOption(id: "first-only", displayName: "First", whisperKitModelName: "first-only"),
+                    ModelOption(id: "second", displayName: "Second", whisperKitModelName: "second")
+                ],
+                defaultModelID: "missing-default"
+            ),
+            defaults: defaults,
+            physicalMemoryGBProvider: { 16 },
+            processorCountProvider: { 12 }
+        )
+        XCTAssertEqual(fallbackToFirst.recommendedModel?.id, "first-only")
+
+        // モデル一覧が空の場合は nil を返す。
+        let emptyModels = AppSettings(
+            config: makeConfig(models: [], defaultModelID: "base"),
+            defaults: defaults,
+            physicalMemoryGBProvider: { 16 },
+            processorCountProvider: { 12 }
+        )
+        XCTAssertNil(emptyModels.recommendedModel)
+    }
+
     @MainActor
     func testAppSettingsPersistsAndRestoresSelectionInIsolatedSuite() throws {
         let suiteName = "AppSettingsPersistRoundTripTests.\(UUID().uuidString)"
