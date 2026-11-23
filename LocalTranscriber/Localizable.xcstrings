@@ -1018,6 +1018,26 @@
           }
         }
       }
+    },
+    "履歴はまだありません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No transcription history yet."
+          }
+        }
+      }
+    },
+    "該当する履歴がありません。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No matching history found."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
