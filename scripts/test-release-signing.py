@@ -175,6 +175,15 @@ class ReleaseSecretScopeTests(unittest.TestCase):
         self.assertLess(notarize_dmg_index, checksum_index)
         self.assertLess(checksum_index, attest_index)
 
+    def test_signing_steps_delegate_keychain_setup_to_shared_script(self):
+        for name in ("name: Sign app with Developer ID", "name: Sign DMG with Developer ID"):
+            with self.subTest(step=name):
+                step = self.steps[name]
+                self.assertIn("source ./scripts/release-signing-keychain.sh", step)
+                self.assertIn("setup_signing_keychain", step)
+                self.assertIn("cleanup_signing_keychain", step)
+                self.assertNotIn("security create-keychain", step)
+
     def test_notarize_app_validates_stapler_and_gatekeeper_before_marking_notarized(self):
         step = self.steps["name: Notarize app"]
         staple_pos = step.index('xcrun stapler staple "$APP_PATH"')
@@ -250,7 +259,7 @@ class ReleaseSigningTests(unittest.TestCase):
             MOCK_FAIL=fail_command,
         )
         return subprocess.run(
-            ["bash", "-c", MOCKS + self.script], env=env, capture_output=True, text=True
+            ["bash", "-c", MOCKS + self.script], cwd=ROOT, env=env, capture_output=True, text=True
         )
 
     def test_partition_list_is_set_after_import_and_before_signing(self):
@@ -331,7 +340,7 @@ class ReleaseDMGSigningTests(unittest.TestCase):
             MOCK_FAIL=fail_command,
         )
         return subprocess.run(
-            ["bash", "-c", MOCKS + self.script], env=env, capture_output=True, text=True
+            ["bash", "-c", MOCKS + self.script], cwd=ROOT, env=env, capture_output=True, text=True
         )
 
     def test_dmg_signing_verifies_copies_latest_and_cleans_up_keychain(self):

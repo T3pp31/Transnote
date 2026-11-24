@@ -102,7 +102,26 @@ jobs:
             echo "AppName must contain only alphanumerics, '.', '_' or '-'." >&2
             exit 1
           fi
-          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\n' "$app_name" "$app_name" >> "$GITHUB_ENV"
+          install_script_name="$(/usr/libexec/PlistBuddy -c 'Print :InstallScriptName' Config/distribution.plist)"
+          if [[ -z "$install_script_name" || "$install_script_name" == *$'\n'* || "$install_script_name" == *$'\r'* ]]; then
+            echo "InstallScriptName must be a non-empty single-line value." >&2
+            exit 1
+          fi
+          if [[ "$install_script_name" == */* || "$install_script_name" == *['$`"'\''\\']* ]]; then
+            echo "InstallScriptName contains unsafe characters." >&2
+            exit 1
+          fi
+          expected_repo="$(python3 -c '
+          import json, re, sys
+          with open("Config/github-config.json", encoding="utf-8") as f:
+              data = json.load(f)
+          repo = data.get("expected_repository", "")
+          if not isinstance(repo, str) or not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+              sys.exit("expected_repository must be a valid owner/repo string")
+          print(repo)
+          ')"
+          printf 'APP_NAME=%s\nARCHIVE_PATH=build/%s.xcarchive\nINSTALL_SCRIPT_NAME=%s\nEXPECTED_REPOSITORY=%s\n' \
+            "$app_name" "$app_name" "$install_script_name" "$expected_repo" >> "$GITHUB_ENV"
 
       - name: Sync MARKETING_VERSION
         env:
@@ -154,21 +173,13 @@ jobs:
           CERTIFICATE_IDENTITY: ${{ secrets.MACOS_CERTIFICATE_IDENTITY }}
         run: |
           set -euo pipefail
+          source ./scripts/release-signing-keychain.sh
           KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
           # 後続ステップはチェックアウトした ref 内のスクリプトを実行するため、
           # 成否にかかわらず Developer ID 秘密鍵を保持したキーチェーンを残さない。
-          cleanup_signing() {
-            security delete-keychain "$KEYCHAIN" || true
-            rm -f "$RUNNER_TEMP/certificate.p12"
-          }
-          trap cleanup_signing EXIT
-          security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
-          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
-          security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
-          security list-keychain -d user -s "$KEYCHAIN"
+          trap 'cleanup_signing_keychain "$KEYCHAIN" "$CERT_PATH"' EXIT
+          setup_signing_keychain "$KEYCHAIN" "$CERT_PATH"
           APP_PATH="${RELEASE_APP_DIR}/${APP_NAME}.app"
           /usr/bin/codesign --force --deep --options runtime \
             --entitlements "${{ github.workspace }}/LocalTranscriber/LocalTranscriber.entitlements" \
@@ -251,19 +262,11 @@ jobs:
           LATEST_DMG: ${{ steps.dmg.outputs.latest_dmg_path }}
         run: |
           set -euo pipefail
+          source ./scripts/release-signing-keychain.sh
           KEYCHAIN="$RUNNER_TEMP/dmg-signing.keychain-db"
-          cleanup_signing() {
-            security delete-keychain "$KEYCHAIN" || true
-            rm -f "$RUNNER_TEMP/dmg-certificate.p12"
-          }
-          trap cleanup_signing EXIT
-          security create-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
-          echo "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/dmg-certificate.p12"
-          security import "$RUNNER_TEMP/dmg-certificate.p12" -k "$KEYCHAIN" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$CERTIFICATE_PASSWORD" "$KEYCHAIN"
-          security list-keychain -d user -s "$KEYCHAIN"
+          CERT_PATH="$RUNNER_TEMP/dmg-certificate.p12"
+          trap 'cleanup_signing_keychain "$KEYCHAIN" "$CERT_PATH"' EXIT
+          setup_signing_keychain "$KEYCHAIN" "$CERT_PATH"
           /usr/bin/codesign --force --sign "$CERTIFICATE_IDENTITY" "$VERSIONED_DMG"
           /usr/bin/codesign --verify --verbose=2 "$VERSIONED_DMG"
           cp "$VERSIONED_DMG" "$LATEST_DMG"
@@ -324,7 +327,7 @@ jobs:
 
           ※ この案内は **${APP_NAME} について**のものです。他のアプリで同様の警告が出たときは、そのアプリの配布元が信頼できるか必ず確認してください。
 
-          DMG と **${APP_NAME}.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **インストール.command** を実行してください（旧バージョンは自動的に置き換えられます）。
+          DMG と **${APP_NAME}.dmg.sha256** の両方をダウンロードし、同じフォルダに保存してから **${INSTALL_SCRIPT_NAME}** を実行してください（旧バージョンは自動的に置き換えられます）。
 
           ## SHA256 チェックサム
 
@@ -341,7 +344,7 @@ jobs:
           shasum -a 256 -c ${VERSIONED_DMG_NAME}.sha256
           \`\`\`
 
-          詳細は [インストール手順](https://github.com/T3pp31/Transnote/blob/main/docs/install.md) を参照してください。
+          詳細は [インストール手順](https://github.com/${EXPECTED_REPOSITORY}/blob/main/docs/install.md) を参照してください。
 
           > **コード署名について**: $signature_note
           EOF
@@ -349,10 +352,13 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@1c608116169c793ddc0eb38d7a8e36f9653b99d1 # v1.4.3
         with:
+          # 複数ファイルを対象とするため subject-name は指定せず、各成果物の実ファイル名を subject 名として自動採用する。
           subject-path: |
             ${{ steps.dmg.outputs.dmg_path }}
             ${{ steps.dmg.outputs.latest_dmg_path }}
-          subject-name: ${{ env.APP_NAME }}
+            ${{ steps.checksum.outputs.versioned_sha256_path }}
+            ${{ steps.checksum.outputs.latest_sha256_path }}
+            ${{ steps.sbom.outputs.sbom_path }}
           show-summary: true
 
       - name: Create GitHub Release

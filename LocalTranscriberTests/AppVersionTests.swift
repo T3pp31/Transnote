@@ -36,6 +36,21 @@ final class AppVersionTests: XCTestCase {
         XCTAssertFalse(AppVersion.isNewer("-", than: "0.1.0"))
     }
 
+    // Given: コア部分に非数値を含むバージョン文字列
+    // When: compare / isNewer を実行
+    // Then: 非数値コア成分は 0 として扱われ、クラッシュせず仕様どおり比較される
+    func testCompareTreatsNonNumericCoreComponentsAsZero() {
+        XCTAssertEqual(AppVersion.compare("abc", to: "0.0.0"), .orderedSame)
+        XCTAssertEqual(AppVersion.compare("abc", to: "0.1.0"), .orderedAscending)
+        XCTAssertFalse(AppVersion.isNewer("abc", than: "0.1.0"))
+        XCTAssertEqual(AppVersion.compare("1.x.0", to: "1.0.0"), .orderedSame)
+        XCTAssertEqual(AppVersion.compare("1.x.0", to: "1.2.0"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("v1.x.0", to: "1.0.1"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("1.2.foo", to: "1.2.0"), .orderedSame)
+        XCTAssertEqual(AppVersion.compare("1.2.foo", to: "1.2.1"), .orderedAscending)
+        XCTAssertEqual(AppVersion.compare("1.x.0-rc1", to: "1.0.0"), .orderedAscending)
+    }
+
     // Given: 新版候補
     // When: isNewer を実行
     // Then: 期待どおり判定する

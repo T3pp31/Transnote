@@ -29,7 +29,7 @@ class GatekeeperReadmeTests(unittest.TestCase):
         script = textwrap.dedent(step.split("        run: |\n", 1)[1])
         validation = script.split('app_name="$(', 1)[1]
         validation = validation.split("\n", 1)[1]
-        validation = validation.split("printf 'APP_NAME=", 1)[0]
+        validation = validation.split('install_script_name="$(', 1)[0]
         validation = "app_name=\"$TEST_APP_NAME\"\n" + validation
 
         for app_name in ("Transnote", "Transnote-1.2.3", "Transnote_v2"):
@@ -123,7 +123,11 @@ class GatekeeperReadmeTests(unittest.TestCase):
                 env = dict(os.environ)
                 env.pop("SIGNED", None)
                 env.pop("NOTARIZED", None)
-                env.update(APP_NAME="Transnote")
+                env.update(
+                    APP_NAME="Transnote",
+                    INSTALL_SCRIPT_NAME="インストール.command",
+                    EXPECTED_REPOSITORY="T3pp31/Transnote",
+                )
                 env.update(env_values)
                 env.update(flags)
                 result = subprocess.run(

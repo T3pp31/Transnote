@@ -40,24 +40,56 @@ class XcodeVersionTests(unittest.TestCase):
             capture_output=True, text=True, check=False, timeout=10,
         )
 
+    def read_composite_action_step(self):
+        action = (ROOT / ".github/actions/setup-xcode-spm/action.yml").read_text(encoding="utf-8")
+        steps = re.split(r"^    - ", action, flags=re.MULTILINE)[1:]
+        indexes = [i for i, step in enumerate(steps) if step.startswith("name: Read Xcode version\n")]
+        self.assertEqual(len(indexes), 1, "setup-xcode-spm")
+        index = indexes[0]
+        step = steps[index]
+        self.assertIn("      id: xcode_config\n", step)
+        setup = next(i for i, item in enumerate(steps) if "uses: maxim-lobanov/setup-xcode@" in item)
+        self.assertLess(index, setup)
+        self.assertIn(f"        xcode-version: {REFERENCE}\n", steps[setup])
+        self.assertIn(
+            f"key: ${{{{ inputs.spm-cache-prefix }}}}-${{{{ runner.os }}}}-xcode-{REFERENCE}-",
+            action,
+        )
+        return textwrap.dedent(step.split("      run: |\n", 1)[1])
+
     def read_step(self, workflow_name):
         workflow = (ROOT / f".github/workflows/{workflow_name}.yml").read_text(encoding="utf-8")
         steps = re.split(r"^      - ", workflow, flags=re.MULTILINE)[1:]
+        checkout = next(i for i, item in enumerate(steps) if "uses: actions/checkout@" in item)
+        self.assertNotIn("XCODE_VERSION", workflow)
+        if workflow_name in ("ci", "nightly"):
+            expected_prefix = {"ci": "spm", "nightly": "nightly-spm"}[workflow_name]
+            composite = [
+                i for i, item in enumerate(steps)
+                if "uses: ./.github/actions/setup-xcode-spm" in item
+            ]
+            self.assertEqual(len(composite), 1, workflow_name)
+            self.assertLess(checkout, composite[0])
+            self.assertIn("        id: xcode_config\n", steps[composite[0]])
+            self.assertIn(f"          spm-cache-prefix: {expected_prefix}\n", steps[composite[0]])
+            self.assertNotIn("maxim-lobanov/setup-xcode", workflow)
+            cache_lines = [line for line in workflow.splitlines() if "-${{ runner.os }}-xcode-" in line]
+            self.assertEqual(len(cache_lines), {"ci": 2, "nightly": 0}[workflow_name])
+            for line in cache_lines:
+                self.assertIn(f"-xcode-{REFERENCE}-", line)
+            return self.read_composite_action_step()
+
         indexes = [i for i, step in enumerate(steps) if step.startswith("name: Read Xcode version\n")]
         self.assertEqual(len(indexes), 1, workflow_name)
         index = indexes[0]
         step = steps[index]
         self.assertIn("        id: xcode_config\n", step)
-        checkout = next(i for i, item in enumerate(steps) if "uses: actions/checkout@" in item)
         setup = next(i for i, item in enumerate(steps) if "uses: maxim-lobanov/setup-xcode@" in item)
         self.assertLess(checkout, index)
         self.assertLess(index, setup)
         self.assertIn(f"          xcode-version: {REFERENCE}\n", steps[setup])
-        self.assertNotIn("XCODE_VERSION", workflow)
         cache_lines = [line for line in workflow.splitlines() if "-${{ runner.os }}-xcode-" in line]
-        self.assertEqual(len(cache_lines), {"ci": 3, "release": 0, "nightly": 1}[workflow_name])
-        for line in cache_lines:
-            self.assertIn(f"-xcode-{REFERENCE}-", line)
+        self.assertEqual(len(cache_lines), 0)
         return textwrap.dedent(step.split("        run: |\n", 1)[1])
 
     def run_step(self, script):

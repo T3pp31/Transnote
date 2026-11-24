@@ -79,5 +79,58 @@ class PackageResolvedCheckTests(unittest.TestCase):
                         self.assertIn("mock lockfile diff", output)
 
 
+class CISBOMUploadPathTests(unittest.TestCase):
+    def test_upload_sbom_uses_generated_sbom_dir_output(self):
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        upload_block = workflow.split("      - name: Upload SBOM artifact\n", 1)[1]
+        upload_block = upload_block.split("\n  lint:\n", 1)[0]
+        self.assertIn("path: ${{ steps.sbom.outputs.sbom_dir }}/", upload_block)
+        self.assertNotIn("build/sbom", upload_block)
+
+        lines = workflow.splitlines()
+        start = lines.index("      - name: Generate SBOM")
+        run_index = lines.index("        run: |", start)
+        body = []
+        for line in lines[run_index + 1:]:
+            if line.strip() and not line.startswith("          "):
+                break
+            body.append(line[10:])
+        script = "\n".join(body)
+
+        with tempfile.TemporaryDirectory() as work_dir:
+            work = Path(work_dir)
+            (work / "scripts").mkdir()
+            stub = work / "scripts/generate-sbom.sh"
+            stub.write_text(
+                "#!/usr/bin/env bash\n"
+                "case \"$*\" in\n"
+                "  '--mode ci') echo '/custom/out/sbom/Transnote-sbom.cdx.json' ;;\n"
+                "  '--print CIArtifactName') echo 'sbom-cyclonedx' ;;\n"
+                "  '--print CIArtifactRetentionDays') echo '30' ;;\n"
+                "  *) exit 2 ;;\n"
+                "esac\n",
+                encoding="utf-8",
+            )
+            stub.chmod(0o755)
+            github_output = work / "github-output"
+            github_output.write_text("", encoding="utf-8")
+            env = dict(os.environ, GITHUB_OUTPUT=str(github_output))
+            result = subprocess.run(
+                ["bash", "-euo", "pipefail", "-c", script],
+                cwd=work,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            outputs = dict(
+                line.split("=", 1)
+                for line in github_output.read_text(encoding="utf-8").splitlines()
+            )
+            self.assertEqual(outputs["sbom_path"], "/custom/out/sbom/Transnote-sbom.cdx.json")
+            self.assertEqual(outputs["sbom_dir"], "/custom/out/sbom")
+
+
 if __name__ == "__main__":
     unittest.main()

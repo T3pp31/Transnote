@@ -194,14 +194,16 @@ final class AudioImportServiceTests: XCTestCase {
     func testImportFileStopsBeforeWritingPastLimitWhenSourceGrowsAfterValidation() throws {
         let sourceURL = try makeSourceRoot().appendingPathComponent("growing.wav")
         try Data("audio".utf8).write(to: sourceURL)
-        // 1 チャンクは書き込めるが、2 チャンク目で累積サイズが上限を超える。
-        let limit = 64 * 1024 + 10
+        // バッファサイズを明示注入し、1 チャンクは書き込めるが 2 チャンク目で上限を超える境界を検証する。
+        let bufferSize = 1024
+        let limit = bufferSize + 10
         let grownContent = Data(repeating: 0x5a, count: limit + 1)
         let growingManager = GrowingSourceFileManager(sourceURL: sourceURL, grownContent: grownContent)
         let limitedService = AudioImportService(
             importsRoot: importsRoot,
             fileManager: growingManager,
-            maxImportFileSizeBytes: Int64(limit)
+            maxImportFileSizeBytes: Int64(limit),
+            copyBufferSize: bufferSize
         )
 
         XCTAssertThrowsError(try limitedService.importFile(from: sourceURL)) { error in
@@ -217,15 +219,42 @@ final class AudioImportServiceTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: sourceURL), grownContent, "ソースは削除・切り詰めしない")
     }
 
+    func testImportFileRejectsOnFirstReadWhenBufferExceedsLimitAndSourceGrows() throws {
+        let sourceURL = try makeSourceRoot().appendingPathComponent("growing-large-buffer.wav")
+        try Data("audio".utf8).write(to: sourceURL)
+        // バッファサイズが上限より大きい場合でも初回読み込みで上限超過を検出し、0 バイト一時ファイルを片付ける。
+        let bufferSize = 4096
+        let limit = 1024
+        let grownContent = Data(repeating: 0x5a, count: limit + 1)
+        let growingManager = GrowingSourceFileManager(sourceURL: sourceURL, grownContent: grownContent)
+        let limitedService = AudioImportService(
+            importsRoot: importsRoot,
+            fileManager: growingManager,
+            maxImportFileSizeBytes: Int64(limit),
+            copyBufferSize: bufferSize
+        )
+
+        XCTAssertThrowsError(try limitedService.importFile(from: sourceURL)) { error in
+            guard case AppError.fileTooLarge = error else {
+                return XCTFail("Expected fileTooLarge, got \(error)")
+            }
+        }
+        XCTAssertEqual(growingManager.removedTemporaryFileSizes, [0])
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: importsRoot.path), [])
+        XCTAssertEqual(try Data(contentsOf: sourceURL), grownContent, "ソースは削除・切り詰めしない")
+    }
+
     func testImportFileCopiesGrowingSourceExactlyAtLimitAcrossMultipleBuffers() throws {
         let sourceURL = try makeSourceRoot().appendingPathComponent("growing.wav")
         try Data("audio".utf8).write(to: sourceURL)
-        let content = Data((0..<(64 * 1024 * 2 + 17)).map { UInt8($0 % 251) })
+        let bufferSize = 1024
+        let content = Data((0..<(bufferSize * 2 + 17)).map { UInt8($0 % 251) })
         let growingManager = GrowingSourceFileManager(sourceURL: sourceURL, grownContent: content)
         let limitedService = AudioImportService(
             importsRoot: importsRoot,
             fileManager: growingManager,
-            maxImportFileSizeBytes: Int64(content.count)
+            maxImportFileSizeBytes: Int64(content.count),
+            copyBufferSize: bufferSize
         )
 
         let importedURL = try limitedService.importFile(from: sourceURL)

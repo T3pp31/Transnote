@@ -575,7 +575,22 @@ final class MainWindowViewModelExportTests: XCTestCase {
 
     func testSuccessfulExportCommitsTheWrittenTranscript() throws {
         let destination = tempRoot.appendingPathComponent("result.json")
-        let viewModel = makeViewModel(exportURL: destination)
+        let firstSegment = TranscriptSegment(startTime: 0, endTime: 1.5, text: "元の前半")
+        let secondSegment = TranscriptSegment(startTime: 1.5, endTime: 3.0, text: "元の後半")
+        let segmentedTranscript = Transcript(
+            sourceFileName: "meeting.wav",
+            fullText: "元の前半\n元の後半",
+            segments: [firstSegment, secondSegment],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let editedMultiLineText = "編集後の前半\n編集後の後半"
+        let viewModel = MainWindowViewModel(
+            fileAccess: SecurityScopedFileAccess(),
+            savePanelPresenter: StubSavePanelPresenter(url: destination)
+        )
+        viewModel.currentTranscript = segmentedTranscript
+        viewModel.baselineTranscriptText = segmentedTranscript.fullText
+        viewModel.transcriptText = editedMultiLineText
 
         viewModel.exportTranscript(format: .json)
 
@@ -583,16 +598,26 @@ final class MainWindowViewModelExportTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         let exported = try decoder.decode(Transcript.self, from: Data(contentsOf: destination))
         let committed = try XCTUnwrap(viewModel.currentTranscript)
-        XCTAssertEqual(exported.id, originalTranscript.id)
-        XCTAssertEqual(exported.fullText, editedText)
+        XCTAssertEqual(exported.id, segmentedTranscript.id)
+        XCTAssertEqual(exported.fullText, editedMultiLineText)
         XCTAssertEqual(committed.fullText, exported.fullText)
+        XCTAssertEqual(exported.segments.count, 2)
+        XCTAssertEqual(committed.segments.count, 2)
+        XCTAssertEqual(exported.segments.map(\.id), [firstSegment.id, secondSegment.id])
+        XCTAssertEqual(committed.segments.map(\.id), [firstSegment.id, secondSegment.id])
+        XCTAssertEqual(exported.segments.map(\.text), ["編集後の前半", "編集後の後半"])
+        XCTAssertEqual(committed.segments.map(\.text), ["編集後の前半", "編集後の後半"])
+        XCTAssertEqual(exported.segments.map(\.startTime), [0, 1.5])
+        XCTAssertEqual(exported.segments.map(\.endTime), [1.5, 3.0])
+        XCTAssertEqual(committed.segments.map(\.startTime), [0, 1.5])
+        XCTAssertEqual(committed.segments.map(\.endTime), [1.5, 3.0])
         let exportedDate = try XCTUnwrap(exported.updatedAt)
         let committedDate = try XCTUnwrap(committed.updatedAt)
-        XCTAssertNotEqual(committedDate, originalTranscript.updatedAt)
+        XCTAssertNotEqual(committedDate, segmentedTranscript.updatedAt)
         // JSON の ISO 8601 日時は秒未満を含まない。
         XCTAssertEqual(exportedDate.timeIntervalSince1970, committedDate.timeIntervalSince1970, accuracy: 1)
         XCTAssertEqual(viewModel.baselineTranscriptText, exported.fullText)
-        XCTAssertEqual(viewModel.transcriptText, editedText)
+        XCTAssertEqual(viewModel.transcriptText, editedMultiLineText)
         XCTAssertFalse(viewModel.hasUnsavedChanges)
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertNotNil(viewModel.toast)
@@ -601,13 +626,12 @@ final class MainWindowViewModelExportTests: XCTestCase {
     func testFullTextEditIsReflectedInBothTXTAndSRTExports() throws {
         let srtDestination = tempRoot.appendingPathComponent("result.srt")
         let txtDestination = tempRoot.appendingPathComponent("result.txt")
+        let firstSegment = TranscriptSegment(startTime: 0, endTime: 1.5, text: "元の前半")
+        let secondSegment = TranscriptSegment(startTime: 1.5, endTime: 3.0, text: "元の後半")
         let multiSegmentTranscript = Transcript(
             sourceFileName: "meeting.wav",
             fullText: "元の前半\n元の後半",
-            segments: [
-                TranscriptSegment(startTime: 0, endTime: 1.5, text: "元の前半"),
-                TranscriptSegment(startTime: 1.5, endTime: 3.0, text: "元の後半")
-            ]
+            segments: [firstSegment, secondSegment]
         )
 
         let srtViewModel = MainWindowViewModel(
@@ -619,10 +643,22 @@ final class MainWindowViewModelExportTests: XCTestCase {
         srtViewModel.exportTranscript(format: .srt)
 
         let srtContent = try String(contentsOf: srtDestination, encoding: .utf8)
-        XCTAssertTrue(srtContent.contains("編集後の前半"))
-        XCTAssertTrue(srtContent.contains("編集後の後半"))
-        XCTAssertFalse(srtContent.contains("元の前半"))
-        XCTAssertFalse(srtContent.contains("元の後半"))
+        let expectedSRT = """
+        1
+        00:00:00,000 --> 00:00:01,500
+        編集後の前半
+
+        2
+        00:00:01,500 --> 00:00:03,000
+        編集後の後半
+        """
+        XCTAssertEqual(srtContent, expectedSRT)
+        let srtCommitted = try XCTUnwrap(srtViewModel.currentTranscript)
+        XCTAssertEqual(srtCommitted.segments.count, 2)
+        XCTAssertEqual(srtCommitted.segments.map(\.id), [firstSegment.id, secondSegment.id])
+        XCTAssertEqual(srtCommitted.segments.map(\.text), ["編集後の前半", "編集後の後半"])
+        XCTAssertEqual(srtCommitted.segments.map(\.startTime), [0, 1.5])
+        XCTAssertEqual(srtCommitted.segments.map(\.endTime), [1.5, 3.0])
 
         let txtViewModel = MainWindowViewModel(
             fileAccess: SecurityScopedFileAccess(),
@@ -633,6 +669,12 @@ final class MainWindowViewModelExportTests: XCTestCase {
         txtViewModel.exportTranscript(format: .txt)
 
         XCTAssertEqual(try String(contentsOf: txtDestination, encoding: .utf8), "編集後の前半\n編集後の後半")
+        let txtCommitted = try XCTUnwrap(txtViewModel.currentTranscript)
+        XCTAssertEqual(txtCommitted.segments.count, 2)
+        XCTAssertEqual(txtCommitted.segments.map(\.id), [firstSegment.id, secondSegment.id])
+        XCTAssertEqual(txtCommitted.segments.map(\.text), ["編集後の前半", "編集後の後半"])
+        XCTAssertEqual(txtCommitted.segments.map(\.startTime), [0, 1.5])
+        XCTAssertEqual(txtCommitted.segments.map(\.endTime), [1.5, 3.0])
     }
 
     private func makeViewModel(exportURL: URL?) -> MainWindowViewModel {

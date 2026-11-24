@@ -290,6 +290,33 @@ final class MainWindowViewModelImportTests: XCTestCase {
             "インポート失敗時に旧ファイルの sandbox コピーを削除しないこと"
         )
         XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+    }
+
+    func testFailedFileImportPreservesCompletedUIStateAndProgressDisplay() async throws {
+        let existingTranscript = Transcript(
+            sourceFileName: "completed.wav",
+            fullText: "完了済みテキスト"
+        )
+        viewModel.restoreTranscript(existingTranscript)
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+
+        let missingURL = sourceRoot.appendingPathComponent("missing.wav")
+        viewModel.selectFile(url: missingURL)
+        XCTAssertTrue(viewModel.confirmFileImport)
+
+        viewModel.applyPendingFileImport()
+        await viewModel.importTask?.value
+
+        XCTAssertEqual(viewModel.uiState, .done, "ファイル取り込み失敗時に既存の完了状態を待機中へ戻さないこと")
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existingTranscript.id)
+        XCTAssertEqual(viewModel.transcriptText, "完了済みテキスト")
+        XCTAssertNotNil(viewModel.inlineErrorMessage)
+        XCTAssertTrue(viewModel.canRetryError)
+        XCTAssertFalse(viewModel.isBusy)
     }
 
     func testCancelledTranscriptionRestartKeepsResultAndRequiresConfirmationAgain() async throws {
@@ -365,6 +392,7 @@ final class MainWindowViewModelImportTests: XCTestCase {
         XCTAssertTrue(viewModel.canStartTranscription)
 
         try FileManager.default.removeItem(at: externalURL)
+        viewModel.refreshSelectedFileAvailability()
 
         XCTAssertNotNil(viewModel.selectedFile)
         XCTAssertFalse(viewModel.canStartTranscription)
@@ -372,6 +400,43 @@ final class MainWindowViewModelImportTests: XCTestCase {
             viewModel.startTranscriptionDisabledReason,
             L("音声ファイルを選択してください", comment: "Select an audio file")
         )
+    }
+
+    func testRepeatedCanStartAndDisabledReasonReadsDoNotRepeatFileExistsChecks() throws {
+        var checkCount = 0
+        var existsOnDisk = true
+        let vm = MainWindowViewModel(
+            audioImportService: AudioImportService(importsRoot: importsRoot),
+            fileExistsChecker: { _ in
+                checkCount += 1
+                return existsOnDisk
+            }
+        )
+        AppSettings.shared.selectedModelID = "base"
+        vm.downloadedModelIDs = ["base"]
+
+        let externalURL = sourceRoot.appendingPathComponent("cached.wav")
+        vm.selectedFile = AudioFileInfo(
+            url: externalURL,
+            fileName: "cached.wav",
+            fileExtension: "wav",
+            fileSizeBytes: 5,
+            formattedFileSize: "5 bytes"
+        )
+        XCTAssertEqual(checkCount, 1, "ファイル選択時に 1 回だけ存在確認すること")
+
+        for _ in 0..<10 {
+            XCTAssertTrue(vm.canStartTranscription)
+            XCTAssertNil(vm.startTranscriptionDisabledReason)
+            XCTAssertEqual(vm.existingSelectedFile?.url, externalURL)
+        }
+        XCTAssertEqual(checkCount, 1, "UI 再評価相当の連続参照で fileExists を再実行しないこと")
+
+        existsOnDisk = false
+        vm.refreshSelectedFileAvailability()
+        XCTAssertEqual(checkCount, 2)
+        XCTAssertFalse(vm.canStartTranscription)
+        XCTAssertNil(vm.existingSelectedFile)
     }
 
     func testHandleImportsClearedKeepsSelectionOutsideImportsDirectory() throws {

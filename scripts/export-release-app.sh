@@ -14,8 +14,9 @@ Options:
   --archive PATH     Path to the .xcarchive produced by xcodebuild archive
   --output PATH      Directory where the configured .app will be copied
   --sign IDENTITY    Developer ID signing identity (optional)
-  --team TEAM_ID     Validate that --sign belongs to this Apple Team ID (requires --sign)
-  --verify-only      Verify signature on an existing app in --output
+  --team TEAM_ID     Validate signing Team ID (requires --sign unless --verify-only)
+  --verify-only      Verify signature on an existing app in --output (fails if unsigned)
+  --allow-unsigned   Allow unsigned apps with --verify-only (incompatible with --sign/--team)
   -h, --help         Show this help
 EOF
 }
@@ -25,6 +26,7 @@ OUTPUT_DIR=""
 SIGN_IDENTITY=""
 TEAM_ID=""
 VERIFY_ONLY=0
+ALLOW_UNSIGNED=0
 SIGN_SPECIFIED=0
 TEAM_SPECIFIED=0
 
@@ -72,6 +74,10 @@ while [[ $# -gt 0 ]]; do
       VERIFY_ONLY=1
       shift
       ;;
+    --allow-unsigned)
+      ALLOW_UNSIGNED=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -95,8 +101,13 @@ if [[ "$SIGN_SPECIFIED" -eq 1 && -z "$SIGN_IDENTITY" ]]; then
   exit 1
 fi
 
+if [[ "$ALLOW_UNSIGNED" -eq 1 && ( -n "$SIGN_IDENTITY" || "$TEAM_SPECIFIED" -eq 1 ) ]]; then
+  echo "--allow-unsigned cannot be combined with --sign or --team" >&2
+  exit 1
+fi
+
 if [[ "$TEAM_SPECIFIED" -eq 1 ]]; then
-  if [[ -z "$SIGN_IDENTITY" ]]; then
+  if [[ "$VERIFY_ONLY" -eq 0 && -z "$SIGN_IDENTITY" ]]; then
     echo "--team requires --sign with a signing identity" >&2
     exit 1
   fi
@@ -122,6 +133,73 @@ fi
 
 APP_PATH="${OUTPUT_DIR}/${APP_NAME}.app"
 
+resolve_expected_authority() {
+  local identities line fingerprint certificate_name
+  local normalized_fingerprint
+  local identity_line_re='^[[:space:]]*[0-9]+\)[[:space:]]+([[:xdigit:]]{40})[[:space:]]+"([^"]+)"'
+
+  if [[ ! "$SIGN_IDENTITY" =~ ^[[:xdigit:]]{40}$ ]]; then
+    printf '%s' "$SIGN_IDENTITY"
+    return 0
+  fi
+
+  if ! identities="$(security find-identity -v -p codesigning)"; then
+    echo "Could not list valid codesigning identities to resolve signing fingerprint" >&2
+    return 1
+  fi
+
+  normalized_fingerprint="$(printf '%s' "$SIGN_IDENTITY" | tr '[:lower:]' '[:upper:]')"
+  while IFS= read -r line; do
+    if [[ "$line" =~ $identity_line_re ]]; then
+      fingerprint="$(printf '%s' "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]')"
+      certificate_name="${BASH_REMATCH[2]}"
+      if [[ "$normalized_fingerprint" == "$fingerprint" ]]; then
+        printf '%s' "$certificate_name"
+        return 0
+      fi
+    fi
+  done <<< "$identities"
+
+  echo "Signing identity '${SIGN_IDENTITY}' was not found among valid codesigning identities" >&2
+  return 1
+}
+
+verify_app_signature_metadata() {
+  local details line actual_authority="" actual_team="" expected_authority=""
+
+  if [[ -z "$SIGN_IDENTITY" && -z "$TEAM_ID" ]]; then
+    return 0
+  fi
+
+  if ! details="$(codesign -d --verbose=4 "$APP_PATH" 2>&1)"; then
+    echo "Could not inspect signature metadata for ${APP_PATH}" >&2
+    return 1
+  fi
+
+  while IFS= read -r line; do
+    if [[ -z "$actual_authority" && "$line" == Authority=* ]]; then
+      actual_authority="${line#Authority=}"
+    elif [[ -z "$actual_team" && "$line" == TeamIdentifier=* ]]; then
+      actual_team="${line#TeamIdentifier=}"
+    fi
+  done <<< "$details"
+
+  if [[ -n "$TEAM_ID" && "$actual_team" != "$TEAM_ID" ]]; then
+    echo "App signature Team ID '${actual_team:-<none>}' does not match required Team ID '${TEAM_ID}'" >&2
+    return 1
+  fi
+
+  if [[ -n "$SIGN_IDENTITY" ]]; then
+    if ! expected_authority="$(resolve_expected_authority)"; then
+      return 1
+    fi
+    if [[ "$actual_authority" != "$expected_authority" ]]; then
+      echo "App signing authority '${actual_authority:-<none>}' does not match required identity '${expected_authority}'" >&2
+      return 1
+    fi
+  fi
+}
+
 verify_app() {
   if [[ ! -d "$APP_PATH" ]]; then
     echo "App not found: $APP_PATH" >&2
@@ -129,12 +207,16 @@ verify_app() {
   fi
 
   if ! codesign --verify --deep --strict "$APP_PATH" >/dev/null 2>&1; then
-    if [[ -n "$SIGN_IDENTITY" ]]; then
-      echo "Signature verification failed for ${APP_PATH} (requested identity: ${SIGN_IDENTITY})" >&2
+    if [[ -n "$SIGN_IDENTITY" || -n "$TEAM_ID" ]]; then
+      echo "Signature verification failed for ${APP_PATH} (requested identity: ${SIGN_IDENTITY:-<any>}, team: ${TEAM_ID:-<any>})" >&2
       return 1
     fi
     if codesign -d "$APP_PATH" >/dev/null 2>&1; then
       echo "Invalid signature detected for ${APP_PATH}" >&2
+      return 1
+    fi
+    if [[ "$VERIFY_ONLY" -eq 1 && "$ALLOW_UNSIGNED" -eq 0 ]]; then
+      echo "App is unsigned: ${APP_PATH} (pass --allow-unsigned to permit unsigned apps)" >&2
       return 1
     fi
     echo "App is unsigned; skipping signature verification."
@@ -143,6 +225,7 @@ verify_app() {
 
   echo "Verifying signature for ${APP_PATH}"
   codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+  verify_app_signature_metadata
   spctl --assess --type execute --verbose=4 "$APP_PATH"
 }
 

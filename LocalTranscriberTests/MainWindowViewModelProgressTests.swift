@@ -743,6 +743,78 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         XCTAssertEqual(attemptCount.value, 2)
     }
 
+    func testModelDownloadCancelFailureAndCompletionPreserveDoneStateWithExistingTranscript() async throws {
+        let modelsRoot = isolatedRoot.appendingPathComponent("DownloadDoneStateModels", isDirectory: true)
+        try FileManager.default.createDirectory(at: modelsRoot, withIntermediateDirectories: true)
+        let availability = ModelAvailabilityService(modelsRoot: modelsRoot)
+        let cancelStarted = ProgressGate()
+        let cancelObserved = ProgressGate()
+        let attemptCount = DownloadAttemptBox()
+
+        let downloadService = ModelDownloadService(
+            modelsRoot: modelsRoot,
+            modelAvailability: availability,
+            downloadModel: { variant, downloadBase, _ in
+                let currentAttempt = attemptCount.increment()
+                switch currentAttempt {
+                case 1:
+                    cancelStarted.open()
+                    try await withTaskCancellationHandler {
+                        try await Task.sleep(nanoseconds: 10_000_000_000)
+                    } onCancel: {
+                        cancelObserved.open()
+                    }
+                    throw CancellationError()
+                case 2:
+                    throw AppError.fileAccessDenied
+                default:
+                    let folder = downloadBase.appendingPathComponent("openai_whisper-\(variant)", isDirectory: true)
+                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                    for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+                        try Data("model".utf8).write(to: folder.appendingPathComponent("\(name).mlmodelc"))
+                    }
+                    return folder
+                }
+            },
+            retryDelayNanoseconds: { _ in 0 }
+        )
+
+        isolatedSettings.selectedModelID = "base"
+        viewModel = makeIsolatedViewModel(
+            modelsRoot: modelsRoot,
+            modelAvailability: availability,
+            modelDownloadService: downloadService
+        )
+        let existing = Transcript(sourceFileName: "done.wav", fullText: "完了済みテキスト")
+        viewModel.restoreTranscript(existing)
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+
+        // 1) ダウンロードキャンセル時に .done / .done() が復元されること
+        viewModel.downloadSelectedModel()
+        await cancelStarted.wait()
+        XCTAssertTrue(viewModel.isDownloadingModel)
+        viewModel.cancelModelDownload()
+        await cancelObserved.wait()
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existing.id)
+
+        // 2) ダウンロード失敗時にも .done / .done() が維持されること
+        viewModel.downloadSelectedModel()
+        try await waitUntil { !self.viewModel.isBusy && self.viewModel.inlineErrorMessage != nil }
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existing.id)
+
+        // 3) ダウンロード完了時にも .done / .done() が維持されること
+        viewModel.downloadSelectedModel()
+        try await waitUntil { self.viewModel.downloadedModelIDs.contains("base") && !self.viewModel.isBusy }
+        XCTAssertEqual(viewModel.uiState, .done)
+        XCTAssertEqual(viewModel.progressDisplay, .done())
+        XCTAssertEqual(viewModel.currentTranscript?.id, existing.id)
+    }
+
     func testCancelActiveOperationCancelsRunningTranscription() async throws {
         let gate = ProgressGate()
         let mock = MockProgressTranscriber(
@@ -790,6 +862,29 @@ final class MainWindowViewModelProgressTests: XCTestCase {
         // currentTranscript を別インスタンスへ差し替えても transcriptText が空落ちしないこと。
         viewModel.currentTranscript = Transcript(sourceFileName: "other.wav", fullText: "別本文")
         XCTAssertEqual(viewModel.transcriptText, "先頭\n更新12")
+    }
+
+    func testSegmentEditDraftFlushesAcrossSegmentSwitchesAndPreservesHeldSnapshots() {
+        viewModel = makeIsolatedViewModel()
+        let first = TranscriptSegment(startTime: 0, endTime: 1, text: "先頭")
+        let middle = TranscriptSegment(startTime: 1, endTime: 2, text: "中間")
+        let last = TranscriptSegment(startTime: 2, endTime: 3, text: "末尾")
+        let initial = Transcript(sourceFileName: "draft.wav", fullText: "先頭\n中間\n末尾", segments: [first, middle, last])
+        viewModel.restoreTranscript(initial)
+
+        // スナップショットを保持したまま同一セグメントを連続編集しても整合性を保つ。
+        let heldSnapshot = viewModel.currentTranscript
+        viewModel.updateSegmentText(id: last.id, text: "末尾1")
+        viewModel.updateSegmentText(id: last.id, text: "末尾12")
+        viewModel.updateSegmentText(id: last.id, text: "末尾123")
+        XCTAssertEqual(heldSnapshot?.segments.map(\.text), ["先頭", "中間", "末尾"])
+        XCTAssertEqual(viewModel.transcriptText, "先頭\n中間\n末尾123")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["先頭", "中間", "末尾123"])
+
+        // 別セグメントへ移ると直前ドラフトが確定し、両方の編集が保持される。
+        viewModel.updateSegmentText(id: first.id, text: "新しい先頭")
+        XCTAssertEqual(viewModel.transcriptText, "新しい先頭\n中間\n末尾123")
+        XCTAssertEqual(viewModel.currentTranscript?.segments.map(\.text), ["新しい先頭", "中間", "末尾123"])
     }
 
     private func configureForTranscription() {

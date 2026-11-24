@@ -360,6 +360,56 @@ final class ModelAvailabilityServiceTests: XCTestCase {
         XCTAssertTrue(service.isDownloaded(whisperKitModelName: "base"))
         XCTAssertNotNil(service.modelFolder(for: "base"))
     }
+
+    func testCacheTTLExpiresDeterministicallyWithoutSleepingAndReflectsAddDeleteOnSameInstance() throws {
+        let clock = MutableTestClock(Date(timeIntervalSince1970: 1_700_000_000))
+        let sameInstance = ModelAvailabilityService(
+            modelsRoot: temporaryRoot,
+            now: { clock.current }
+        )
+
+        // 初回走査で空キャッシュを温める。
+        XCTAssertFalse(sameInstance.isDownloaded(whisperKitModelName: "tiny"))
+
+        // モデルフォルダを追加。29 秒経過時点ではキャッシュが有効のまま、30 秒境界で再走査される。
+        let variantFolder = temporaryRoot.appendingPathComponent("openai_whisper-tiny", isDirectory: true)
+        try FileManager.default.createDirectory(at: variantFolder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            try Data("model".utf8).write(to: variantFolder.appendingPathComponent("\(name).mlmodelc"))
+        }
+
+        clock.advance(by: 29)
+        XCTAssertFalse(sameInstance.isDownloaded(whisperKitModelName: "tiny"), "TTL 未満はキャッシュを利用すること")
+
+        clock.advance(by: 1)
+        XCTAssertTrue(sameInstance.isDownloaded(whisperKitModelName: "tiny"), "30 秒 TTL 境界で再走査して追加を検出すること")
+
+        // 同一インスタンス上で削除後に invalidateCache() を呼べば TTL を待たず即座に未取得へ更新される。
+        try FileManager.default.removeItem(at: variantFolder)
+        sameInstance.invalidateCache()
+        XCTAssertFalse(sameInstance.isDownloaded(whisperKitModelName: "tiny"))
+    }
+}
+
+private final class MutableTestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date: Date
+
+    init(_ initial: Date) {
+        self.date = initial
+    }
+
+    var current: Date {
+        lock.lock()
+        defer { lock.unlock() }
+        return date
+    }
+
+    func advance(by seconds: TimeInterval) {
+        lock.lock()
+        date = date.addingTimeInterval(seconds)
+        lock.unlock()
+    }
 }
 
 /// 最初の空の走査結果を返す直前に停止し、無効化・書き戻しの競合を決定的に再現する。

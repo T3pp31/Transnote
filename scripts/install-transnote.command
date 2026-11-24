@@ -33,16 +33,41 @@ find_mounted_dmg_path() {
   fi
 
   local volume_name="${SCRIPT_DIR#/Volumes/}"
-  local volume_path="/Volumes/${volume_name%%/*}"
+  volume_name="${volume_name%%/*}"
+  if [[ -z "$volume_name" ]]; then
+    return 1
+  fi
+  local volume_path="/Volumes/${volume_name}"
 
   local dmg_path=""
   local current_path=""
+  local line mount_point
   while IFS= read -r line; do
-    if [[ "$line" =~ ^image-path[[:space:]]*: ]]; then
-      current_path="${line#*: }"
-    elif [[ "$line" == *"$volume_path"* ]] && [[ -n "$current_path" ]]; then
-      dmg_path="$current_path"
-      break
+    line="${line%$'\r'}"
+    if [[ "$line" == ===* ]]; then
+      current_path=""
+    elif [[ "$line" =~ ^image-path[[:space:]]*:[[:space:]]*(.*)$ ]]; then
+      current_path="${BASH_REMATCH[1]}"
+    elif [[ -n "$current_path" ]]; then
+      mount_point=""
+      if [[ "$line" =~ ^mount-point[[:space:]]*:[[:space:]]*(.*)$ ]]; then
+        mount_point="${BASH_REMATCH[1]}"
+      elif [[ "$line" =~ ^[[:space:]]*[^[:space:]/][^:]*: ]]; then
+        continue
+      elif [[ "$line" == *$'\t'* ]]; then
+        mount_point="${line##*$'\t'}"
+      elif [[ "$line" =~ ^[[:space:]]*(/dev/[^[:space:]]+)[[:space:]]+ ]]; then
+        if [[ "$line" == *[[:space:]]"$volume_path" ]]; then
+          mount_point="$volume_path"
+        fi
+      elif [[ "$line" =~ ^[[:space:]]*(.+)$ ]]; then
+        mount_point="${BASH_REMATCH[1]}"
+      fi
+
+      if [[ -n "$mount_point" && "$mount_point" == "$volume_path" ]]; then
+        dmg_path="$current_path"
+        break
+      fi
     fi
   done < <(hdiutil info 2>/dev/null)
 
@@ -150,8 +175,14 @@ eject_installer_volume() {
   fi
 
   local volume_name="${SCRIPT_DIR#/Volumes/}"
-  local volume_path="/Volumes/${volume_name%%/*}"
-  hdiutil detach "$volume_path" -quiet >/dev/null 2>&1 || true
+  volume_name="${volume_name%%/*}"
+  if [[ -z "$volume_name" ]]; then
+    return 0
+  fi
+  local volume_path="/Volumes/${volume_name}"
+  if ! hdiutil detach "$volume_path" -quiet >/dev/null 2>&1; then
+    echo "Warning: インストーラボリューム ${volume_path} の取り出しに失敗しました。Finder から手動で取り出してください。" >&2
+  fi
 }
 
 remove_quarantine_attribute() {

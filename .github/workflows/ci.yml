@@ -48,9 +48,11 @@ jobs:
         run: |
           set -euo pipefail
           sbom_path="$(./scripts/generate-sbom.sh --mode ci)"
+          sbom_dir="$(dirname "$sbom_path")"
           artifact_name="$(./scripts/generate-sbom.sh --print CIArtifactName)"
           retention_days="$(./scripts/generate-sbom.sh --print CIArtifactRetentionDays)"
           echo "sbom_path=${sbom_path}" >> "$GITHUB_OUTPUT"
+          echo "sbom_dir=${sbom_dir}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=${artifact_name}" >> "$GITHUB_OUTPUT"
           echo "retention_days=${retention_days}" >> "$GITHUB_OUTPUT"
 
@@ -58,7 +60,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.sbom.outputs.artifact_name }}
-          path: build/sbom/
+          path: ${{ steps.sbom.outputs.sbom_dir }}/
           retention-days: ${{ steps.sbom.outputs.retention_days }}
 
   lint:
@@ -121,9 +123,25 @@ jobs:
           cd site
           node app.test.js
 
+  localization-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
       - name: Localization key tests
         run: |
           python3 scripts/test-localization-keys.py
+
+  release-script-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Release script tests
         run: |
@@ -137,22 +155,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read Xcode version
+      - name: Setup Xcode and SPM cache
         id: xcode_config
-        run: |
-          set -euo pipefail
-          version="$(python3 scripts/read-xcode-version.py)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        uses: ./.github/actions/setup-xcode-spm
         with:
-          xcode-version: ${{ steps.xcode_config.outputs.version }}
-
-      - name: Cache SPM repositories
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-xcode-${{ steps.xcode_config.outputs.version }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          spm-cache-prefix: spm
 
       # The cache whitelists DerivedData subdirectories needed for incremental
       # builds (paths kept literal; actions/cache inputs are safest without

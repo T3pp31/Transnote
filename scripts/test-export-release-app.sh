@@ -49,7 +49,23 @@ case "$1" in
     done
     printf '%s\n' "$identity" >> "$MOCK_SIGN_LOG"
     [[ "${MOCK_SIGN_FAIL:-0}" == 0 ]] || exit 7
-    touch "$app/.signed"
+    resolved_authority="$identity"
+    if [[ "$identity" =~ ^[[:xdigit:]]{40}$ ]]; then
+      upper_fp="$(printf '%s' "$identity" | tr '[:lower:]' '[:upper:]')"
+      while IFS= read -r id_line; do
+        if [[ "$id_line" =~ ^[[:space:]]*[0-9]+\)[[:space:]]+([[:xdigit:]]{40})[[:space:]]+\"([^\"]+)\" ]]; then
+          if [[ "$(printf '%s' "${BASH_REMATCH[1]}" | tr '[:lower:]' '[:upper:]')" == "$upper_fp" ]]; then
+            resolved_authority="${BASH_REMATCH[2]}"
+            break
+          fi
+        fi
+      done < "$MOCK_IDENTITIES"
+    fi
+    resolved_team="not set"
+    if [[ "$resolved_authority" =~ \(([A-Z0-9]{10})\)$ ]]; then
+      resolved_team="${BASH_REMATCH[1]}"
+    fi
+    printf 'Authority=%s\nTeamIdentifier=%s\n' "$resolved_authority" "$resolved_team" > "$app/.signed"
     ;;
   --verify)
     printf 'verify\n' >> "$MOCK_EVENT_LOG"
@@ -59,7 +75,8 @@ case "$1" in
   -d)
     printf 'display\n' >> "$MOCK_EVENT_LOG"
     app="${!#}"
-    [[ -f "$app/.signed" ]]
+    [[ -f "$app/.signed" ]] || exit 1
+    cat "$app/.signed" >&2
     ;;
   *) exit 2 ;;
 esac
@@ -274,5 +291,77 @@ mkdir -p "$PREFIX_OUTPUT"
 expect_success --output "$PREFIX_OUTPUT"
 [[ "$(cat "$PREFIX_OUTPUT/Transnote.app/marker")" == 'original bundle' ]] || fail 'non-overlapping export was not copied'
 echo 'PASS: sibling with matching path prefix can be exported'
+
+# --verify-only must reject unsigned apps by default and require explicit --allow-unsigned.
+run_verify_only() {
+  : > "$MOCK_SIGN_LOG"
+  : > "$MOCK_EVENT_LOG"
+  PATH="$MOCK_BIN:$PATH" \
+    MOCK_IDENTITIES="$MOCK_IDENTITIES" \
+    MOCK_SIGN_LOG="$MOCK_SIGN_LOG" \
+    MOCK_EVENT_LOG="$MOCK_EVENT_LOG" \
+    MOCK_SIGN_FAIL="${MOCK_SIGN_FAIL:-0}" \
+    MOCK_VERIFY_FAIL="${MOCK_VERIFY_FAIL:-0}" \
+    MOCK_SECURITY_FAIL="${MOCK_SECURITY_FAIL:-0}" \
+    bash "$ROOT/scripts/export-release-app.sh" \
+      --output "$VERIFY_DIR" --verify-only "$@" \
+      > "$WORK/stdout" 2> "$WORK/stderr"
+}
+
+VERIFY_DIR="$WORK/verify-only"
+mkdir -p "$VERIFY_DIR/Transnote.app"
+if run_verify_only; then
+  fail '--verify-only should reject unsigned app by default'
+fi
+grep -q 'App is unsigned' "$WORK/stderr" || fail 'missing unsigned rejection message'
+
+if ! run_verify_only --allow-unsigned; then
+  fail '--verify-only --allow-unsigned should accept unsigned app'
+fi
+grep -q 'App is unsigned; skipping signature verification.' "$WORK/stdout" || fail 'missing unsigned skip message'
+
+if run_verify_only --allow-unsigned --sign "$IDENTITY"; then
+  fail '--allow-unsigned with --sign should fail'
+fi
+if run_verify_only --allow-unsigned --team "$TEAM"; then
+  fail '--allow-unsigned with --team should fail'
+fi
+
+# Corrupted signature must still fail even with --allow-unsigned.
+printf 'Authority=%s\nTeamIdentifier=%s\n' "$IDENTITY" "$TEAM" > "$VERIFY_DIR/Transnote.app/.signed"
+MOCK_VERIFY_FAIL=1
+if run_verify_only --allow-unsigned; then
+  fail '--verify-only --allow-unsigned must reject invalid signature'
+fi
+grep -q 'Invalid signature detected' "$WORK/stderr" || fail 'missing invalid signature error'
+unset MOCK_VERIFY_FAIL
+echo 'PASS: --verify-only rejects unsigned by default and enforces --allow-unsigned rules'
+
+# --verify-only must verify the app's actual Team ID and signing identity.
+printf 'Authority=%s\nTeamIdentifier=%s\n' "$IDENTITY" "$TEAM" > "$VERIFY_DIR/Transnote.app/.signed"
+MOCK_SECURITY_FAIL=1
+if ! run_verify_only --team "$TEAM"; then
+  fail '--verify-only --team should succeed for matching Team ID without keychain'
+fi
+if ! run_verify_only --sign "$IDENTITY" --team "$TEAM"; then
+  fail '--verify-only --sign --team should succeed for matching identity and Team ID'
+fi
+if run_verify_only --team "$OTHER_TEAM"; then
+  fail '--verify-only --team should reject app signed by a different Team ID'
+fi
+grep -q 'does not match required Team ID' "$WORK/stderr" || fail 'missing Team ID mismatch error'
+if run_verify_only --sign "$OTHER_IDENTITY"; then
+  fail '--verify-only --sign should reject app signed by a different identity'
+fi
+grep -q 'does not match required identity' "$WORK/stderr" || fail 'missing identity mismatch error'
+unset MOCK_SECURITY_FAIL
+
+if ! run_verify_only --sign "$FINGERPRINT" --team "$TEAM"; then
+  fail '--verify-only with matching SHA-1 fingerprint should succeed'
+fi
+if run_verify_only --sign "$OTHER_FINGERPRINT" --team "$TEAM"; then
+  fail '--verify-only with non-matching SHA-1 fingerprint should fail'
+fi
+echo 'PASS: --verify-only validates actual app signing identity and Team ID'
 
 echo 'ALL EXPORT RELEASE APP TESTS PASSED'

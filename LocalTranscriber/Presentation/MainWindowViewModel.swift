@@ -82,7 +82,13 @@ struct AppDependencies {
 final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
-    @Published var selectedFile: AudioFileInfo?
+    @Published var selectedFile: AudioFileInfo? {
+        didSet {
+            refreshSelectedFileAvailability()
+        }
+    }
+    /// SwiftUI body の再評価ごとに同期 fileExists を呼ばないよう、選択ファイルの存在確認結果を保持する。
+    @Published private(set) var isSelectedFileAvailable = false
     private var storedTranscriptText: String = ""
     /// セグメント編集中は `storedTranscript.fullText` を唯一の本文バッファとして共有し、
     /// `transcriptText` 側との参照共有による全文 COW コピーと全走査比較を避ける。
@@ -91,17 +97,19 @@ final class MainWindowViewModel: ObservableObject {
     var transcriptText: String {
         get {
             if isTranscriptTextSyncedToStoredTranscript {
+                if let draft = activeSegmentDraft {
+                    return draft.fullText
+                }
                 return storedTranscript?.fullText ?? storedTranscriptText
             }
             return storedTranscriptText
         }
         set {
-            if !isTranscriptTextSyncedToStoredTranscript, newValue == storedTranscriptText {
+            let currentText = transcriptText
+            if newValue == currentText {
                 return
             }
-            if isTranscriptTextSyncedToStoredTranscript, let current = storedTranscript?.fullText, newValue == current {
-                return
-            }
+            commitActiveSegmentDraftIfNeeded()
             objectWillChange.send()
             isTranscriptTextSyncedToStoredTranscript = false
             storedTranscriptText = newValue
@@ -113,16 +121,26 @@ final class MainWindowViewModel: ObservableObject {
     private var storedTranscript: Transcript?
 
     var currentTranscript: Transcript? {
-        get { storedTranscript }
+        get {
+            guard var transcript = storedTranscript else { return nil }
+            if let draft = activeSegmentDraft {
+                transcript.segments[draft.index].text = draft.text
+                transcript.fullText = draft.fullText
+            }
+            return transcript
+        }
         set {
             objectWillChange.send()
             if isTranscriptTextSyncedToStoredTranscript {
-                storedTranscriptText = storedTranscript?.fullText ?? storedTranscriptText
+                if let draft = activeSegmentDraft {
+                    storedTranscriptText = draft.fullText
+                } else {
+                    storedTranscriptText = storedTranscript?.fullText ?? storedTranscriptText
+                }
                 isTranscriptTextSyncedToStoredTranscript = false
             }
+            activeSegmentDraft = nil
             storedTranscript = newValue
-            // 全文編集・復元・書き出しなど、セグメント編集以外の更新で位置情報を無効化する。
-            segmentTextEditLocation = nil
         }
     }
     @Published var baselineTranscriptText: String = ""
@@ -137,6 +155,8 @@ final class MainWindowViewModel: ObservableObject {
     @Published var criticalErrorTitle: String?
     @Published var criticalErrorMessage: String?
     @Published var downloadedModelIDs: Set<String> = []
+    /// モデルごとの表示用ディスク使用量キャッシュ。SwiftUI body 評価中に同期走査しないために保持する。
+    @Published private(set) var modelDiskUsageByID: [String: String] = [:]
     @Published var toast: ToastMessage?
 
     private enum RecoverableAction: Equatable {
@@ -161,20 +181,36 @@ final class MainWindowViewModel: ObservableObject {
     private(set) var transcriptionTask: Task<Void, Never>?
     private var modelDownloadTask: Task<Void, Never>?
     private(set) var importTask: Task<Void, Never>?
+    private(set) var modelDiskUsageTask: Task<Void, Never>?
+    private var modelDiskUsageGeneration = 0
     private var lastAnnouncedPhase: TranscriptionProgressPhase?
     private var toastDismissTask: Task<Void, Never>?
     private var hasSegmentTextEdits = false
     /// transcriptText 更新時に算出する。body 再評価のたびに全文を trimming しないため。
     private var hasNonEmptyTranscriptText = false
 
-    private struct SegmentTextEditLocation {
+    private struct ActiveSegmentDraft {
         let id: UUID
         let index: Int
-        let utf8Offset: Int
+        var text: String
+        let prefix: String
+        let suffix: String
+        let prefixHasNonWhitespace: Bool
+        let suffixHasNonWhitespace: Bool
+
+        var fullText: String {
+            var combined = String()
+            combined.reserveCapacity(prefix.utf8.count + text.utf8.count + suffix.utf8.count)
+            combined.append(prefix)
+            combined.append(text)
+            combined.append(suffix)
+            return combined
+        }
     }
 
-    // 同じ行への連続入力では、ID 検索と先行セグメントの走査も再実行しない。
-    private var segmentTextEditLocation: SegmentTextEditLocation?
+    // セグメント編集中は Transcript 全体や segments 配列を毎入力でコピーせず、
+    // 編集対象セグメントの可変ドラフトだけを O(1) で更新し、切り替え・確定時に反映する。
+    private var activeSegmentDraft: ActiveSegmentDraft?
 
     private let modelDownloadCoordinator = ModelDownloadCoordinator()
 
@@ -189,6 +225,7 @@ final class MainWindowViewModel: ObservableObject {
     private let modelDownloadService: ModelDownloadService
     private let audioPlayer: AudioPlayerService
     private let historyStore: HistoryStore
+    private let fileExistsChecker: (String) -> Bool
 
     init(
         transcriber: Transcriber = WhisperKitTranscriber(),
@@ -201,7 +238,8 @@ final class MainWindowViewModel: ObservableObject {
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
         modelDownloadService: ModelDownloadService = ModelDownloadService(),
         audioPlayer: AudioPlayerService? = nil,
-        historyStore: HistoryStore = HistoryStore()
+        historyStore: HistoryStore = HistoryStore(),
+        fileExistsChecker: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) {
         self.transcriber = transcriber
         self.audioFileService = audioFileService
@@ -214,12 +252,16 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
         self.historyStore = historyStore
+        self.fileExistsChecker = fileExistsChecker
         configureAudioPlayerCallbacks()
         refreshModelAvailability()
     }
 
     /// AppDependencies 経由で依存をまとめて注入するイニシャライザ。
-    init(dependencies: AppDependencies) {
+    init(
+        dependencies: AppDependencies,
+        fileExistsChecker: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) {
         self.transcriber = dependencies.transcriber
         self.audioFileService = dependencies.audioFileService
         self.audioImportService = dependencies.audioImportService
@@ -231,6 +273,7 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = dependencies.modelDownloadService
         self.audioPlayer = dependencies.audioPlayer ?? AudioPlayerService()
         self.historyStore = dependencies.historyStore
+        self.fileExistsChecker = fileExistsChecker
         configureAudioPlayerCallbacks()
         refreshModelAvailability()
     }
@@ -267,10 +310,18 @@ final class MainWindowViewModel: ObservableObject {
         operationCoordinator.activeOperation != nil || isDownloadingModel
     }
 
-    /// 選択中のファイルが実在する場合だけ返す。削除済みの参照を各機能で使わないための単一の判定源。
+    /// 選択中ファイルの存在確認結果を更新する。ファイル選択・取り込み完了・アプリ復帰・実行直前に呼ぶ。
+    func refreshSelectedFileAvailability() {
+        guard let selectedFile else {
+            isSelectedFileAvailable = false
+            return
+        }
+        isSelectedFileAvailable = fileExistsChecker(selectedFile.url.path)
+    }
+
+    /// 選択中のファイルが実在する場合だけ返す。body 評価時はキャッシュ済み状態のみを参照する。
     var existingSelectedFile: AudioFileInfo? {
-        guard let selectedFile,
-              FileManager.default.fileExists(atPath: selectedFile.url.path) else {
+        guard let selectedFile, isSelectedFileAvailable else {
             return nil
         }
         return selectedFile
@@ -395,6 +446,10 @@ final class MainWindowViewModel: ObservableObject {
                 .filter { modelAvailability.isDownloaded(whisperKitModelName: $0.whisperKitModelName) }
                 .map(\.id)
         )
+        modelDiskUsageGeneration += 1
+        modelDiskUsageTask?.cancel()
+        modelDiskUsageTask = nil
+        modelDiskUsageByID.removeAll()
     }
 
     func isModelDownloaded(_ model: ModelOption) -> Bool {
@@ -419,11 +474,37 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    /// モデルの使用ディスク容量を表示用テキストで返す。未ダウンロードの場合は nil。
+    /// モデルの使用ディスク容量のキャッシュ済み表示テキストを返す。未ダウンロードまたは未算出の場合は nil。
     func modelDiskUsageText(_ model: ModelOption) -> String? {
         guard isModelDownloaded(model) else { return nil }
-        let bytes = modelAvailability.diskUsage(whisperKitModelName: model.whisperKitModelName)
-        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+        return modelDiskUsageByID[model.id]
+    }
+
+    /// 指定モデルのディスク使用量をバックグラウンドで再計算し、表示用キャッシュを更新する。
+    func refreshModelDiskUsage(for model: ModelOption) {
+        guard isModelDownloaded(model) else {
+            modelDiskUsageByID.removeValue(forKey: model.id)
+            return
+        }
+        modelDiskUsageGeneration += 1
+        let generation = modelDiskUsageGeneration
+        let modelID = model.id
+        let modelName = model.whisperKitModelName
+        let availability = modelAvailability
+        modelDiskUsageTask?.cancel()
+        modelDiskUsageTask = Task { [weak self] in
+            let bytes = await Task.detached(priority: .utility) {
+                availability.diskUsage(whisperKitModelName: modelName)
+            }.value
+            guard let self,
+                  !Task.isCancelled,
+                  self.modelDiskUsageGeneration == generation,
+                  self.downloadedModelIDs.contains(modelID) else {
+                return
+            }
+            self.modelDiskUsageByID[modelID] = ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+            self.modelDiskUsageTask = nil
+        }
     }
 
     func modelDownloadSuccessToastMessage() -> String {
@@ -469,15 +550,21 @@ final class MainWindowViewModel: ObservableObject {
 
                 refreshModelAvailability()
                 if activeModelDownloadID == downloadID {
-                    uiState = .idle
-                    progressDisplay = .idle()
+                    let hasResult = currentTranscript != nil
+                    uiState = hasResult ? .done : .idle
+                    progressDisplay = hasResult ? .done() : .idle()
                     announcePhaseIfNeeded(.finished)
                     showToast(modelDownloadSuccessToastMessage())
                     AppLogger.info("Model download completed: \(model.displayName)", logger: AppLogger.transcription)
                 }
             } catch {
                 if activeModelDownloadID == downloadID, !Task.isCancelled {
+                    let hasResult = currentTranscript != nil
                     handleError(error, context: .modelDownload)
+                    if hasResult {
+                        uiState = .done
+                        progressDisplay = .done()
+                    }
                 }
             }
 
@@ -662,7 +749,11 @@ final class MainWindowViewModel: ObservableObject {
                 } else {
                     uiState = previousUIState
                     progressDisplay = previousProgressDisplay
-                    handleError(error, context: .fileImport(url: url, preferredFileName: preferredFileName))
+                    handleError(
+                        error,
+                        context: .fileImport(url: url, preferredFileName: preferredFileName),
+                        preserveUIState: true
+                    )
                 }
             }
         }
@@ -731,6 +822,8 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
+        refreshSelectedFileAvailability()
+
         guard let file = selectedFile,
               let model = settings.selectedModel else {
             let message = AppError.invalidConfiguration.errorDescription
@@ -739,6 +832,11 @@ final class MainWindowViewModel: ObservableObject {
                 title: NSLocalizedString("設定エラー", comment: "Configuration error title"),
                 message: message
             )
+            return
+        }
+
+        guard isSelectedFileAvailable else {
+            handleError(AppError.fileNotFound, context: .general)
             return
         }
 
@@ -874,8 +972,9 @@ final class MainWindowViewModel: ObservableObject {
         if wasDownloading {
             operationCoordinator.end(.modelDownload)
         }
-        uiState = .idle
-        progressDisplay = .idle()
+        let hasResult = currentTranscript != nil
+        uiState = hasResult ? .done : .idle
+        progressDisplay = hasResult ? .done() : .idle()
         lastAnnouncedPhase = nil
         AccessibilityNotification.Announcement(
             NSLocalizedString("処理をキャンセルしました。", comment: "Accessibility announcement for cancellation")
@@ -894,57 +993,62 @@ final class MainWindowViewModel: ObservableObject {
         text.unicodeScalars.contains { !CharacterSet.whitespacesAndNewlines.contains($0) }
     }
 
+    private func commitActiveSegmentDraftIfNeeded() {
+        guard let draft = activeSegmentDraft, storedTranscript != nil else { return }
+        storedTranscript!.segments[draft.index].text = draft.text
+        storedTranscript!.fullText = draft.fullText
+        activeSegmentDraft = nil
+    }
+
     /// セグメントのテキストを更新し、currentTranscript と全文に同期する。
-    /// 値型 Transcript の複製を避けて in-place 更新することで、連続入力時の
-    /// セグメント配列 COW コピーと全文バッファの再コピー・全走査を抑止する。
+    /// 同一セグメントへの連続入力では編集用ドラフトバッファだけを O(1) で更新し、
+    /// セグメント配列の COW コピーと全文の線形インデックス走査・再結合を回避する。
     func updateSegmentText(id: UUID, text: String) {
         guard storedTranscript != nil else { return }
-        let previousLocation = segmentTextEditLocation
-        let index: Int
-        let utf8Offset: Int
-        if let previousLocation, previousLocation.id == id {
-            index = previousLocation.index
-            utf8Offset = previousLocation.utf8Offset
-        } else {
-            guard let segmentIndex = storedTranscript?.segments.firstIndex(where: { $0.id == id }) else { return }
-            index = segmentIndex
-            // セグメント間の区切りは 1 バイトの改行。本文中の改行も文字列長に含める。
-            utf8Offset = storedTranscript!.segments.prefix(index).reduce(index) { $0 + $1.text.utf8.count }
+
+        if var draft = activeSegmentDraft, draft.id == id {
+            objectWillChange.send()
+            draft.text = text
+            activeSegmentDraft = draft
+            hasSegmentTextEdits = true
+            hasNonEmptyTranscriptText = draft.prefixHasNonWhitespace
+                || draft.suffixHasNonWhitespace
+                || Self.containsNonWhitespaceScalar(text)
+            return
         }
 
-        objectWillChange.send()
+        guard let index = storedTranscript?.segments.firstIndex(where: { $0.id == id }) else { return }
 
-        // transcriptText 側の重複参照を解放し、storedTranscript.fullText を一意参照にする。
+        // 別セグメントへ移動した場合は直前のドラフトを確定してから新しいドラフトを開始する。
+        commitActiveSegmentDraftIfNeeded()
+        let segments = storedTranscript!.segments
+        let prefix = index > 0
+            ? segments[..<index].map(\.text).joined(separator: "\n") + "\n"
+            : ""
+        let suffix = index + 1 < segments.count
+            ? "\n" + segments[(index + 1)...].map(\.text).joined(separator: "\n")
+            : ""
+
+        objectWillChange.send()
         if !isTranscriptTextSyncedToStoredTranscript {
             storedTranscriptText = ""
             isTranscriptTextSyncedToStoredTranscript = true
         }
 
-        let previousUTF8Count = storedTranscript!.segments[index].text.utf8.count
-        storedTranscript!.segments[index].text = text
-        if previousLocation == nil {
-            // 復元時や全文編集後は fullText がセグメント結合と異なる場合がある。
-            // 初回だけ結合して contiguous UTF-8 化し、以後は O(1) オフセットで差分置換する。
-            storedTranscript!.fullText = storedTranscript!.segments.map(\.text).joined(separator: "\n")
-            storedTranscript!.fullText.makeContiguousUTF8()
-        } else {
-            storedTranscript!.fullText.makeContiguousUTF8()
-            let start = storedTranscript!.fullText.utf8.index(
-                storedTranscript!.fullText.utf8.startIndex,
-                offsetBy: utf8Offset
-            )
-            let end = storedTranscript!.fullText.utf8.index(start, offsetBy: previousUTF8Count)
-            // CR + 区切りの LF が一つの Character になる場合も、セグメント境界で置換する。
-            storedTranscript!.fullText.unicodeScalars.replaceSubrange(start..<end, with: text.unicodeScalars)
-        }
+        let draft = ActiveSegmentDraft(
+            id: id,
+            index: index,
+            text: text,
+            prefix: prefix,
+            suffix: suffix,
+            prefixHasNonWhitespace: Self.containsNonWhitespaceScalar(prefix),
+            suffixHasNonWhitespace: Self.containsNonWhitespaceScalar(suffix)
+        )
+        activeSegmentDraft = draft
         hasSegmentTextEdits = true
-        segmentTextEditLocation = SegmentTextEditLocation(id: id, index: index, utf8Offset: utf8Offset)
-        // 編集後セグメントに非空白文字があれば全文走査を省き O(編集長) で判定する。
-        if Self.containsNonWhitespaceScalar(text) {
-            hasNonEmptyTranscriptText = true
-        } else {
-            hasNonEmptyTranscriptText = Self.containsNonWhitespaceScalar(storedTranscript!.fullText)
-        }
+        hasNonEmptyTranscriptText = draft.prefixHasNonWhitespace
+            || draft.suffixHasNonWhitespace
+            || Self.containsNonWhitespaceScalar(text)
     }
 
     func copyTranscript() {
@@ -973,6 +1077,7 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func playSegment(_ segment: TranscriptSegment) {
+        refreshSelectedFileAvailability()
         guard let file = existingSelectedFile else {
             showToast(
                 NSLocalizedString("音声ファイルが見つからないため再生できません", comment: "Audio file missing for playback"),
@@ -1212,7 +1317,7 @@ final class MainWindowViewModel: ObservableObject {
         }
     }
 
-    private func presentCriticalError(title: String, message: String) {
+    private func presentCriticalError(title: String, message: String, preserveUIState: Bool = false) {
         errorMessage = message
         criticalErrorTitle = title
         criticalErrorMessage = message
@@ -1220,12 +1325,12 @@ final class MainWindowViewModel: ObservableObject {
         inlineErrorMessage = nil
         canRetryError = false
         lastRecoverableAction = nil
-        if uiState != .preparing && uiState != .transcribing {
+        if !preserveUIState, uiState != .preparing && uiState != .transcribing {
             uiState = .idle
         }
     }
 
-    private func handleError(_ error: Error, context: ErrorContext) {
+    private func handleError(_ error: Error, context: ErrorContext, preserveUIState: Bool = false) {
         let message = ErrorMapper.userMessage(for: error)
 
         // ログには元エラー（技術詳細）を記録し、ユーザー向けメッセージとは分離する。
@@ -1245,14 +1350,19 @@ final class MainWindowViewModel: ObservableObject {
         AppLogger.error("\(logError)", logger: AppLogger.general)
 
         if isCriticalError(error) {
-            presentCriticalError(title: criticalTitle(for: error), message: message)
+            presentCriticalError(
+                title: criticalTitle(for: error),
+                message: message,
+                preserveUIState: preserveUIState
+            )
         } else {
             let info = inlineErrorInfo(for: error, context: context)
             presentInlineError(
                 title: info.title,
                 message: message,
                 canRetry: info.canRetry,
-                action: info.action
+                action: info.action,
+                preserveUIState: preserveUIState
             )
         }
         // キャンセル・失敗も VoiceOver で通知する
