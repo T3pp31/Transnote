@@ -40,6 +40,41 @@ class ReleaseActionSecurityTests(unittest.TestCase):
                 r"          persist-credentials: false(?:[ \t]+#.*)?[ \t]*(?:\n|$)",
             )
 
+    def test_build_provenance_attestation_covers_all_release_artifacts_and_permissions(self):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        self.assertRegex(workflow, r"(?m)^  id-token: write$")
+        self.assertRegex(workflow, r"(?m)^  attestations: write$")
+
+        steps = re.split(r"(?m)^      - ", workflow)[1:]
+        names = [step.splitlines()[0] for step in steps]
+        checksum_idx = names.index("name: Compute SHA256 checksums")
+        attest_idx = names.index("name: Attest build provenance")
+        release_idx = names.index("name: Create GitHub Release")
+        self.assertLess(checksum_idx, attest_idx)
+        self.assertLess(attest_idx, release_idx)
+
+        attest_step = steps[attest_idx]
+        self.assertNotRegex(attest_step, r"(?m)^        (if|continue-on-error):")
+        self.assertNotRegex(attest_step, r"(?m)^          subject-name:")
+
+        subject_match = re.search(
+            r"(?m)^          subject-path: \|\n((?:            [^\n]+\n)+)", attest_step
+        )
+        self.assertIsNotNone(subject_match, "subject-path block not found")
+        attested_paths = [line.strip() for line in subject_match.group(1).splitlines()]
+
+        release_step = steps[release_idx]
+        files_match = re.search(
+            r"(?m)^          files: \|\n((?:            [^\n]+(?:\n|$))+)", release_step
+        )
+        self.assertIsNotNone(files_match, "release files block not found")
+        release_files = [line.strip() for line in files_match.group(1).splitlines() if line.strip()]
+        self.assertEqual(
+            attested_paths,
+            release_files,
+            "GitHub Release に添付する全成果物を build provenance attestation の対象に含めること",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
