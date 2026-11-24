@@ -399,6 +399,111 @@ final class HistorySearchViewModelTests: XCTestCase {
         XCTAssertEqual(reads.total, 3, "saveWithTemporary 後の再検索でも searchDataLoader が再呼び出しされること")
     }
 
+    func testHistoryStoreSearchAbortsMidScanWhenCancelledAndPreservesExistingCache() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let reads = HistorySearchReadRecorder()
+        let cancelFlag = CancellationRecorder()
+        let store = HistoryStore(
+            historyRoot: root,
+            searchDataLoader: { url in
+                let data = try reads.load(url)
+                if reads.total >= 1 {
+                    cancelFlag.record(true)
+                }
+                return data
+            }
+        )
+        for index in 0..<5 {
+            try store.save(
+                Transcript(
+                    sourceFileName: "doc-\(index).wav",
+                    createdAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)),
+                    fullText: "needle \(index)"
+                )
+            )
+        }
+
+        let cancelledResults = store.search(query: "needle", isCancelled: { cancelFlag.value == true })
+        XCTAssertTrue(cancelledResults.isEmpty)
+        XCTAssertEqual(reads.total, 1, "キャンセル後は残りの候補ファイルの走査を打ち切ること")
+        XCTAssertEqual(store.searchCacheEntryCountForTesting, 1, "途中キャンセルで既存キャッシュを誤削除しないこと")
+
+        // キャンセル解除後は全件を正常に検索でき、キャッシュ済みの 1 件は再読込しない。
+        cancelFlag.record(false)
+        let fullResults = store.search(query: "needle", isCancelled: { false })
+        XCTAssertEqual(fullResults.count, 5)
+        XCTAssertEqual(reads.total, 5)
+    }
+
+    func testViewModelQueryChangeAbortsInFlightHistoryStoreScan() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let firstReadStarted = expectation(description: "first scan read started")
+        let releaseFirstRead = DispatchSemaphore(value: 0)
+        defer { releaseFirstRead.signal() }
+        let reads = HistorySearchReadRecorder()
+        let gate = CancellationRecorder()
+
+        let store = HistoryStore(
+            historyRoot: root,
+            searchDataLoader: { url in
+                let data = try reads.load(url)
+                if gate.value == nil {
+                    gate.record(true)
+                    firstReadStarted.fulfill()
+                    XCTAssertEqual(releaseFirstRead.wait(timeout: .now() + 5), .success)
+                }
+                return data
+            }
+        )
+        let target = Transcript(
+            sourceFileName: "target.wav",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_100),
+            fullText: "latest-match"
+        )
+        try store.save(target)
+        for index in 0..<4 {
+            try store.save(
+                Transcript(
+                    sourceFileName: "other-\(index).wav",
+                    createdAt: Date(timeIntervalSince1970: 1_700_000_000 + Double(index)),
+                    fullText: "old-match \(index)"
+                )
+            )
+        }
+
+        let latestCancelledOld = expectation(description: "latest search cancelled previous task")
+        let isLatestPhase = CancellationRecorder()
+        let model = HistorySearchViewModel(
+            historyStore: store,
+            waitForDebounce: {
+                if isLatestPhase.value == true {
+                    latestCancelledOld.fulfill()
+                }
+            }
+        )
+        let oldSearch = Task { await model.search(query: "old-match") }
+        await fulfillment(of: [firstReadStarted], timeout: 2)
+
+        // 古い走査が 1 件目で停止している間に新しい検索を開始し、cancel() 実行後に解放する。
+        isLatestPhase.record(true)
+        let latestSearch = Task { await model.search(query: "latest-match") }
+        await fulfillment(of: [latestCancelledOld], timeout: 2)
+        releaseFirstRead.signal()
+
+        await oldSearch.value
+        await latestSearch.value
+
+        XCTAssertEqual(model.items.map(\.id), [target.id])
+        // 古い走査は 1 件目で中断し、新しい走査はキャッシュ済み 1 件を再利用して残り 4 件のみ読むため合計 5 回。
+        XCTAssertEqual(reads.total, 5)
+    }
+
     func testViewModelSearchReflectsOverwrittenTranscriptWithUnchangedMetadata() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
