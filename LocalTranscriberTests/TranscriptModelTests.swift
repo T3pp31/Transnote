@@ -1050,6 +1050,45 @@ final class TranscriptModelTests: XCTestCase {
         XCTAssertEqual(results.first?.segments.first?.text, "seg-5")
         XCTAssertEqual(fullReads.urls.count, 2, "不一致や limit 外の履歴は完全デコードしないこと")
     }
+
+    func testApplyFullTextEditSingleLineDistributesAcrossSegmentsWithoutCharacterArray() {
+        var ascii = Transcript(
+            sourceFileName: "en.wav",
+            fullText: "one two three",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 1, text: "alpha"),
+                TranscriptSegment(startTime: 1, endTime: 2, text: "bravo"),
+                TranscriptSegment(startTime: 2, endTime: 3, text: "charlie")
+            ]
+        )
+        ascii.applyFullTextEdit("Hello   Swift   today")
+        XCTAssertEqual(ascii.fullText, "Hello   Swift   today")
+        XCTAssertEqual(ascii.segments.map(\.text), ["Hello", "Swift", "today"])
+
+        var cjkAndEmoji = Transcript(
+            sourceFileName: "ja.wav",
+            fullText: "",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 2, text: ""),
+                TranscriptSegment(startTime: 2, endTime: 4, text: "")
+            ]
+        )
+        cjkAndEmoji.applyFullTextEdit("👨‍👩‍👧‍👦こんにちは世界🇯🇵")
+        XCTAssertEqual(cjkAndEmoji.segments.map(\.text).joined(), "👨‍👩‍👧‍👦こんにちは世界🇯🇵")
+        XCTAssertFalse(cjkAndEmoji.segments[0].text.isEmpty)
+        XCTAssertFalse(cjkAndEmoji.segments[1].text.isEmpty)
+
+        var whitespaceOnly = Transcript(
+            sourceFileName: "ws.wav",
+            fullText: "a",
+            segments: [
+                TranscriptSegment(startTime: 0, endTime: 1, text: "a"),
+                TranscriptSegment(startTime: 1, endTime: 2, text: "b")
+            ]
+        )
+        whitespaceOnly.applyFullTextEdit("     ")
+        XCTAssertEqual(whitespaceOnly.segments.map(\.text), ["", ""])
+    }
 }
 
 /// ストアと検索 ViewModel の回帰テストで、実ファイルの読み込み回数を検証する。
