@@ -21,8 +21,12 @@ struct MainWindowView: View {
         .frame(minWidth: 560, minHeight: DesignTokens.Layout.windowMinHeight)
         .onAppear {
             viewModel.refreshModelAvailability()
+            viewModel.refreshSelectedFileAvailability()
             updateChecker.checkOnLaunch()
             recoveryTranscript = viewModel.temporaryTranscriptForRecovery()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            viewModel.refreshSelectedFileAvailability()
         }
         .alert(
             "クラッシュ復旧",

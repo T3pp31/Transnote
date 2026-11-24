@@ -82,7 +82,13 @@ struct AppDependencies {
 final class MainWindowViewModel: ObservableObject {
     @Published var uiState: TranscriptionUIState = .idle
     @Published var progressDisplay: TranscriptionProgressDisplay = .idle()
-    @Published var selectedFile: AudioFileInfo?
+    @Published var selectedFile: AudioFileInfo? {
+        didSet {
+            refreshSelectedFileAvailability()
+        }
+    }
+    /// SwiftUI body の再評価ごとに同期 fileExists を呼ばないよう、選択ファイルの存在確認結果を保持する。
+    @Published private(set) var isSelectedFileAvailable = false
     private var storedTranscriptText: String = ""
     /// セグメント編集中は `storedTranscript.fullText` を唯一の本文バッファとして共有し、
     /// `transcriptText` 側との参照共有による全文 COW コピーと全走査比較を避ける。
@@ -189,6 +195,7 @@ final class MainWindowViewModel: ObservableObject {
     private let modelDownloadService: ModelDownloadService
     private let audioPlayer: AudioPlayerService
     private let historyStore: HistoryStore
+    private let fileExistsChecker: (String) -> Bool
 
     init(
         transcriber: Transcriber = WhisperKitTranscriber(),
@@ -201,7 +208,8 @@ final class MainWindowViewModel: ObservableObject {
         modelAvailability: ModelAvailabilityService = ModelAvailabilityService(),
         modelDownloadService: ModelDownloadService = ModelDownloadService(),
         audioPlayer: AudioPlayerService? = nil,
-        historyStore: HistoryStore = HistoryStore()
+        historyStore: HistoryStore = HistoryStore(),
+        fileExistsChecker: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) {
         self.transcriber = transcriber
         self.audioFileService = audioFileService
@@ -214,12 +222,16 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = modelDownloadService
         self.audioPlayer = audioPlayer ?? AudioPlayerService()
         self.historyStore = historyStore
+        self.fileExistsChecker = fileExistsChecker
         configureAudioPlayerCallbacks()
         refreshModelAvailability()
     }
 
     /// AppDependencies 経由で依存をまとめて注入するイニシャライザ。
-    init(dependencies: AppDependencies) {
+    init(
+        dependencies: AppDependencies,
+        fileExistsChecker: @escaping (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
+    ) {
         self.transcriber = dependencies.transcriber
         self.audioFileService = dependencies.audioFileService
         self.audioImportService = dependencies.audioImportService
@@ -231,6 +243,7 @@ final class MainWindowViewModel: ObservableObject {
         self.modelDownloadService = dependencies.modelDownloadService
         self.audioPlayer = dependencies.audioPlayer ?? AudioPlayerService()
         self.historyStore = dependencies.historyStore
+        self.fileExistsChecker = fileExistsChecker
         configureAudioPlayerCallbacks()
         refreshModelAvailability()
     }
@@ -267,10 +280,18 @@ final class MainWindowViewModel: ObservableObject {
         operationCoordinator.activeOperation != nil || isDownloadingModel
     }
 
-    /// 選択中のファイルが実在する場合だけ返す。削除済みの参照を各機能で使わないための単一の判定源。
+    /// 選択中ファイルの存在確認結果を更新する。ファイル選択・取り込み完了・アプリ復帰・実行直前に呼ぶ。
+    func refreshSelectedFileAvailability() {
+        guard let selectedFile else {
+            isSelectedFileAvailable = false
+            return
+        }
+        isSelectedFileAvailable = fileExistsChecker(selectedFile.url.path)
+    }
+
+    /// 選択中のファイルが実在する場合だけ返す。body 評価時はキャッシュ済み状態のみを参照する。
     var existingSelectedFile: AudioFileInfo? {
-        guard let selectedFile,
-              FileManager.default.fileExists(atPath: selectedFile.url.path) else {
+        guard let selectedFile, isSelectedFileAvailable else {
             return nil
         }
         return selectedFile
@@ -741,6 +762,8 @@ final class MainWindowViewModel: ObservableObject {
             return
         }
 
+        refreshSelectedFileAvailability()
+
         guard let file = selectedFile,
               let model = settings.selectedModel else {
             let message = AppError.invalidConfiguration.errorDescription
@@ -749,6 +772,11 @@ final class MainWindowViewModel: ObservableObject {
                 title: NSLocalizedString("設定エラー", comment: "Configuration error title"),
                 message: message
             )
+            return
+        }
+
+        guard isSelectedFileAvailable else {
+            handleError(AppError.fileNotFound, context: .general)
             return
         }
 
@@ -984,6 +1012,7 @@ final class MainWindowViewModel: ObservableObject {
     }
 
     func playSegment(_ segment: TranscriptSegment) {
+        refreshSelectedFileAvailability()
         guard let file = existingSelectedFile else {
             showToast(
                 NSLocalizedString("音声ファイルが見つからないため再生できません", comment: "Audio file missing for playback"),
