@@ -637,3 +637,17 @@ require で本番 app.js を読み、export された helper を検証。DOM は
 4. **少数の具体的な誤実装で改善を確認する。** 先頭 asset 固定、1 か所だけの版更新、cleanup 呼出し削除、誤った schemaVersion、キャンセル先の誤接続を新しいテストが失敗として検出することを完了条件にする。単に全テストが緑という条件だけにはしない。
 
 この監査で未確定の製品仕様は、日付のタイムゾーン、全文と複数 segment の編集同期、checkpoint からの再開範囲など。台帳は観測できる現状と保護の欠落までを記録した。実装修正時には既存の期待動作を確認してから期待値を定める。
+
+## 是正結果台帳（#482 完了記録）
+
+PR #858 および本 PR により、台帳上の個別指摘（L01–L27）・横断実行条件（C01–C04）・未検証経路（G01–G10）・生成/CI 整合性（R01–R04）のすべてを是正した。
+
+| 区分 | 主な対応内容と参照先 |
+| --- | --- |
+| L01–L03 | `ModelDownloadService.downloadIfNeeded` の失敗クリーンアップ検証（[ModelDownloadServiceTests.swift](../LocalTranscriberTests/ModelDownloadServiceTests.swift)）、実 0 バイト削除と冪等性・一時ファイル観測（[AudioImportServiceTests.swift](../LocalTranscriberTests/AudioImportServiceTests.swift)） |
+| L04–L09 | 未使用の `DropURLParser`・`SupportedAudioTypes.isSupported`・`AudioFileService.probeDecodability` および常時 pass の `ModelResolveProbeTests` を整理し、本番入口（[AudioFileServiceTests.swift](../LocalTranscriberTests/AudioFileServiceTests.swift)・[SecurityScopedFileAccessTests.swift](../LocalTranscriberTests/SecurityScopedFileAccessTests.swift)・[TranscriptModelTests.swift](../LocalTranscriberTests/TranscriptModelTests.swift)）へ保護を集約 |
+| L10–L11 | [TranscriptionSmokeTests.swift](../LocalTranscriberTests/TranscriptionSmokeTests.swift) で `RUN_WHISPER_SMOKE_TEST=1` 時の fixture 欠落を明示エラー化＋モデル保存先を隔離。[PerformanceBaselineTests.swift](../LocalTranscriberTests/PerformanceBaselineTests.swift) を `RUN_PERFORMANCE_BASELINE=1` ゲート化＋設定モデル参照へ同期 |
+| L12–L27 | 重複 5 件の統合、JSON `schemaVersion` 厳密検証・バイト進捗値/単位・UTType 集合・再生状態観測・空 root モデル取得・UI 起動条件固定・TZ 非依存/デコイ資産 JS テスト・設定隔離・HTTP 500 対照検証・非同期ゲート同期・全 `MARKETING_VERSION` 更新検証を完了 |
+| C01–C04 | `HistoryStore(historyRoot:temporaryRoot:)`・隔離 `UserDefaults`・`URLSession.invalidateAndCancel()`・UI テスト引数固定で実ユーザーデータ汚染を排除 |
+| G01–G10 | UI 取消先の実タスク接続（`cancelActiveOperation`）、ドロップ〜旧コピー削除、全文/セグメント編集同期と保存、連続更新チェック/ETag、チャンク推論・モデル index 30 秒 TTL 決定検証（[ModelAvailabilityServiceTests.swift](../LocalTranscriberTests/ModelAvailabilityServiceTests.swift)）、履歴/復旧、サイト DOM 解決順、配布スクリプト異常系・設定検証を網羅 |
+| R01–R04 | `generate_xcodeproj.py` の一時再生成ゲート（[test-release-scripts.sh](../scripts/test-release-scripts.sh)）、Pages 設定 `--check`、README 全表記検証、および [run-tests.sh](../scripts/run-tests.sh) / [test-run-tests.py](../scripts/test-run-tests.py) による `xcresult` 実行件数・スキップ件数記録と 0 件実行拒否を導入 |
