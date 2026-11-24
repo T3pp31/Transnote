@@ -475,7 +475,7 @@ private struct HistorySheet: View {
                 .textFieldStyle(.roundedBorder)
 
             if searchModel.items.isEmpty {
-                Text("履歴はまだありません。")
+                Text(HistorySheetEmptyState.message(for: query))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.top, 40)
@@ -506,5 +506,20 @@ private struct HistorySheet: View {
         .task(id: query) {
             await searchModel.search(query: query)
         }
+    }
+}
+
+enum HistorySheetEmptyState {
+    static func message(for query: String) -> String {
+        if query.isEmpty {
+            return NSLocalizedString(
+                "履歴はまだありません。",
+                comment: "No transcription history yet"
+            )
+        }
+        return NSLocalizedString(
+            "該当する履歴がありません。",
+            comment: "No matching history search results"
+        )
     }
 }

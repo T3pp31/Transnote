@@ -449,6 +449,21 @@ final class HistorySearchViewModelTests: XCTestCase {
         XCTAssertEqual(model.items.map(\.id), [transcript.id])
         XCTAssertEqual(reads.total, 2)
     }
+
+    func testHistorySheetEmptyStateMessageDistinguishesEmptyQueryAndNoSearchMatches() {
+        XCTAssertEqual(
+            HistorySheetEmptyState.message(for: ""),
+            L("履歴はまだありません。", comment: "No transcription history yet")
+        )
+        XCTAssertEqual(
+            HistorySheetEmptyState.message(for: "nonexistent"),
+            L("該当する履歴がありません。", comment: "No matching history search results")
+        )
+        XCTAssertEqual(
+            HistorySheetEmptyState.message(for: " "),
+            L("該当する履歴がありません。", comment: "No matching history search results")
+        )
+    }
 }
 
 private actor ManualHistoryDebounce {
