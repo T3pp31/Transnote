@@ -166,7 +166,7 @@ class DistributionAppNameTests(unittest.TestCase):
         exported = self.root / "build/release" / f"{name}.app"
         self.assertEqual((exported / "marker").read_text(), "original bundle")
         self.success(self.run_bash("scripts/export-release-app.sh", "--output", "build/release",
-                                  "--verify-only"))
+                                  "--verify-only", "--allow-unsigned"))
         self.success(self.run_bash("-c", workflow_script("Create DMG")))
         versioned = self.root / "build/dist" / f"{name}-1.2.3.dmg"
         self.assertEqual(versioned.read_bytes(),
