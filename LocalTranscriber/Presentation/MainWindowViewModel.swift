@@ -97,17 +97,19 @@ final class MainWindowViewModel: ObservableObject {
     var transcriptText: String {
         get {
             if isTranscriptTextSyncedToStoredTranscript {
+                if let draft = activeSegmentDraft {
+                    return draft.fullText
+                }
                 return storedTranscript?.fullText ?? storedTranscriptText
             }
             return storedTranscriptText
         }
         set {
-            if !isTranscriptTextSyncedToStoredTranscript, newValue == storedTranscriptText {
+            let currentText = transcriptText
+            if newValue == currentText {
                 return
             }
-            if isTranscriptTextSyncedToStoredTranscript, let current = storedTranscript?.fullText, newValue == current {
-                return
-            }
+            commitActiveSegmentDraftIfNeeded()
             objectWillChange.send()
             isTranscriptTextSyncedToStoredTranscript = false
             storedTranscriptText = newValue
@@ -119,16 +121,26 @@ final class MainWindowViewModel: ObservableObject {
     private var storedTranscript: Transcript?
 
     var currentTranscript: Transcript? {
-        get { storedTranscript }
+        get {
+            guard var transcript = storedTranscript else { return nil }
+            if let draft = activeSegmentDraft {
+                transcript.segments[draft.index].text = draft.text
+                transcript.fullText = draft.fullText
+            }
+            return transcript
+        }
         set {
             objectWillChange.send()
             if isTranscriptTextSyncedToStoredTranscript {
-                storedTranscriptText = storedTranscript?.fullText ?? storedTranscriptText
+                if let draft = activeSegmentDraft {
+                    storedTranscriptText = draft.fullText
+                } else {
+                    storedTranscriptText = storedTranscript?.fullText ?? storedTranscriptText
+                }
                 isTranscriptTextSyncedToStoredTranscript = false
             }
+            activeSegmentDraft = nil
             storedTranscript = newValue
-            // 全文編集・復元・書き出しなど、セグメント編集以外の更新で位置情報を無効化する。
-            segmentTextEditLocation = nil
         }
     }
     @Published var baselineTranscriptText: String = ""
@@ -177,14 +189,28 @@ final class MainWindowViewModel: ObservableObject {
     /// transcriptText 更新時に算出する。body 再評価のたびに全文を trimming しないため。
     private var hasNonEmptyTranscriptText = false
 
-    private struct SegmentTextEditLocation {
+    private struct ActiveSegmentDraft {
         let id: UUID
         let index: Int
-        let utf8Offset: Int
+        var text: String
+        let prefix: String
+        let suffix: String
+        let prefixHasNonWhitespace: Bool
+        let suffixHasNonWhitespace: Bool
+
+        var fullText: String {
+            var combined = String()
+            combined.reserveCapacity(prefix.utf8.count + text.utf8.count + suffix.utf8.count)
+            combined.append(prefix)
+            combined.append(text)
+            combined.append(suffix)
+            return combined
+        }
     }
 
-    // 同じ行への連続入力では、ID 検索と先行セグメントの走査も再実行しない。
-    private var segmentTextEditLocation: SegmentTextEditLocation?
+    // セグメント編集中は Transcript 全体や segments 配列を毎入力でコピーせず、
+    // 編集対象セグメントの可変ドラフトだけを O(1) で更新し、切り替え・確定時に反映する。
+    private var activeSegmentDraft: ActiveSegmentDraft?
 
     private let modelDownloadCoordinator = ModelDownloadCoordinator()
 
@@ -967,57 +993,62 @@ final class MainWindowViewModel: ObservableObject {
         text.unicodeScalars.contains { !CharacterSet.whitespacesAndNewlines.contains($0) }
     }
 
+    private func commitActiveSegmentDraftIfNeeded() {
+        guard let draft = activeSegmentDraft, storedTranscript != nil else { return }
+        storedTranscript!.segments[draft.index].text = draft.text
+        storedTranscript!.fullText = draft.fullText
+        activeSegmentDraft = nil
+    }
+
     /// セグメントのテキストを更新し、currentTranscript と全文に同期する。
-    /// 値型 Transcript の複製を避けて in-place 更新することで、連続入力時の
-    /// セグメント配列 COW コピーと全文バッファの再コピー・全走査を抑止する。
+    /// 同一セグメントへの連続入力では編集用ドラフトバッファだけを O(1) で更新し、
+    /// セグメント配列の COW コピーと全文の線形インデックス走査・再結合を回避する。
     func updateSegmentText(id: UUID, text: String) {
         guard storedTranscript != nil else { return }
-        let previousLocation = segmentTextEditLocation
-        let index: Int
-        let utf8Offset: Int
-        if let previousLocation, previousLocation.id == id {
-            index = previousLocation.index
-            utf8Offset = previousLocation.utf8Offset
-        } else {
-            guard let segmentIndex = storedTranscript?.segments.firstIndex(where: { $0.id == id }) else { return }
-            index = segmentIndex
-            // セグメント間の区切りは 1 バイトの改行。本文中の改行も文字列長に含める。
-            utf8Offset = storedTranscript!.segments.prefix(index).reduce(index) { $0 + $1.text.utf8.count }
+
+        if var draft = activeSegmentDraft, draft.id == id {
+            objectWillChange.send()
+            draft.text = text
+            activeSegmentDraft = draft
+            hasSegmentTextEdits = true
+            hasNonEmptyTranscriptText = draft.prefixHasNonWhitespace
+                || draft.suffixHasNonWhitespace
+                || Self.containsNonWhitespaceScalar(text)
+            return
         }
 
-        objectWillChange.send()
+        guard let index = storedTranscript?.segments.firstIndex(where: { $0.id == id }) else { return }
 
-        // transcriptText 側の重複参照を解放し、storedTranscript.fullText を一意参照にする。
+        // 別セグメントへ移動した場合は直前のドラフトを確定してから新しいドラフトを開始する。
+        commitActiveSegmentDraftIfNeeded()
+        let segments = storedTranscript!.segments
+        let prefix = index > 0
+            ? segments[..<index].map(\.text).joined(separator: "\n") + "\n"
+            : ""
+        let suffix = index + 1 < segments.count
+            ? "\n" + segments[(index + 1)...].map(\.text).joined(separator: "\n")
+            : ""
+
+        objectWillChange.send()
         if !isTranscriptTextSyncedToStoredTranscript {
             storedTranscriptText = ""
             isTranscriptTextSyncedToStoredTranscript = true
         }
 
-        let previousUTF8Count = storedTranscript!.segments[index].text.utf8.count
-        storedTranscript!.segments[index].text = text
-        if previousLocation == nil {
-            // 復元時や全文編集後は fullText がセグメント結合と異なる場合がある。
-            // 初回だけ結合して contiguous UTF-8 化し、以後は O(1) オフセットで差分置換する。
-            storedTranscript!.fullText = storedTranscript!.segments.map(\.text).joined(separator: "\n")
-            storedTranscript!.fullText.makeContiguousUTF8()
-        } else {
-            storedTranscript!.fullText.makeContiguousUTF8()
-            let start = storedTranscript!.fullText.utf8.index(
-                storedTranscript!.fullText.utf8.startIndex,
-                offsetBy: utf8Offset
-            )
-            let end = storedTranscript!.fullText.utf8.index(start, offsetBy: previousUTF8Count)
-            // CR + 区切りの LF が一つの Character になる場合も、セグメント境界で置換する。
-            storedTranscript!.fullText.unicodeScalars.replaceSubrange(start..<end, with: text.unicodeScalars)
-        }
+        let draft = ActiveSegmentDraft(
+            id: id,
+            index: index,
+            text: text,
+            prefix: prefix,
+            suffix: suffix,
+            prefixHasNonWhitespace: Self.containsNonWhitespaceScalar(prefix),
+            suffixHasNonWhitespace: Self.containsNonWhitespaceScalar(suffix)
+        )
+        activeSegmentDraft = draft
         hasSegmentTextEdits = true
-        segmentTextEditLocation = SegmentTextEditLocation(id: id, index: index, utf8Offset: utf8Offset)
-        // 編集後セグメントに非空白文字があれば全文走査を省き O(編集長) で判定する。
-        if Self.containsNonWhitespaceScalar(text) {
-            hasNonEmptyTranscriptText = true
-        } else {
-            hasNonEmptyTranscriptText = Self.containsNonWhitespaceScalar(storedTranscript!.fullText)
-        }
+        hasNonEmptyTranscriptText = draft.prefixHasNonWhitespace
+            || draft.suffixHasNonWhitespace
+            || Self.containsNonWhitespaceScalar(text)
     }
 
     func copyTranscript() {
