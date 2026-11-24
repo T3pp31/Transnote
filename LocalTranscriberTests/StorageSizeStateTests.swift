@@ -218,7 +218,99 @@ final class StorageSizeStateTests: XCTestCase {
         }
     }
 
+    func testModelDiskUsageTextUsesCacheAndRefreshesOffMainThread() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let suiteName = "ModelDiskUsageCacheTests.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = AppSettings(defaults: defaults)
+        let model = try XCTUnwrap(settings.selectedModel)
+
+        let folder = root.appendingPathComponent(model.whisperKitModelName, isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        for name in ["MelSpectrogram", "AudioEncoder", "TextDecoder"] {
+            try Data(repeating: 0x2a, count: 100).write(to: folder.appendingPathComponent("\(name).mlmodelc"))
+        }
+
+        let probe = DiskUsageScanProbe(folder: folder)
+        let availability = ModelAvailabilityService(
+            modelsRoot: root,
+            directoryScanner: { _ in probe.scan() }
+        )
+        let viewModel = MainWindowViewModel(settings: settings, modelAvailability: availability)
+        XCTAssertTrue(viewModel.isModelDownloaded(model))
+
+        // キャッシュ無効化後に modelDiskUsageText を繰り返し参照しても、同期走査は発生しない。
+        availability.invalidateCache()
+        probe.reset()
+        for _ in 0..<5 {
+            XCTAssertNil(viewModel.modelDiskUsageText(model))
+        }
+        XCTAssertEqual(probe.scanCount, 0)
+
+        // refreshModelDiskUsage はバックグラウンドで計算してキャッシュへ反映する。
+        viewModel.refreshModelDiskUsage(for: model)
+        await viewModel.modelDiskUsageTask?.value
+        XCTAssertEqual(probe.scanCount, 1)
+        XCTAssertEqual(probe.lastScannedOnMainThread, false)
+        XCTAssertEqual(viewModel.modelDiskUsageText(model), formattedSize(300))
+
+        // キャッシュ済みの値は再評価ごとに再走査せず返却される。
+        availability.invalidateCache()
+        for _ in 0..<5 {
+            XCTAssertEqual(viewModel.modelDiskUsageText(model), formattedSize(300))
+        }
+        XCTAssertEqual(probe.scanCount, 1)
+
+        // モデル削除後の再取得でキャッシュがクリアされる。
+        try FileManager.default.removeItem(at: folder)
+        viewModel.refreshModelAvailability()
+        XCTAssertNil(viewModel.modelDiskUsageText(model))
+    }
+
     private func formattedSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+private final class DiskUsageScanProbe: @unchecked Sendable {
+    private let folder: URL
+    private let lock = NSLock()
+    private var count = 0
+    private var lastOnMain: Bool?
+
+    init(folder: URL) {
+        self.folder = folder
+    }
+
+    var scanCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    var lastScannedOnMainThread: Bool? {
+        lock.lock()
+        defer { lock.unlock() }
+        return lastOnMain
+    }
+
+    func reset() {
+        lock.lock()
+        count = 0
+        lastOnMain = nil
+        lock.unlock()
+    }
+
+    func scan() -> [URL] {
+        lock.lock()
+        count += 1
+        lastOnMain = Thread.isMainThread
+        lock.unlock()
+        return FileManager.default.fileExists(atPath: folder.path) ? [folder] : []
     }
 }

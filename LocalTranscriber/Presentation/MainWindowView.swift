@@ -124,6 +124,7 @@ struct MainWindowView: View {
                 onDownloadSelectedModel: viewModel.downloadSelectedModel,
                 onDeleteSelectedModel: viewModel.deleteSelectedModel,
                 onDiskUsage: viewModel.modelDiskUsageText,
+                onRefreshDiskUsage: viewModel.refreshModelDiskUsage,
                 modelsRevision: viewModel.downloadedModelIDs.count,
                 onModelsCleared: viewModel.refreshModelAvailability,
                 onImportsCleared: viewModel.handleImportsCleared
