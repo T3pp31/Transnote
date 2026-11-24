@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import plistlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -75,7 +76,7 @@ def workflow_script(name):
     script = textwrap.dedent(step.split("        run: |\n", 1)[1])
     # 絶対パスの macOS ツールとスクリプトの起動方法のみをテスト環境向けに変更。
     script = script.replace("/usr/libexec/PlistBuddy", "mock_plistbuddy")
-    script = script.replace("./scripts/", "bash ./scripts/")
+    script = re.sub(r"(?m)^(\s*)\./scripts/", r"\1bash ./scripts/", script)
     script = script.replace("${{ env.RELEASE_APP_DIR }}", "$RELEASE_APP_DIR")
     if "${{" in script:
         raise AssertionError(f"Unhandled workflow expression in {name}")
@@ -86,13 +87,13 @@ class DistributionAppNameTests(unittest.TestCase):
     def setUp(self):
         work = tempfile.TemporaryDirectory(prefix="distribution name ")
         self.addCleanup(work.cleanup)
-        self.root = Path(work.name)
+        self.root = Path(work.name).resolve()
         for directory in ("scripts", "Config"):
             (self.root / directory).mkdir()
         for name in ("export-release-app.sh", "generate-sbom.sh", "create-dmg.sh",
-                     "install-transnote.command"):
+                     "install-transnote.command", "release-security-notice.sh"):
             shutil.copyfile(ROOT / "scripts" / name, self.root / "scripts" / name)
-        for name in ("distribution.plist", "sbom.plist"):
+        for name in ("distribution.plist", "sbom.plist", "github-config.json"):
             shutil.copyfile(ROOT / "Config" / name, self.root / "Config" / name)
         # create-dmg は macOS 専用。export と SBOM は実際の Python フォールバックを使用。
         dmg = self.root / "scripts/create-dmg.sh"
@@ -136,14 +137,69 @@ class DistributionAppNameTests(unittest.TestCase):
         return values
 
     def test_default_name_and_sbom_settings(self):
-        expected = plistlib.loads(self.distribution.read_bytes())["AppName"]
+        dist = plistlib.loads(self.distribution.read_bytes())
+        expected = dist["AppName"]
+        expected_install_script = dist["InstallScriptName"]
+        expected_repo = json.loads((self.root / "Config/github-config.json").read_text())["expected_repository"]
         self.assertNotIn("AppName", self.sbom_config)
         self.assertEqual(self.resolve_name(), {
-            "APP_NAME": expected, "ARCHIVE_PATH": f"build/{expected}.xcarchive"})
+            "APP_NAME": expected,
+            "ARCHIVE_PATH": f"build/{expected}.xcarchive",
+            "INSTALL_SCRIPT_NAME": expected_install_script,
+            "EXPECTED_REPOSITORY": expected_repo,
+        })
         for key, value in (("AppName", expected),
                            ("SyftVersion", self.sbom_config["SyftVersion"]),
                            ("CIArtifactName", self.sbom_config["CIArtifactName"])):
             self.assertEqual(self.success(self.run_bash("scripts/generate-sbom.sh", "--print", key)), value)
+
+    def test_release_notes_use_configured_install_script_and_repository(self):
+        notes_script = workflow_script("Prepare release notes")
+        self.assertNotIn("インストール.command", notes_script)
+        self.assertNotIn("T3pp31/Transnote", notes_script)
+
+        config = plistlib.loads(self.distribution.read_bytes())
+        config["AppName"] = "CustomApp"
+        config["InstallScriptName"] = "SetupCustom.command"
+        self.distribution.write_bytes(plistlib.dumps(config))
+        gh_cfg = json.loads((self.root / "Config/github-config.json").read_text())
+        gh_cfg["expected_repository"] = "ExampleOrg/CustomRepo"
+        (self.root / "Config/github-config.json").write_text(json.dumps(gh_cfg))
+
+        self.resolve_name()
+        self.env.update({
+            "VERSIONED_DMG_NAME": "CustomApp-1.2.3.dmg",
+            "LATEST_DMG_NAME": "CustomApp.dmg",
+            "VERSIONED_HASH": "a" * 64,
+            "LATEST_HASH": "b" * 64,
+        })
+        self.success(self.run_bash("-c", notes_script))
+        body = (self.root / "release_body.md").read_text(encoding="utf-8")
+        self.assertIn("**SetupCustom.command**", body)
+        self.assertIn("https://github.com/ExampleOrg/CustomRepo/blob/main/docs/install.md", body)
+        self.assertNotIn("インストール.command", body)
+        self.assertNotIn("T3pp31/Transnote", body)
+
+    def test_unsafe_install_script_or_repository_is_rejected(self):
+        for bad_script in ("", "bad/name.command", "bad$(id).command", "a\nb"):
+            with self.subTest(install_script=bad_script):
+                config = plistlib.loads(self.distribution.read_bytes())
+                config["InstallScriptName"] = bad_script
+                self.distribution.write_bytes(plistlib.dumps(config))
+                self.github_env.write_text("")
+                result = self.run_bash("-c", workflow_script("Read distribution config"))
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(self.github_env.read_text(), "")
+        shutil.copyfile(ROOT / "Config/distribution.plist", self.distribution)
+        for bad_repo in ("", "no-slash", "owner/repo/extra", "owner/repo;id"):
+            with self.subTest(expected_repository=bad_repo):
+                (self.root / "Config/github-config.json").write_text(
+                    json.dumps({"expected_repository": bad_repo})
+                )
+                self.github_env.write_text("")
+                result = self.run_bash("-c", workflow_script("Read distribution config"))
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertEqual(self.github_env.read_text(), "")
 
     def test_app_name_with_unsafe_characters_is_rejected(self):
         for name in ("別名 App", "App Name", "App;id", "$(id)", "`id`", "App'x", "a/b"):
