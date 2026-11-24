@@ -106,7 +106,15 @@ class NightlyWorkflowSecurityTests(unittest.TestCase):
         self.assertTrue(actions, "nightly action steps not found")
         for action in actions:
             with self.subTest(action=action):
-                self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
+                if action.startswith("./.github/actions/"):
+                    action_file = ROOT / action.removeprefix("./") / "action.yml"
+                    self.assertTrue(action_file.is_file(), f"local action not found: {action_file}")
+                    nested = re.findall(r"(?m)^ +(?:- )?uses: (\S+)", action_file.read_text(encoding="utf-8"))
+                    self.assertTrue(nested, f"no external actions found in {action_file}")
+                    for nested_action in nested:
+                        self.assertRegex(nested_action, r"^[^@]+@[0-9a-f]{40}$")
+                else:
+                    self.assertRegex(action, r"^[^@]+@[0-9a-f]{40}$")
 
     def test_checkouts_do_not_persist_credentials(self):
         steps = re.split(r"(?m)^      - ", self.workflow)[1:]

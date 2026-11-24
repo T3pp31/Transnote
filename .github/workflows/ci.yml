@@ -155,22 +155,11 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read Xcode version
+      - name: Setup Xcode and SPM cache
         id: xcode_config
-        run: |
-          set -euo pipefail
-          version="$(python3 scripts/read-xcode-version.py)"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        uses: ./.github/actions/setup-xcode-spm
         with:
-          xcode-version: ${{ steps.xcode_config.outputs.version }}
-
-      - name: Cache SPM repositories
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: ~/Library/Caches/org.swift.swiftpm
-          key: spm-${{ runner.os }}-xcode-${{ steps.xcode_config.outputs.version }}-${{ hashFiles('LocalTranscriber.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          spm-cache-prefix: spm
 
       # The cache whitelists DerivedData subdirectories needed for incremental
       # builds (paths kept literal; actions/cache inputs are safest without
