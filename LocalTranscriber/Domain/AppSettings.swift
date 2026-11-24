@@ -80,15 +80,28 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
 
     private let defaults: UserDefaults
     private let defaultModelID: String
+    private let physicalMemoryGBProvider: () -> Double
+    private let processorCountProvider: () -> Int
     private let modelKey = "selectedModelID"
     private let languageKey = "selectedLanguageID"
     private let updateCheckKey = "updateCheckEnabled"
     private let defaultExportFormatKey = "defaultExportFormat"
     private let vadKey = "vadEnabled"
 
-    init(config: AppConfig = .shared, defaults: UserDefaults = .standard) {
+    init(
+        config: AppConfig = .shared,
+        defaults: UserDefaults = .standard,
+        physicalMemoryGBProvider: @escaping () -> Double = {
+            Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
+        },
+        processorCountProvider: @escaping () -> Int = {
+            ProcessInfo.processInfo.processorCount
+        }
+    ) {
         self.defaults = defaults
         defaultModelID = config.defaultModelID
+        self.physicalMemoryGBProvider = physicalMemoryGBProvider
+        self.processorCountProvider = processorCountProvider
         models = config.models
         languages = config.languages
         supportedExtensions = config.supportedExtensions
@@ -125,13 +138,18 @@ final class AppSettings: ObservableObject, AppSettingsProviding {
     }
 
     /// RAM・CPUコア数に基づく推奨モデル ID。
-    /// - 16GB 以上: small
+    /// - 16GB 以上または 12 コア以上: small
     /// - 8GB 以上: base
     /// - それ以外: tiny
     var recommendedModelID: String {
-        let memoryGB = Double(ProcessInfo.processInfo.physicalMemory) / (1024 * 1024 * 1024)
-        let cores = ProcessInfo.processInfo.processorCount
-        if memoryGB >= 16 || cores >= 12 {
+        Self.recommendedModelID(
+            memoryGB: physicalMemoryGBProvider(),
+            processorCount: processorCountProvider()
+        )
+    }
+
+    nonisolated static func recommendedModelID(memoryGB: Double, processorCount: Int) -> String {
+        if memoryGB >= 16 || processorCount >= 12 {
             return "small"
         }
         if memoryGB >= 8 {
