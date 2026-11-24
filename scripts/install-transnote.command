@@ -187,6 +187,12 @@ eject_installer_volume() {
 
 remove_quarantine_attribute() {
   local target="$1"
+  # 署名が存在するのに検証に失敗する（改ざん・破損した署名）場合は検疫属性を除去せず中断・ロールバックする。
+  if command -v codesign >/dev/null 2>&1 && ! codesign --verify --deep --strict "$target" >/dev/null 2>&1; then
+    if codesign -d "$target" >/dev/null 2>&1; then
+      fail "${APP_NAME}.app のコード署名が破損または改ざんされています。インストールを中止しました。"
+    fi
+  fi
   # 署名・公証済みアプリは Gatekeeper の評価を通過するため検疫属性の除去を行わない。
   if command -v spctl >/dev/null 2>&1 && spctl --assess --type execute "$target" >/dev/null 2>&1; then
     return 0

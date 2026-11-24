@@ -51,6 +51,16 @@ elif command == "spctl":
     if os.environ.get("MOCK_SPCTL_PASS") == "1":
         sys.exit(0)
     sys.exit(3)
+elif command == "codesign":
+    state = os.environ.get(
+        "MOCK_CODESIGN_STATE",
+        "valid" if os.environ.get("MOCK_SPCTL_PASS") == "1" else "unsigned",
+    )
+    if args and args[0] == "--verify":
+        sys.exit(0 if state == "valid" else 1)
+    if args and args[0] == "-d":
+        sys.exit(0 if state in ("valid", "invalid") else 1)
+    sys.exit(1)
 elif command == "ditto":
     deployment = args[1] == os.environ["MOCK_TARGET"]
     if deployment and os.environ.get("MOCK_PAUSE") == "1":
@@ -88,7 +98,8 @@ class InstallerTests(unittest.TestCase):
             for name, command in (("mock_plistbuddy", "PlistBuddy"), ("hdiutil", "hdiutil"),
                                   ("ditto", "ditto"), ("osascript", "osascript"),
                                   ("open", "open"), ("xattr", "xattr"), ("sleep", "sleep"),
-                                  ("shasum", "shasum"), ("spctl", "spctl"))
+                                  ("shasum", "shasum"), ("spctl", "spctl"),
+                                  ("codesign", "codesign"))
         ) + "\n")
         self.dmg = self.work / "Transnote.dmg"
         self.dmg.write_bytes(b"local dmg fixture")
@@ -241,9 +252,23 @@ class InstallerTests(unittest.TestCase):
         proc, run = self.start("signed", MOCK_SPCTL_PASS="1")
         self.assertEqual(self.result(proc)[0], 0)
         events = (run / "events").read_text()
+        self.assertIn("codesign --verify --deep --strict ", events)
         self.assertIn("spctl --assess --type execute ", events)
         self.assertNotIn("xattr ", events)
         self.assertEqual((self.target / "marker").read_text(), "new")
+        self.assert_clean()
+
+    def test_tampered_signature_is_rejected_and_rolls_back_without_removing_quarantine(self):
+        proc, run = self.start("tampered-signature", MOCK_CODESIGN_STATE="invalid", MOCK_SPCTL_PASS="0")
+        self.assertNotEqual(self.result(proc)[0], 0)
+        events = (run / "events").read_text()
+        self.assertIn("codesign --verify --deep --strict ", events)
+        self.assertIn("codesign -d ", events)
+        self.assertIn("コード署名が破損または改ざん", events)
+        self.assertNotIn("xattr ", events)
+        self.assertNotIn("open ", events)
+        self.assertNotIn("インストールしました", events)
+        self.assertEqual((self.target / "marker").read_text(), "old")
         self.assert_clean()
 
     def test_unsigned_app_removes_quarantine_after_checksum_verification(self):
